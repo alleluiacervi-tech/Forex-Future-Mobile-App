@@ -1,11 +1,17 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Card, Text } from '../../components/common';
 import { useTheme } from '../../hooks';
+import { RootStackParamList } from '../../types';
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function SettingsScreen() {
+  const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [soundEnabled, setSoundEnabled] = React.useState(true);
@@ -45,7 +51,9 @@ export default function SettingsScreen() {
       id: 'about',
       title: 'About',
       icon: 'info',
-      onPress: () => {},
+      onPress: () => {
+        navigation.navigate('About');
+      },
     },
     {
       id: 'help',

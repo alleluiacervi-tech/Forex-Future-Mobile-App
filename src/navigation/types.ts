@@ -1,4 +1,5 @@
 export type RootStackParamList = {
+  Landing: undefined;
   Main: undefined;
   CurrencyDetail: { pair: string };
   ChartDetail: { pair: string };

@@ -7,11 +7,15 @@ import { RootStackParamList, MainTabParamList } from './types';
 import { NAVIGATION_CONFIG } from './config';
 
 // Screens
+import LandingScreen from '../screens/Landing';
 import HomeScreen from '../screens/Home';
 import MarketScreen from '../screens/Market';
 import NotificationsScreen from '../screens/Notifications';
 import ProfileScreen from '../screens/Profile';
 import CurrencyDetailScreen from '../screens/CurrencyDetail';
+import AboutScreen from '../screens/About';
+import WelcomeScreen from '../screens/Welcome';
+import SubscriptionScreen from '../screens/Subscription';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -56,7 +60,13 @@ export default function MainNavigator() {
           },
           headerTintColor: NAVIGATION_CONFIG.headerTintColor,
         }}
+        initialRouteName="Landing"
       >
+        <Stack.Screen
+          name="Landing"
+          component={LandingScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="Main"
           component={MainTabs}
@@ -66,6 +76,21 @@ export default function MainNavigator() {
           name="CurrencyDetail"
           component={CurrencyDetailScreen}
           options={{ title: 'Currency Details' }}
+        />
+        <Stack.Screen
+          name="About"
+          component={AboutScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Welcome"
+          component={WelcomeScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Subscription"
+          component={SubscriptionScreen}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>
