@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { ScreenWrapper, Container } from '../../components/layout';
-import { Card, Text } from '../../components/common';
+import { Card, Tabs, Text } from '../../components/common';
 import { mockTrades } from '../../constants/marketData';
 import { useTheme } from '../../hooks';
 import { formatCurrency, formatPrice, formatDate } from '../../utils';
