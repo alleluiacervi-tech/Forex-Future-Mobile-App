@@ -12,6 +12,8 @@ export const Input: React.FC<InputProps> = ({
   error,
   keyboardType = 'default',
   secureTextEntry = false,
+  leftAccessory,
+  rightAccessory,
   style,
 }) => {
   const theme = useTheme();
@@ -21,19 +23,23 @@ export const Input: React.FC<InputProps> = ({
       {label && (
         <Text style={inputStyles.label}>{label}</Text>
       )}
-      <TextInput
-        style={[
-          inputStyles.input,
-          error && inputStyles.inputError,
-          style,
-        ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={theme.colors.textSecondary}
-        keyboardType={keyboardType}
-        secureTextEntry={secureTextEntry}
-      />
+      <View style={[inputStyles.inputWrapper, error && inputStyles.inputError, style]}>
+        {leftAccessory ? (
+          <View style={inputStyles.accessoryLeft}>{leftAccessory}</View>
+        ) : null}
+        <TextInput
+          style={inputStyles.input}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={theme.colors.textSecondary}
+          keyboardType={keyboardType}
+          secureTextEntry={secureTextEntry}
+        />
+        {rightAccessory ? (
+          <View style={inputStyles.accessoryRight}>{rightAccessory}</View>
+        ) : null}
+      </View>
       {error && (
         <Text style={inputStyles.error}>{error}</Text>
       )}

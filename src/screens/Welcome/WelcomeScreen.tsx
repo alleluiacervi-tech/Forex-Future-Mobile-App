@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper, Container } from '../../components/layout';
-import { Text, Button } from '../../components/common';
+import { Text, Button, Input } from '../../components/common';
 import { useTheme } from '../../hooks';
 import { RootStackParamList } from '../../types';
 
@@ -86,64 +86,37 @@ export default function WelcomeScreen() {
 
             {/* Form Card */}
             <View style={[styles.formCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-              {/* Email */}
-              <View style={styles.inputContainer}>
-                <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
-                  Email Address
-                </Text>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border },
-                  ]}
-                >
-                  <Icon name="mail" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: theme.colors.text }]}
-                    placeholder="trader@example.com"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-              </View>
+              <Input
+                label="Email Address"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="trader@example.com"
+                keyboardType="email-address"
+                leftAccessory={<Icon name="mail" size={20} color={theme.colors.textSecondary} />}
+              />
 
-              {/* Password */}
-              <View style={styles.inputContainer}>
-                <View style={styles.passwordLabelContainer}>
-                  <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
-                    Password
+              <View style={styles.passwordLabelContainer}>
+                <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
+                  Password
+                </Text>
+                <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7}>
+                  <Text variant="bodySmall" color={theme.colors.primary} style={styles.forgotPassword}>
+                    Forgot?
                   </Text>
-                  <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7}>
-                    <Text variant="bodySmall" color={theme.colors.primary} style={styles.forgotPassword}>
-                      Forgot?
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border },
-                  ]}
-                >
-                  <Icon name="lock" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, { color: theme.colors.text }]}
-                    placeholder="••••••••"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
+                </TouchableOpacity>
+              </View>
+              <Input
+                label=""
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
+                leftAccessory={<Icon name="lock" size={20} color={theme.colors.textSecondary} />}
+                rightAccessory={
                   <TouchableOpacity
-                    onPress={() => setShowPassword(!showPassword)}
+                    onPress={() => setShowPassword((v) => !v)}
                     activeOpacity={0.7}
-                    style={styles.eyeIcon}
+                    style={styles.eyeInline}
                   >
                     <Icon
                       name={showPassword ? 'visibility' : 'visibility-off'}
@@ -151,8 +124,8 @@ export default function WelcomeScreen() {
                       color={theme.colors.textSecondary}
                     />
                   </TouchableOpacity>
-                </View>
-              </View>
+                }
+              />
 
               <Button
                 title="Sign in"
@@ -296,25 +269,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    minHeight: 56,
-  },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: 0,
-  },
-  eyeIcon: {
-    marginLeft: 12,
-    padding: 4,
+  eyeInline: {
+    padding: 6,
   },
   forgotPassword: {
     fontSize: 14,

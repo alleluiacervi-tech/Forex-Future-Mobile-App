@@ -134,32 +134,55 @@ export default function SubscriptionScreen() {
               error={emailError}
             />
 
-            <View style={styles.passwordRow}>
-              <View style={styles.passwordRowLeft}>
-                <Input
-                  label="Password"
-                  value={password}
-                  onChangeText={(t) => {
-                    setPassword(t);
-                    if (!touched.password) setTouched((p) => ({ ...p, password: true }));
-                  }}
-                  placeholder="••••••••"
-                  secureTextEntry={!showPassword}
-                  error={passwordError}
-                />
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowPassword((v) => !v)}
-                activeOpacity={0.7}
-                style={[styles.eyeButton, { borderColor: theme.colors.border }]}
-              >
-                <Icon
-                  name={showPassword ? 'visibility' : 'visibility-off'}
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
+            <Input
+              label="Password"
+              value={password}
+              onChangeText={(t) => {
+                setPassword(t);
+                if (!touched.password) setTouched((p) => ({ ...p, password: true }));
+              }}
+              placeholder="••••••••"
+              secureTextEntry={!showPassword}
+              error={passwordError}
+              rightAccessory={
+                <TouchableOpacity
+                  onPress={() => setShowPassword((v) => !v)}
+                  activeOpacity={0.7}
+                  style={styles.eyeInline}
+                >
+                  <Icon
+                    name={showPassword ? 'visibility' : 'visibility-off'}
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              }
+            />
+
+            <Input
+              label="Confirm Password"
+              value={confirmPassword}
+              onChangeText={(t) => {
+                setConfirmPassword(t);
+                if (!touched.confirmPassword) setTouched((p) => ({ ...p, confirmPassword: true }));
+              }}
+              placeholder="••••••••"
+              secureTextEntry={!showConfirmPassword}
+              error={confirmPasswordError}
+              rightAccessory={
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword((v) => !v)}
+                  activeOpacity={0.7}
+                  style={styles.eyeInline}
+                >
+                  <Icon
+                    name={showConfirmPassword ? 'visibility' : 'visibility-off'}
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              }
+            />
 
             {/* Plan Selection */}
             <View style={styles.planSection}>
@@ -230,8 +253,7 @@ export default function SubscriptionScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={[styles.billingRow, { borderColor: theme.colors.border }]}
-              >
+              <View style={styles.billingRow}>
                 <TouchableOpacity
                   activeOpacity={0.85}
                   onPress={() => setSelectedBilling('monthly')}
@@ -304,33 +326,6 @@ export default function SubscriptionScreen() {
                   ${selectedPrice}
                 </Text>
               </View>
-            </View>
-
-            <View style={styles.passwordRow}>
-              <View style={styles.passwordRowLeft}>
-                <Input
-                  label="Confirm Password"
-                  value={confirmPassword}
-                  onChangeText={(t) => {
-                    setConfirmPassword(t);
-                    if (!touched.confirmPassword) setTouched((p) => ({ ...p, confirmPassword: true }));
-                  }}
-                  placeholder="••••••••"
-                  secureTextEntry={!showConfirmPassword}
-                  error={confirmPasswordError}
-                />
-              </View>
-              <TouchableOpacity
-                onPress={() => setShowConfirmPassword((v) => !v)}
-                activeOpacity={0.7}
-                style={[styles.eyeButton, { borderColor: theme.colors.border }]}
-              >
-                <Icon
-                  name={showConfirmPassword ? 'visibility' : 'visibility-off'}
-                  size={20}
-                  color={theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
             </View>
 
             <View style={styles.confirmSection}>
@@ -497,22 +492,8 @@ const styles = StyleSheet.create({
   summaryPrice: {
     fontWeight: '800',
   },
-  passwordRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-  },
-  passwordRowLeft: {
-    flex: 1,
-  },
-  eyeButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
+  eyeInline: {
+    padding: 6,
   },
   confirmSection: {
     paddingTop: 8,

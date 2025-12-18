@@ -11,14 +11,27 @@ export const inputStyles = StyleSheet.create({
     marginBottom: spacing.sm,
     fontWeight: '500',
   },
-  input: {
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    minHeight: 52,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: spacing.md,
     fontSize: 16,
     color: colors.text,
+  },
+  accessoryLeft: {
+    marginRight: spacing.sm,
+  },
+  accessoryRight: {
+    marginLeft: spacing.sm,
   },
   inputError: {
     borderColor: colors.error,
