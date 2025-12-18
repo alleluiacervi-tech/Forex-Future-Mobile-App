@@ -43,34 +43,68 @@ export default function LandingScreen() {
           <View style={[styles.logoWrapper, { marginBottom: height * 0.06 }]}>
             <View style={[styles.logoContainer, {
               backgroundColor: 'transparent',
-              borderRadius: Math.min(width * 0.03, 16),
-              paddingVertical: Math.max(height * 0.02, 16),
-              paddingHorizontal: Math.min(width * 0.06, 24),
-              shadowColor: theme.colors.primary,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 8,
-              elevation: 8,
+              paddingVertical: Math.max(height * 0.025, 16),
+              paddingHorizontal: Math.min(width * 0.08, 32),
             }]}>
-              <Text style={[styles.logoMainText, {
-                color: theme.colors.primary,
-                fontSize: Math.min(width * 0.14, isSmallScreen ? 42 : 56),
-                fontWeight: '800',
-                letterSpacing: 2,
-                textAlign: 'center',
-              }]}>
-                FX FUTURE
-              </Text>
-              <Text style={[styles.logoSubText, {
+              {/* Professional Candlestick Logo */}
+              <View style={styles.logoSymbol}>
+                {/* Professional Trading Candles Logo */}
+                <View style={styles.professionalLogoContainer}>
+                  {/* Bullish Candle (Green) */}
+                  <View style={[styles.professionalCandle, styles.candle1]}>
+                    <View style={[styles.candleWick, styles.upperWick]} />
+                    <View style={[styles.candleBody, styles.bullishBody]} />
+                    <View style={[styles.candleWick, styles.lowerWick]} />
+                    <View style={[styles.volumeIndicator, styles.bullishVolume]} />
+                  </View>
+
+                  {/* Bearish Candle (Red) */}
+                  <View style={[styles.professionalCandle, styles.candle2]}>
+                    <View style={[styles.candleWick, styles.upperWick]} />
+                    <View style={[styles.candleBody, styles.bearishBody]} />
+                    <View style={[styles.candleWick, styles.lowerWick]} />
+                    <View style={[styles.volumeIndicator, styles.bearishVolume]} />
+                  </View>
+                </View>
+
+                {/* Forex Future Text */}
+                <View style={styles.forexText}>
+                  <Text style={[styles.forexTitle, {
+                    color: theme.colors.primary,
+                    fontSize: Math.min(width * 0.12, isSmallScreen ? 36 : 48),
+                    fontWeight: '900',
+                    letterSpacing: 2,
+                    textAlign: 'center',
+                    textShadowColor: theme.colors.primary + '50',
+                    textShadowOffset: { width: 0, height: 2 },
+                    textShadowRadius: 6,
+                  }]}>
+                    FOREX
+                  </Text>
+                  <Text style={[styles.futureTitle, {
+                    color: theme.colors.textSecondary || theme.colors.text,
+                    fontSize: Math.min(width * 0.08, isSmallScreen ? 24 : 32),
+                    fontWeight: '600',
+                    letterSpacing: 1.5,
+                    textAlign: 'center',
+                    opacity: 0.9,
+                  }]}>
+                    Future
+                  </Text>
+                </View>
+              </View>
+
+              {/* Professional tagline */}
+              <Text style={[styles.logoTagline, {
                 color: theme.colors.textSecondary || theme.colors.text,
-                fontSize: Math.min(width * 0.045, isSmallScreen ? 14 : 16),
-                marginTop: Math.max(height * 0.005, 2),
-                opacity: 0.7,
+                fontSize: Math.min(width * 0.04, isSmallScreen ? 12 : 14),
+                marginTop: Math.max(height * 0.02, 8),
+                opacity: 0.8,
                 textAlign: 'center',
-                fontWeight: '400',
+                fontWeight: '500',
                 letterSpacing: 1,
               }]}>
-                Professional Trading
+                Advanced Trading Technology
               </Text>
             </View>
           </View>
@@ -233,20 +267,107 @@ const styles = StyleSheet.create({
     minWidth: 140,
     minHeight: 100,
   },
-  logoMainText: {
+  logoSymbol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  professionalLogoContainer: {
+    width: 90,
+    height: 85,
+    position: 'relative',
+    marginRight: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  professionalCandle: {
+    position: 'absolute',
+    alignItems: 'center',
+  },
+  candle1: {
+    left: 8,
+    top: 15,
+  },
+  candle2: {
+    right: 8,
+    top: 25,
+  },
+  candleBody: {
+    width: 14,
+    height: 35,
+    borderRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  bullishBody: {
+    backgroundColor: '#10B981', // Professional green
+  },
+  bearishBody: {
+    backgroundColor: '#EF4444', // Professional red
+  },
+  candleWick: {
+    width: 1.5,
+    backgroundColor: '#6B7280', // Professional gray
+    position: 'absolute',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
+    elevation: 1,
+  },
+  upperWick: {
+    top: -12,
+    height: 12,
+  },
+  lowerWick: {
+    bottom: -12,
+    height: 12,
+  },
+  volumeIndicator: {
+    position: 'absolute',
+    bottom: -8,
+    width: 12,
+    height: 3,
+    borderRadius: 1.5,
+    opacity: 0.6,
+  },
+  bullishVolume: {
+    backgroundColor: '#10B981',
+  },
+  bearishVolume: {
+    backgroundColor: '#EF4444',
+  },
+  candleBody: {
+    position: 'absolute',
+    top: 12,
+    left: 3,
+  },
+  candleWick: {
+    position: 'absolute',
+  },
+  forexText: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  forexTitle: {
     fontWeight: '900',
-    letterSpacing: 3,
+    letterSpacing: 2,
     textAlign: 'center',
   },
-  logoSubText: {
+  futureTitle: {
     fontWeight: '600',
     letterSpacing: 1.5,
     textAlign: 'center',
   },
-  logoAccent: {
-    alignSelf: 'center',
+  logoTagline: {
+    fontWeight: '500',
+    textAlign: 'center',
+    letterSpacing: 1,
   },
-  headlineContainer: {},
   headline: {
     fontWeight: '700',
     textAlign: 'center',
