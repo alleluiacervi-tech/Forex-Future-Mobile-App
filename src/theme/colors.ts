@@ -3,6 +3,7 @@ export const colors = {
   primary: '#4CAF50',
   primaryDark: '#388E3C',
   primaryLight: '#81C784',
+  onPrimary: '#ffffff',
 
   // Accent colors
   accent: '#2196F3',

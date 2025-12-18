@@ -109,7 +109,7 @@ export default function AIRecommendationCard({ recommendation }: AIRecommendatio
           {recommendation.targetPrice && (
             <View style={styles.level}>
               <Text variant="caption" color={theme.colors.textSecondary}>Target:</Text>
-              <Text variant="bodySmall" style={{ color: theme.colors.success }}>
+              <Text variant="bodySmall" color={theme.colors.success}>
                 ${recommendation.targetPrice.toFixed(4)}
               </Text>
             </View>
@@ -117,7 +117,7 @@ export default function AIRecommendationCard({ recommendation }: AIRecommendatio
           {recommendation.stopLoss && (
             <View style={styles.level}>
               <Text variant="caption" color={theme.colors.textSecondary}>Stop Loss:</Text>
-              <Text variant="bodySmall" style={{ color: theme.colors.error }}>
+              <Text variant="bodySmall" color={theme.colors.error}>
                 ${recommendation.stopLoss.toFixed(4)}
               </Text>
             </View>
