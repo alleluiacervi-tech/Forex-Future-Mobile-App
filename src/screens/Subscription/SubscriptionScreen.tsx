@@ -21,22 +21,21 @@ export default function SubscriptionScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [touched, setTouched] = useState({ email: false, password: false, confirmPassword: false });
 
-  type Tier = 'basic' | 'premium';
   type Billing = 'monthly' | 'quarterly' | 'yearly';
 
-  const [selectedTier, setSelectedTier] = useState<Tier>('basic');
   const [selectedBilling, setSelectedBilling] = useState<Billing>('monthly');
 
   const pricing = useMemo(
     () =>
       ({
-        basic: { monthly: 10, quarterly: 30, yearly: 120 },
-        premium: { monthly: 20, quarterly: 60, yearly: 240 },
+        monthly: 10,
+        quarterly: 30,
+        yearly: 120,
       }) as const,
     []
   );
 
-  const selectedPrice = pricing[selectedTier][selectedBilling];
+  const selectedPrice = pricing[selectedBilling];
   const billingLabel = selectedBilling === 'monthly' ? 'month' : selectedBilling === 'quarterly' ? '3 months' : 'year';
 
   const emailError = useMemo(() => {
@@ -71,7 +70,6 @@ export default function SubscriptionScreen() {
     console.log('Free trial redeemed:', {
       email: email.trim().toLowerCase(),
       plan: {
-        tier: selectedTier,
         billing: selectedBilling,
         price: selectedPrice,
       },
@@ -107,7 +105,7 @@ export default function SubscriptionScreen() {
                   14‑Day Free Trial
                 </Text>
                 <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                  Create an account and choose a plan. You won’t be charged until your trial ends.
+                  Create an account and choose billing. You won’t be charged until your trial ends.
                 </Text>
               </View>
             </View>
@@ -196,61 +194,27 @@ export default function SubscriptionScreen() {
               </View>
 
               <View style={styles.planGrid}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setSelectedTier('basic')}
+                <View
                   style={[
                     styles.planCard,
                     {
                       backgroundColor: theme.colors.surfaceLight,
-                      borderColor: selectedTier === 'basic' ? theme.colors.primary : theme.colors.border,
+                      borderColor: theme.colors.primary,
                     },
                   ]}
                 >
                   <View style={styles.planCardTopRow}>
                     <Text variant="h4" style={styles.planTitle}>
-                      Basic
+                      Signals
                     </Text>
-                    {selectedTier === 'basic' ? (
-                      <View style={[styles.selectedBadge, { backgroundColor: theme.colors.primary }]}>
-                        <Icon name="check" size={14} color={theme.colors.onPrimary} />
-                      </View>
-                    ) : (
-                      <View style={[styles.unselectedBadge, { borderColor: theme.colors.border }]} />
-                    )}
+                    <View style={[styles.selectedBadge, { backgroundColor: theme.colors.primary }]}>
+                      <Icon name="check" size={14} color={theme.colors.onPrimary} />
+                    </View>
                   </View>
                   <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                    Essential signals and alerts
+                    All users get the same live feed signals and alerts
                   </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setSelectedTier('premium')}
-                  style={[
-                    styles.planCard,
-                    {
-                      backgroundColor: theme.colors.surfaceLight,
-                      borderColor: selectedTier === 'premium' ? theme.colors.primary : theme.colors.border,
-                    },
-                  ]}
-                >
-                  <View style={styles.planCardTopRow}>
-                    <Text variant="h4" style={styles.planTitle}>
-                      Premium
-                    </Text>
-                    {selectedTier === 'premium' ? (
-                      <View style={[styles.selectedBadge, { backgroundColor: theme.colors.primary }]}>
-                        <Icon name="check" size={14} color={theme.colors.onPrimary} />
-                      </View>
-                    ) : (
-                      <View style={[styles.unselectedBadge, { borderColor: theme.colors.border }]} />
-                    )}
-                  </View>
-                  <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                    Full access + advanced insights
-                  </Text>
-                </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.billingRow}>
@@ -316,7 +280,7 @@ export default function SubscriptionScreen() {
               <View style={[styles.summaryRow, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }]}>
                 <View style={styles.summaryLeft}>
                   <Text variant="body" style={styles.summaryTitle}>
-                    {selectedTier === 'basic' ? 'Basic' : 'Premium'} • {selectedBilling === 'monthly' ? 'Monthly' : selectedBilling === 'quarterly' ? '3 Months' : 'Yearly'}
+                    Signals • {selectedBilling === 'monthly' ? 'Monthly' : selectedBilling === 'quarterly' ? '3 Months' : 'Yearly'}
                   </Text>
                   <Text variant="caption" color={theme.colors.textSecondary}>
                     Billed ${selectedPrice}/{billingLabel} after trial
@@ -330,7 +294,7 @@ export default function SubscriptionScreen() {
 
             <View style={styles.confirmSection}>
               <Button
-                title={`Redeem Free Trial • ${selectedTier === 'basic' ? 'Basic' : 'Premium'} $${selectedPrice}/${billingLabel}`}
+                title={`Redeem Free Trial • Signals $${selectedPrice}/${billingLabel}`}
                 onPress={handleRedeemTrial}
                 variant="primary"
                 size="large"
