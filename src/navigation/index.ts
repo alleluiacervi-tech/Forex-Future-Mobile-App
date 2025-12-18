@@ -1,4 +1,5 @@
 export { default } from './MainNavigator';
-export * from './types';
+// Re-export shared navigation config and types from central types module
+export * from '../types';
 export * from './config';
 

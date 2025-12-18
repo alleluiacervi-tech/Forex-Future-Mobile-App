@@ -1,51 +1,13 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import Svg, { Path } from 'react-native-svg';
 import { RootStackParamList } from '../../types';
 import { Text } from '../../components/common';
 import { useTheme } from '../../hooks';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-// App Icon Component - Green line graph/arrow
-const AppIcon = () => {
-  const theme = useTheme();
-  return (
-    <View style={[styles.iconContainer, { backgroundColor: theme.colors.surfaceLight }]}>
-      <Svg width="48" height="48" viewBox="0 0 48 48">
-        {/* Upward trending line graph */}
-        <Path
-          d="M8 36 L12 28 L16 32 L20 24 L24 28 L28 20 L32 26"
-          stroke={theme.colors.primary}
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* Arrow pointing up */}
-        <Path
-          d="M28 20 L32 14 L36 20"
-          stroke={theme.colors.primary}
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Path
-          d="M32 14 L32 8"
-          stroke={theme.colors.primary}
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-        />
-      </Svg>
-    </View>
-  );
-};
 
 export default function LandingScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -63,59 +25,95 @@ export default function LandingScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text style={{ color: 'white', fontSize: 20 }}>Landing Screen Loaded</Text>
       <View style={styles.content}>
         {/* App Icon */}
         <View style={styles.iconWrapper}>
-          {/* <AppIcon /> */}
-          <Text style={{ color: 'white' }}>Icon Placeholder</Text>
+          <View style={styles.logoContainer}>
+            <Text style={[styles.logoText, { color: theme.colors.primary }]}>
+              FX
+            </Text>
+            <Text style={[styles.logoSubText, { color: theme.colors.text }]}>
+              Future
+            </Text>
+          </View>
         </View>
 
         {/* Headline */}
         <View style={styles.headlineContainer}>
           <Text style={[styles.headline, { color: theme.colors.text }]}>
-            Trade with{' '}
-            <Text style={[styles.headline, { color: theme.colors.primary }]}>Precision</Text>
+            Welcome to{' '}
+            <Text style={[styles.headline, { color: theme.colors.primary }]}>
+              Forex Future
+            </Text>
           </Text>
         </View>
 
-        {/* Description */}
-        <Text style={[styles.description, { color: theme.colors.text }]}>
-          Real-time forex notifications, volatility alerts, and market news delivered instantly to your device.
-        </Text>
+        {/* Brief description */}
+        <View style={styles.descriptionContainer}>
+          <Text style={[styles.description, { color: theme.colors.text }]}>
+            Your ultimate forex trading companion. Track markets, analyze trends, and make informed trading decisions with real-time data and advanced charting tools.
+          </Text>
+        </View>
 
-        {/* Buttons */}
+        {/* Feature highlights */}
+        <View style={styles.featuresContainer}>
+          <View style={styles.featureRow}>
+            <Icon name="trending-up" size={24} color={theme.colors.primary} />
+            <Text style={[styles.featureText, { color: theme.colors.text }]}>
+              Real-time market data and live price updates
+            </Text>
+          </View>
+
+          <View style={styles.featureRow}>
+            <Icon name="show-chart" size={24} color={theme.colors.primary} />
+            <Text style={[styles.featureText, { color: theme.colors.text }]}>
+              Advanced charting with multiple timeframes
+            </Text>
+          </View>
+
+          <View style={styles.featureRow}>
+            <Icon name="notifications" size={24} color={theme.colors.primary} />
+            <Text style={[styles.featureText, { color: theme.colors.text }]}>
+              Price alerts and market notifications
+            </Text>
+          </View>
+
+          <View style={styles.featureRow}>
+            <Icon name="account-balance-wallet" size={24} color={theme.colors.primary} />
+            <Text style={[styles.featureText, { color: theme.colors.text }]}>
+              Portfolio tracking and performance analytics
+            </Text>
+          </View>
+        </View>
+
+        {/* Action buttons */}
         <View style={styles.buttonsContainer}>
-          {/* Explore Features Button */}
           <TouchableOpacity
             style={[styles.exploreButton, { backgroundColor: theme.colors.surface }]}
             onPress={handleExploreFeatures}
-            activeOpacity={0.7}
           >
-            <Text style={[styles.exploreButtonText, { color: theme.colors.text }]}>
+            <Text style={[styles.exploreButtonText, { color: theme.colors.primary }]}>
               Explore Features
             </Text>
-            <Icon name="arrow-forward" size={20} color={theme.colors.text} />
+            <Icon name="arrow-forward" size={20} color={theme.colors.primary} />
           </TouchableOpacity>
 
-          {/* Sign In Button */}
           <TouchableOpacity
             style={[styles.signInButton, { backgroundColor: theme.colors.primary }]}
             onPress={handleSignIn}
-            activeOpacity={0.8}
           >
-            <Text style={[styles.signInButtonText, { color: theme.colors.text }]}>
-              Sign In
+            <Text style={[styles.signInButtonText, { color: theme.colors.onPrimary }]}>
+              Get Started
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
-          PROFESSIONAL TRADING TERMINAL V2.0
-        </Text>
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
+            © 2025 Forex Future. All rights reserved.
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -127,19 +125,26 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingTop: 80,
+    paddingTop: 60,
+    paddingBottom: 40,
   },
   iconWrapper: {
-    marginBottom: 48,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 16,
-    justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: 40,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoText: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  logoSubText: {
+    fontSize: 18,
+    fontWeight: '600',
   },
   headlineContainer: {
     marginBottom: 16,
@@ -148,15 +153,34 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: 'bold',
     lineHeight: 44,
+    textAlign: 'center',
+  },
+  descriptionContainer: {
+    marginBottom: 32,
   },
   description: {
     fontSize: 16,
     lineHeight: 24,
-    marginBottom: 40,
-    paddingRight: 8,
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+  featuresContainer: {
+    marginBottom: 48,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 8,
+  },
+  featureText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
   buttonsContainer: {
     gap: 16,
+    marginTop: 8,
   },
   exploreButton: {
     flexDirection: 'row',

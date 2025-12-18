@@ -44,22 +44,24 @@ export default function AboutScreen() {
 
   const features = [
     {
+      icon: 'show-chart',
+      iconColor: '#4CAF50', // Green
+      title: 'Market Volatility',
+      description: 'Track volatility and momentum so you can react before the move is over.',
+    },
+    {
+      icon: 'psychology',
+      iconColor: '#9C27B0', // Purple
+      title: 'AI Insights',
+      description:
+        'AI‑powered insights that surface high‑probability setups based on price action and volatility.',
+    },
+    {
       icon: 'notifications-active',
       iconColor: '#FFC107', // Yellow
       title: 'Price Alerts',
-      description: 'Instant notifications when pairs hit your target levels.',
-    },
-    {
-      icon: 'show-chart',
-      iconColor: '#4CAF50', // Green
-      title: 'Volatility Tracking',
-      description: 'Detect sudden market movements and volume spikes.',
-    },
-    {
-      icon: 'article',
-      iconColor: '#2196F3', // Blue
-      title: 'Market News',
-      description: 'Breaking financial news that impacts currency pairs.',
+      description:
+        'Smart alerts that notify you when key levels are hit so you don’t sit in front of charts all day.',
     },
   ];
 
@@ -81,13 +83,14 @@ export default function AboutScreen() {
 
           {/* Title */}
           <Text variant="h1" style={styles.title}>
-            Stay Ahead of the Market
+            AI Insights for Forex Traders
           </Text>
 
           {/* Description */}
           <Text variant="body" color={theme.colors.textSecondary} style={styles.description}>
-            Our terminal aggregates data from multiple liquidity providers to give you the fastest,
-            most accurate forex signals available.
+            Forex Future is your AI‑assisted trading copilot. We monitor volatility, scan the market
+            for opportunities, and send precise price alerts so you can focus on decisions—not
+            staring at charts all day.
           </Text>
 
           {/* Feature Cards */}
