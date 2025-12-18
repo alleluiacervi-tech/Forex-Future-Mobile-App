@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { Text } from '../common';
 import { useTheme } from '../../hooks';
-import { AIRecommendation } from '../../types/ai';
+import { AIRecommendation, RecommendationType } from '../../types/ai';
 
 interface AIRecommendationCardProps {
   recommendation: AIRecommendation;
@@ -103,14 +103,14 @@ export default function AIRecommendationCard({ recommendation }: AIRecommendatio
           {recommendation.entryPrice && (
             <View style={styles.level}>
               <Text variant="caption" color={theme.colors.textSecondary}>Entry:</Text>
-              <Text variant="bodySmall">${recommendation.entryPrice.toFixed(4)}</Text>
+              <Text variant="bodySmall">{recommendation.entryPrice.toFixed(4)}</Text>
             </View>
           )}
           {recommendation.targetPrice && (
             <View style={styles.level}>
-              <Text variant="caption" color={theme.colors.textSecondary}>Target:</Text>
+              <Text variant="caption" color={theme.colors.textSecondary}>Take Profit:</Text>
               <Text variant="bodySmall" color={theme.colors.success}>
-                ${recommendation.targetPrice.toFixed(4)}
+                {recommendation.targetPrice.toFixed(4)}
               </Text>
             </View>
           )}
@@ -118,7 +118,7 @@ export default function AIRecommendationCard({ recommendation }: AIRecommendatio
             <View style={styles.level}>
               <Text variant="caption" color={theme.colors.textSecondary}>Stop Loss:</Text>
               <Text variant="bodySmall" color={theme.colors.error}>
-                ${recommendation.stopLoss.toFixed(4)}
+                {recommendation.stopLoss.toFixed(4)}
               </Text>
             </View>
           )}

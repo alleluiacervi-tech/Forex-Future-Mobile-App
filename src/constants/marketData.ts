@@ -1,5 +1,6 @@
 import { CurrencyPair, Trade } from '../types/market';
 import { AIRecommendation } from '../types/ai';
+import type { MarketAlert } from '../types/alerts';
 
 export const mockCurrencyPairs: CurrencyPair[] = [
   {
@@ -97,6 +98,58 @@ export const mockCurrencyPairs: CurrencyPair[] = [
     high24h: 0.85900,
     low24h: 0.85700,
     volume24h: 450000000,
+  },
+];
+
+export const mockMarketAlerts: MarketAlert[] = [
+  {
+    id: 'a1',
+    pair: 'EUR/USD',
+    type: 'PRICE_ALERT',
+    title: 'Price alert triggered near key level',
+    message: 'Breakout above 1.0840 with rising volume. Institutional accumulation detected.',
+    timeframe: '15m',
+    changePercent: 0.21,
+    minutesAgo: 2,
+  },
+  {
+    id: 'a2',
+    pair: 'GBP/JPY',
+    type: 'VOLATILITY',
+    title: 'Volatility spike detected',
+    message: 'Spread widening + fast momentum. Consider reduced size and wider stop placement.',
+    timeframe: '5m',
+    changePercent: -0.44,
+    minutesAgo: 5,
+  },
+  {
+    id: 'a3',
+    pair: 'USD/JPY',
+    type: 'MARKET_NEWS',
+    title: 'Macro headline risk elevated',
+    message: 'Policy uncertainty increasing intraday whipsaw. Wait for confirmation after the next candle close.',
+    timeframe: '1h',
+    minutesAgo: 12,
+  },
+  {
+    id: 'a4',
+    pair: 'XAU/USD',
+    type: 'VOLATILITY',
+    title: 'Large impulse candle',
+    message: 'Momentum shift detected. Watch retest for higher-probability entry.',
+    timeframe: '15m',
+    changePercent: 0.83,
+    minutesAgo: 18,
+  },
+  {
+    id: 'a5',
+    pair: 'AUD/USD',
+    type: 'PRICE_ALERT',
+    title: 'Support test in progress',
+    message: 'Repeated tests of support with weakening bids. Breakdown risk rising.',
+    timeframe: '1h',
+    changePercent: -0.17,
+    minutesAgo: 26,
   },
 ];
 
