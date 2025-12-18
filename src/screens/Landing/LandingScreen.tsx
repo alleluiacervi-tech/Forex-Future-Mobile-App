@@ -42,50 +42,36 @@ export default function LandingScreen() {
           {/* App Logo */}
           <View style={[styles.logoWrapper, { marginBottom: height * 0.06 }]}>
             <View style={[styles.logoContainer, {
-              backgroundColor: theme.colors.surface,
-              borderRadius: Math.min(width * 0.04, 20),
-              paddingVertical: Math.max(height * 0.025, 20),
-              paddingHorizontal: Math.min(width * 0.08, 32),
+              backgroundColor: 'transparent',
+              borderRadius: Math.min(width * 0.03, 16),
+              paddingVertical: Math.max(height * 0.02, 16),
+              paddingHorizontal: Math.min(width * 0.06, 24),
               shadowColor: theme.colors.primary,
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.4,
-              shadowRadius: 12,
-              elevation: 12,
-              borderWidth: 1,
-              borderColor: theme.colors.primary + '30',
-              minWidth: Math.min(width * 0.4, 160),
-              minHeight: Math.min(height * 0.15, 120),
-              maxWidth: Math.min(width * 0.6, 200),
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 8,
             }]}>
               <Text style={[styles.logoMainText, {
                 color: theme.colors.primary,
-                fontSize: Math.min(width * 0.12, isSmallScreen ? 36 : 48),
-                textShadowColor: theme.colors.primary + '60',
-                textShadowOffset: { width: 0, height: 3 },
-                textShadowRadius: 6,
+                fontSize: Math.min(width * 0.14, isSmallScreen ? 42 : 56),
+                fontWeight: '800',
+                letterSpacing: 2,
+                textAlign: 'center',
               }]}>
-                FX
+                FX FUTURE
               </Text>
               <Text style={[styles.logoSubText, {
-                color: theme.colors.text,
-                fontSize: Math.min(width * 0.05, isSmallScreen ? 16 : 18),
-                marginTop: Math.max(height * 0.008, 4),
-                opacity: 0.9,
+                color: theme.colors.textSecondary || theme.colors.text,
+                fontSize: Math.min(width * 0.045, isSmallScreen ? 14 : 16),
+                marginTop: Math.max(height * 0.005, 2),
+                opacity: 0.7,
+                textAlign: 'center',
+                fontWeight: '400',
+                letterSpacing: 1,
               }]}>
-                Future
+                Professional Trading
               </Text>
-              <View style={[styles.logoAccent, {
-                backgroundColor: theme.colors.primary,
-                height: Math.max(height * 0.004, 3),
-                width: Math.min(width * 0.12, 60),
-                marginTop: Math.max(height * 0.015, 6),
-                borderRadius: 2,
-                shadowColor: theme.colors.primary,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.5,
-                shadowRadius: 4,
-                elevation: 4,
-              }]} />
             </View>
           </View>
 
