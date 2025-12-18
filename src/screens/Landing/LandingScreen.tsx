@@ -62,12 +62,13 @@ export default function LandingScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Text style={{ color: 'white', fontSize: 20 }}>Landing Screen Loaded</Text>
       <View style={styles.content}>
         {/* App Icon */}
         <View style={styles.iconWrapper}>
-          <AppIcon />
+          {/* <AppIcon /> */}
+          <Text style={{ color: 'white' }}>Icon Placeholder</Text>
         </View>
 
         {/* Headline */}
@@ -116,7 +117,7 @@ export default function LandingScreen() {
           PROFESSIONAL TRADING TERMINAL V2.0
         </Text>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
