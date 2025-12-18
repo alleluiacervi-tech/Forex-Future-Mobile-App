@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions }
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Text, Button } from '../../components/common';
 import { useTheme } from '../../hooks';
@@ -13,7 +14,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
-  const { width, height } = Dimensions.get('window');
+  const { width } = Dimensions.get('window');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -50,150 +51,136 @@ export default function WelcomeScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Brand Logo */}
-            <View style={styles.logoWrapper}>
-              <View style={styles.logoRow}>
+            {/* Hero */}
+            <LinearGradient
+              colors={[theme.colors.surface, theme.colors.surfaceLight]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.heroCard, { borderColor: theme.colors.border }]}
+            >
+              <View style={[styles.brandMark, { borderColor: theme.colors.border }]}>
                 <View style={styles.logoCandles}>
                   <View style={styles.candleBaseline} />
-                  <View style={[styles.logoCandle, styles.logoCandleLeft]} />
-                  <View style={[styles.logoCandle, styles.logoCandleCenter]} />
-                  <View style={[styles.logoCandle, styles.logoCandleRight]} />
-                </View>
-                <View style={styles.logoTextBlock}>
-                  <Text
-                    variant="h2"
-                    style={[
-                      styles.logoTitle,
-                      {
-                        color: theme.colors.primary,
-                        fontSize: Math.min(width * 0.08, 26),
-                      },
-                    ]}
-                  >
-                    FOREX
-                  </Text>
-                  <Text
-                    variant="subtitle"
-                    style={[
-                      styles.logoSubtitle,
-                      {
-                        color: theme.colors.textSecondary || theme.colors.text,
-                        fontSize: Math.min(width * 0.05, 18),
-                      },
-                    ]}
-                  >
-                    Future
-                  </Text>
+                  <View style={[styles.logoCandle, styles.logoCandleLeft, { backgroundColor: theme.colors.success }]} />
+                  <View style={[styles.logoCandle, styles.logoCandleCenter, { backgroundColor: theme.colors.info }]} />
+                  <View style={[styles.logoCandle, styles.logoCandleRight, { backgroundColor: theme.colors.error }]} />
                 </View>
               </View>
-            </View>
 
-            {/* Title */}
-            <Text variant="h1" style={styles.title}>
-              Sign in. Trade with confidence.
-            </Text>
-
-            {/* Subtitle */}
-            <Text variant="body" color={theme.colors.textSecondary} style={styles.subtitle}>
-              Secure access to your AI‑driven trading terminal.
-            </Text>
-
-            {/* Email Input */}
-            <View style={styles.inputContainer}>
-              <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
-                Email Address
+              <Text
+                variant="h2"
+                style={[
+                  styles.brandTitle,
+                  {
+                    color: theme.colors.text,
+                    fontSize: Math.min(width * 0.065, 24),
+                  },
+                ]}
+              >
+                Sign in to Forex Future
               </Text>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-                ]}
-              >
-                <Icon name="mail" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: theme.colors.text }]}
-                  placeholder="trader@example.com"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-            </View>
+              <Text variant="body" color={theme.colors.textSecondary} style={styles.subtitle}>
+                Secure access to your AI‑driven trading terminal.
+              </Text>
+            </LinearGradient>
 
-            {/* Password Input */}
-            <View style={styles.inputContainer}>
-              <View style={styles.passwordLabelContainer}>
+            {/* Form Card */}
+            <View style={[styles.formCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              {/* Email */}
+              <View style={styles.inputContainer}>
                 <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
-                  Password
+                  Email Address
                 </Text>
-                <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7}>
-                  <Text variant="bodySmall" color={theme.colors.primary} style={styles.forgotPassword}>
-                    Forgot password?
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
-                ]}
-              >
-                <Icon name="lock" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: theme.colors.text }]}
-                  placeholder="••••••••"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  activeOpacity={0.7}
-                  style={styles.eyeIcon}
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border },
+                  ]}
                 >
-                  <Icon
-                    name={showPassword ? 'visibility' : 'visibility-off'}
-                    size={20}
-                    color={theme.colors.textSecondary}
+                  <Icon name="mail" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: theme.colors.text }]}
+                    placeholder="trader@example.com"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
                   />
-                </TouchableOpacity>
+                </View>
               </View>
-            </View>
 
-            {/* Sign In Button */}
-            <View style={styles.buttonContainer}>
+              {/* Password */}
+              <View style={styles.inputContainer}>
+                <View style={styles.passwordLabelContainer}>
+                  <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
+                    Password
+                  </Text>
+                  <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7}>
+                    <Text variant="bodySmall" color={theme.colors.primary} style={styles.forgotPassword}>
+                      Forgot?
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border },
+                  ]}
+                >
+                  <Icon name="lock" size={20} color={theme.colors.textSecondary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: theme.colors.text }]}
+                    placeholder="••••••••"
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    activeOpacity={0.7}
+                    style={styles.eyeIcon}
+                  >
+                    <Icon
+                      name={showPassword ? 'visibility' : 'visibility-off'}
+                      size={20}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               <Button
-                title="Sign in and launch terminal →"
+                title="Sign in"
                 onPress={handleSignIn}
                 variant="primary"
                 size="large"
                 style={styles.signInButton}
               />
 
-              {/* Secondary forgot password link */}
-              <TouchableOpacity onPress={handleForgotPassword} activeOpacity={0.7}>
-                <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.forgotInline}>
-                  Forgot your password? Reset it securely.
+              <View style={[styles.dividerRow, { borderColor: theme.colors.border }]}>
+                <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
+                <Text variant="caption" color={theme.colors.textSecondary} style={styles.dividerText}>
+                  OR
                 </Text>
-              </TouchableOpacity>
-            </View>
+                <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
+              </View>
 
-            {/* Request Access Link */}
-            <View style={styles.registerContainer}>
-              <Text variant="body" color={theme.colors.textSecondary}>
-                Don't have an account?{' '}
+              <Button
+                title="Request Access"
+                onPress={handleRequestAccess}
+                variant="outline"
+                size="large"
+                style={styles.requestAccessButton}
+              />
+
+              <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.disclaimer}>
+                By continuing you agree to our Terms and acknowledge our Privacy Policy.
               </Text>
-              <TouchableOpacity onPress={handleRequestAccess} activeOpacity={0.7}>
-                <Text variant="body" color={theme.colors.primary} style={styles.requestAccess}>
-                  Request Access
-                </Text>
-              </TouchableOpacity>
             </View>
           </View>
         </Container>
@@ -215,88 +202,88 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     alignSelf: 'center',
   },
-  logoWrapper: {
-    marginBottom: 24,
-    alignItems: 'center',
+  heroCard: {
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 14,
   },
-  logoRow: {
-    flexDirection: 'row',
+  brandMark: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    marginBottom: 14,
   },
   logoCandles: {
-    width: 64,
-    height: 48,
-    marginRight: 14,
+    width: 42,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
   candleBaseline: {
     position: 'absolute',
-    bottom: 8,
-    left: 6,
-    right: 6,
+    bottom: 6,
+    left: 4,
+    right: 4,
     height: 2,
     borderRadius: 1,
     backgroundColor: 'rgba(148, 163, 184, 0.5)',
   },
   logoCandle: {
-    width: 8,
+    width: 6,
     borderRadius: 3,
     backgroundColor: '#4CAF50',
   },
   logoCandleLeft: {
-    height: 22,
+    height: 14,
     position: 'absolute',
     bottom: 10,
-    left: 10,
+    left: 6,
   },
   logoCandleCenter: {
-    height: 30,
+    height: 20,
     position: 'absolute',
     bottom: 10,
-    left: 28,
+    left: 18,
     backgroundColor: '#3B82F6',
   },
   logoCandleRight: {
-    height: 18,
+    height: 12,
     position: 'absolute',
     bottom: 10,
-    right: 10,
+    right: 6,
     backgroundColor: '#EF4444',
   },
-  logoTextBlock: {
-    justifyContent: 'center',
-  },
-  logoTitle: {
+  brandTitle: {
     fontWeight: '800',
-    letterSpacing: 1.5,
-  },
-  logoSubtitle: {
-    fontWeight: '500',
-    letterSpacing: 1,
+    letterSpacing: 0.2,
+    marginBottom: 6,
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 14,
     marginTop: 8,
   },
   backButtonText: {
     marginLeft: 8,
   },
-  title: {
-    marginBottom: 12,
-    fontSize: 26,
-    fontWeight: '800',
-  },
   subtitle: {
-    marginBottom: 32,
-    lineHeight: 24,
-    fontSize: 16,
+    marginBottom: 0,
+    lineHeight: 22,
+    fontSize: 14,
+  },
+  formCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   inputContainer: {
-    marginBottom: 24,
+    marginBottom: 14,
   },
   inputLabel: {
     marginBottom: 8,
@@ -332,25 +319,31 @@ const styles = StyleSheet.create({
   forgotPassword: {
     fontSize: 14,
   },
-  buttonContainer: {
-    marginTop: 8,
-    marginBottom: 24,
-  },
   signInButton: {
     width: '100%',
+    marginTop: 6,
   },
-  forgotInline: {
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  registerContainer: {
+  dividerRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
+    gap: 12,
+    paddingVertical: 14,
   },
-  requestAccess: {
-    fontSize: 16,
-    fontWeight: '500',
+  dividerLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.9,
+  },
+  dividerText: {
+    letterSpacing: 1.2,
+  },
+  requestAccessButton: {
+    width: '100%',
+  },
+  disclaimer: {
+    marginTop: 14,
+    textAlign: 'center',
+    lineHeight: 18,
+    fontSize: 12,
   },
 });

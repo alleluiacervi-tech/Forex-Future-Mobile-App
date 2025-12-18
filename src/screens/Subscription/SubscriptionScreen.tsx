@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -10,52 +10,74 @@ import { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-type PlanType = 'monthly' | 'yearly';
-
 export default function SubscriptionScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>('monthly');
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [cardName, setCardName] = useState('');
 
-  const handleConfirm = () => {
-    // Handle subscription confirmation
-    console.log('Subscription confirmed:', {
-      plan: selectedPlan,
-      cardNumber,
-      expiryDate,
-      cvv,
-      cardName,
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [touched, setTouched] = useState({ email: false, password: false, confirmPassword: false });
+
+  type Tier = 'basic' | 'premium';
+  type Billing = 'monthly' | 'quarterly' | 'yearly';
+
+  const [selectedTier, setSelectedTier] = useState<Tier>('basic');
+  const [selectedBilling, setSelectedBilling] = useState<Billing>('monthly');
+
+  const pricing = useMemo(
+    () =>
+      ({
+        basic: { monthly: 10, quarterly: 30, yearly: 120 },
+        premium: { monthly: 20, quarterly: 60, yearly: 240 },
+      }) as const,
+    []
+  );
+
+  const selectedPrice = pricing[selectedTier][selectedBilling];
+  const billingLabel = selectedBilling === 'monthly' ? 'month' : selectedBilling === 'quarterly' ? '3 months' : 'year';
+
+  const emailError = useMemo(() => {
+    if (!touched.email) return undefined;
+    if (!email.trim()) return 'Email is required';
+    const normalized = email.trim().toLowerCase();
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+    if (!ok) return 'Enter a valid email address';
+    return undefined;
+  }, [email, touched.email]);
+
+  const passwordError = useMemo(() => {
+    if (!touched.password) return undefined;
+    if (!password) return 'Password is required';
+    if (password.length < 8) return 'Use at least 8 characters';
+    return undefined;
+  }, [password, touched.password]);
+
+  const confirmPasswordError = useMemo(() => {
+    if (!touched.confirmPassword) return undefined;
+    if (!confirmPassword) return 'Confirm your password';
+    if (confirmPassword !== password) return 'Passwords do not match';
+    return undefined;
+  }, [confirmPassword, password, touched.confirmPassword]);
+
+  const canSubmit = !emailError && !passwordError && !confirmPasswordError && email && password && confirmPassword;
+
+  const handleRedeemTrial = () => {
+    setTouched({ email: true, password: true, confirmPassword: true });
+    if (!canSubmit) return;
+
+    console.log('Free trial redeemed:', {
+      email: email.trim().toLowerCase(),
+      plan: {
+        tier: selectedTier,
+        billing: selectedBilling,
+        price: selectedPrice,
+      },
     });
-    // Navigate to main app or show success message
     navigation.replace('Main');
   };
-
-  const formatCardNumber = (text: string) => {
-    // Remove all non-digits
-    const cleaned = text.replace(/\D/g, '');
-    // Add spaces every 4 digits
-    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
-    // Limit to 19 characters (16 digits + 3 spaces)
-    return formatted.slice(0, 19);
-  };
-
-  const formatExpiryDate = (text: string) => {
-    // Remove all non-digits
-    const cleaned = text.replace(/\D/g, '');
-    // Add slash after 2 digits
-    if (cleaned.length >= 2) {
-      return cleaned.slice(0, 2) + '/' + cleaned.slice(2, 4);
-    }
-    return cleaned;
-  };
-
-  const monthlyPrice = 20;
-  const yearlyPrice = 240;
-  const yearlySavings = monthlyPrice * 12 - yearlyPrice;
 
   return (
     <ScreenWrapper>
@@ -71,215 +93,260 @@ export default function SubscriptionScreen() {
               <Icon name="arrow-back" size={24} color={theme.colors.text} />
             </TouchableOpacity>
             <Text variant="h2" style={styles.headerTitle}>
-              Choose Your Plan
+              Request Access
             </Text>
             <View style={styles.placeholder} />
           </View>
 
           {/* Free Trial Banner */}
-          <Card style={[styles.trialBanner, { backgroundColor: theme.colors.primary + '20' }]}>
+          <Card style={[styles.trialBanner, { backgroundColor: theme.colors.primary + '18', borderColor: theme.colors.border }]}>
             <View style={styles.trialBannerContent}>
-              <Icon name="stars" size={32} color={theme.colors.primary} />
+              <Icon name="stars" size={28} color={theme.colors.primary} />
               <View style={styles.trialBannerText}>
-                <Text variant="h4" style={[styles.trialBannerTitle, { color: theme.colors.primary }]}>
-                  14-Day Free Trial
+                <Text variant="h4" style={[styles.trialBannerTitle, { color: theme.colors.text }]}>
+                  14‑Day Free Trial
                 </Text>
                 <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                  Full access to all premium features. No charges until the trial ends.
+                  Create an account and choose a plan. You won’t be charged until your trial ends.
                 </Text>
               </View>
             </View>
           </Card>
 
-          {/* Plan Selection */}
-          <View style={styles.planSection}>
+          {/* Sign Up Form */}
+          <Card style={[styles.formCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
             <Text variant="h3" style={styles.sectionTitle}>
-              Select Your Plan
-            </Text>
-            <View style={styles.plansContainer}>
-              {/* Monthly Plan */}
-              <TouchableOpacity
-                style={[
-                  styles.planCard,
-                  {
-                    backgroundColor:
-                      selectedPlan === 'monthly' ? theme.colors.surfaceLight : theme.colors.surface,
-                    borderColor: selectedPlan === 'monthly' ? theme.colors.primary : theme.colors.border,
-                    borderWidth: selectedPlan === 'monthly' ? 2 : 1,
-                  },
-                ]}
-                onPress={() => setSelectedPlan('monthly')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.planHeader}>
-                  <Text variant="h4" style={styles.planName}>
-                    Monthly
-                  </Text>
-                  {selectedPlan === 'monthly' && (
-                    <View style={[styles.checkBadge, { backgroundColor: theme.colors.primary }]}>
-                      <Icon name="check" size={16} color={theme.colors.text} />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.priceContainer}>
-                  <Text variant="h2" style={styles.price}>
-                    ${monthlyPrice}
-                  </Text>
-                  <Text variant="body" color={theme.colors.textSecondary}>
-                    /month
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Yearly Plan */}
-              <TouchableOpacity
-                style={[
-                  styles.planCard,
-                  {
-                    backgroundColor:
-                      selectedPlan === 'yearly' ? theme.colors.surfaceLight : theme.colors.surface,
-                    borderColor: selectedPlan === 'yearly' ? theme.colors.primary : theme.colors.border,
-                    borderWidth: selectedPlan === 'yearly' ? 2 : 1,
-                  },
-                ]}
-                onPress={() => setSelectedPlan('yearly')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.planHeader}>
-                  <View style={styles.planHeaderLeft}>
-                    <Text variant="h4" style={styles.planName}>
-                      Yearly
-                    </Text>
-                    <View style={[styles.savingsBadge, { backgroundColor: theme.colors.success + '20' }]}>
-                      <Text variant="caption" style={[styles.savingsText, { color: theme.colors.success }]}>
-                        Save ${yearlySavings}
-                      </Text>
-                    </View>
-                  </View>
-                  {selectedPlan === 'yearly' && (
-                    <View style={[styles.checkBadge, { backgroundColor: theme.colors.primary }]}>
-                      <Icon name="check" size={16} color={theme.colors.text} />
-                    </View>
-                  )}
-                </View>
-                <View style={styles.priceContainer}>
-                  <Text variant="h2" style={styles.price}>
-                    ${yearlyPrice}
-                  </Text>
-                  <Text variant="body" color={theme.colors.textSecondary}>
-                    /year
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Payment Details */}
-          <View style={styles.paymentSection}>
-            <Text variant="h3" style={styles.sectionTitle}>
-              Payment Details
+              Create your account
             </Text>
             <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.sectionSubtitle}>
-              Securely enter your payment information. You won't be charged until the trial ends.
+              Use your email and set a password to redeem your free trial.
             </Text>
 
-            {/* Card Number */}
-            <View style={styles.inputContainer}>
-              <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
-                Card Number
-              </Text>
-              <View style={[styles.cardInputWrapper, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                <TextInput
-                  style={[styles.cardInput, { color: theme.colors.text }]}
-                  placeholder="1234 5678 9012 3456"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={cardNumber}
-                  onChangeText={(text) => setCardNumber(formatCardNumber(text))}
-                  keyboardType="numeric"
-                  maxLength={19}
-                />
-                <Icon name="credit-card" size={20} color={theme.colors.textSecondary} />
-              </View>
-            </View>
-
-            {/* Card Name */}
-            <View style={styles.inputContainer}>
-              <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
-                Cardholder Name
-              </Text>
-              <View style={[styles.cardInputWrapper, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                <TextInput
-                  style={[styles.cardInput, { color: theme.colors.text }]}
-                  placeholder="John Doe"
-                  placeholderTextColor={theme.colors.textSecondary}
-                  value={cardName}
-                  onChangeText={setCardName}
-                  autoCapitalize="words"
-                />
-              </View>
-            </View>
-
-            {/* Expiry and CVV */}
-            <View style={styles.rowInputs}>
-              <View style={[styles.inputContainer, styles.halfWidth]}>
-                <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
-                  Expiry Date
-                </Text>
-                <View style={[styles.cardInputWrapper, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                  <TextInput
-                    style={[styles.cardInput, { color: theme.colors.text }]}
-                    placeholder="MM/YY"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    value={expiryDate}
-                    onChangeText={(text) => setExpiryDate(formatExpiryDate(text))}
-                    keyboardType="numeric"
-                    maxLength={5}
-                  />
-                </View>
-              </View>
-
-              <View style={[styles.inputContainer, styles.halfWidth]}>
-                <Text variant="body" color={theme.colors.textSecondary} style={styles.inputLabel}>
-                  CVV
-                </Text>
-                <View style={[styles.cardInputWrapper, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                  <TextInput
-                    style={[styles.cardInput, { color: theme.colors.text }]}
-                    placeholder="123"
-                    placeholderTextColor={theme.colors.textSecondary}
-                    value={cvv}
-                    onChangeText={(text) => setCvv(text.replace(/\D/g, '').slice(0, 4))}
-                    keyboardType="numeric"
-                    secureTextEntry
-                    maxLength={4}
-                  />
-                  <Icon name="lock" size={20} color={theme.colors.textSecondary} />
-                </View>
-              </View>
-            </View>
-
-            {/* Security Notice */}
-            <View style={styles.securityNotice}>
-              <Icon name="security" size={20} color={theme.colors.primary} />
-              <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.securityText}>
-                Your payment information is encrypted and secure. We use industry-standard security measures.
-              </Text>
-            </View>
-          </View>
-
-          {/* Confirm Button */}
-          <View style={styles.confirmSection}>
-            <Button
-              title={`Start Free Trial - ${selectedPlan === 'monthly' ? `$${monthlyPrice}/month` : `$${yearlyPrice}/year`}`}
-              onPress={handleConfirm}
-              variant="primary"
-              size="large"
-              style={styles.confirmButton}
+            <Input
+              label="Email"
+              value={email}
+              onChangeText={(t) => {
+                setEmail(t);
+                if (!touched.email) setTouched((p) => ({ ...p, email: true }));
+              }}
+              placeholder="trader@example.com"
+              keyboardType="email-address"
+              error={emailError}
             />
-            <Text variant="caption" color={theme.colors.textSecondary} style={styles.confirmSubtext}>
-              You'll be charged after your 14-day free trial ends. Cancel anytime.
-            </Text>
-          </View>
+
+            <View style={styles.passwordRow}>
+              <View style={styles.passwordRowLeft}>
+                <Input
+                  label="Password"
+                  value={password}
+                  onChangeText={(t) => {
+                    setPassword(t);
+                    if (!touched.password) setTouched((p) => ({ ...p, password: true }));
+                  }}
+                  placeholder="••••••••"
+                  secureTextEntry={!showPassword}
+                  error={passwordError}
+                />
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowPassword((v) => !v)}
+                activeOpacity={0.7}
+                style={[styles.eyeButton, { borderColor: theme.colors.border }]}
+              >
+                <Icon
+                  name={showPassword ? 'visibility' : 'visibility-off'}
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Plan Selection */}
+            <View style={styles.planSection}>
+              <View style={styles.planHeaderRow}>
+                <Text variant="h3" style={styles.sectionTitleCompact}>
+                  Choose your plan
+                </Text>
+                <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                  Starts after trial
+                </Text>
+              </View>
+
+              <View style={styles.planGrid}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedTier('basic')}
+                  style={[
+                    styles.planCard,
+                    {
+                      backgroundColor: theme.colors.surfaceLight,
+                      borderColor: selectedTier === 'basic' ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.planCardTopRow}>
+                    <Text variant="h4" style={styles.planTitle}>
+                      Basic
+                    </Text>
+                    {selectedTier === 'basic' ? (
+                      <View style={[styles.selectedBadge, { backgroundColor: theme.colors.primary }]}>
+                        <Icon name="check" size={14} color={theme.colors.onPrimary} />
+                      </View>
+                    ) : (
+                      <View style={[styles.unselectedBadge, { borderColor: theme.colors.border }]} />
+                    )}
+                  </View>
+                  <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                    Essential signals and alerts
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedTier('premium')}
+                  style={[
+                    styles.planCard,
+                    {
+                      backgroundColor: theme.colors.surfaceLight,
+                      borderColor: selectedTier === 'premium' ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                >
+                  <View style={styles.planCardTopRow}>
+                    <Text variant="h4" style={styles.planTitle}>
+                      Premium
+                    </Text>
+                    {selectedTier === 'premium' ? (
+                      <View style={[styles.selectedBadge, { backgroundColor: theme.colors.primary }]}>
+                        <Icon name="check" size={14} color={theme.colors.onPrimary} />
+                      </View>
+                    ) : (
+                      <View style={[styles.unselectedBadge, { borderColor: theme.colors.border }]} />
+                    )}
+                  </View>
+                  <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                    Full access + advanced insights
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.billingRow, { borderColor: theme.colors.border }]}
+              >
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedBilling('monthly')}
+                  style={[
+                    styles.billingChip,
+                    {
+                      backgroundColor: selectedBilling === 'monthly' ? theme.colors.primary + '22' : 'transparent',
+                      borderColor: selectedBilling === 'monthly' ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="bodySmall"
+                    color={selectedBilling === 'monthly' ? theme.colors.text : theme.colors.textSecondary}
+                    style={styles.billingChipText}
+                  >
+                    Monthly
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedBilling('quarterly')}
+                  style={[
+                    styles.billingChip,
+                    {
+                      backgroundColor: selectedBilling === 'quarterly' ? theme.colors.primary + '22' : 'transparent',
+                      borderColor: selectedBilling === 'quarterly' ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="bodySmall"
+                    color={selectedBilling === 'quarterly' ? theme.colors.text : theme.colors.textSecondary}
+                    style={styles.billingChipText}
+                  >
+                    3 Months
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setSelectedBilling('yearly')}
+                  style={[
+                    styles.billingChip,
+                    {
+                      backgroundColor: selectedBilling === 'yearly' ? theme.colors.primary + '22' : 'transparent',
+                      borderColor: selectedBilling === 'yearly' ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                >
+                  <Text
+                    variant="bodySmall"
+                    color={selectedBilling === 'yearly' ? theme.colors.text : theme.colors.textSecondary}
+                    style={styles.billingChipText}
+                  >
+                    Yearly
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.summaryRow, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }]}>
+                <View style={styles.summaryLeft}>
+                  <Text variant="body" style={styles.summaryTitle}>
+                    {selectedTier === 'basic' ? 'Basic' : 'Premium'} • {selectedBilling === 'monthly' ? 'Monthly' : selectedBilling === 'quarterly' ? '3 Months' : 'Yearly'}
+                  </Text>
+                  <Text variant="caption" color={theme.colors.textSecondary}>
+                    Billed ${selectedPrice}/{billingLabel} after trial
+                  </Text>
+                </View>
+                <Text variant="h3" style={styles.summaryPrice}>
+                  ${selectedPrice}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.passwordRow}>
+              <View style={styles.passwordRowLeft}>
+                <Input
+                  label="Confirm Password"
+                  value={confirmPassword}
+                  onChangeText={(t) => {
+                    setConfirmPassword(t);
+                    if (!touched.confirmPassword) setTouched((p) => ({ ...p, confirmPassword: true }));
+                  }}
+                  placeholder="••••••••"
+                  secureTextEntry={!showConfirmPassword}
+                  error={confirmPasswordError}
+                />
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword((v) => !v)}
+                activeOpacity={0.7}
+                style={[styles.eyeButton, { borderColor: theme.colors.border }]}
+              >
+                <Icon
+                  name={showConfirmPassword ? 'visibility' : 'visibility-off'}
+                  size={20}
+                  color={theme.colors.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.confirmSection}>
+              <Button
+                title={`Redeem Free Trial • ${selectedTier === 'basic' ? 'Basic' : 'Premium'} $${selectedPrice}/${billingLabel}`}
+                onPress={handleRedeemTrial}
+                variant="primary"
+                size="large"
+                style={styles.confirmButton}
+                disabled={!canSubmit}
+              />
+              <Text variant="caption" color={theme.colors.textSecondary} style={styles.confirmSubtext}>
+                After the trial, you’ll be billed ${selectedPrice} per {billingLabel}. Cancel anytime.
+              </Text>
+            </View>
+          </Card>
         </View>
       </ScrollView>
     </ScreenWrapper>
@@ -321,6 +388,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     padding: 16,
     borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   trialBannerContent: {
     flexDirection: 'row',
@@ -335,9 +403,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 4,
   },
-  planSection: {
-    marginBottom: 32,
-  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
@@ -347,102 +412,110 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
-  plansContainer: {
+  formCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  planSection: {
+    marginTop: 6,
+    gap: 12,
+  },
+  planHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+  },
+  sectionTitleCompact: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  planGrid: {
+    flexDirection: 'row',
     gap: 12,
   },
   planCard: {
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
+    flex: 1,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  planHeader: {
+  planCardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 6,
   },
-  planHeaderLeft: {
-    flexDirection: 'row',
+  planTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  selectedBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
-    gap: 8,
-  },
-  planName: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  savingsBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  savingsText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  checkBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  priceContainer: {
+  unselectedBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  billingRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    gap: 10,
+  },
+  billingChip: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  billingChipText: {
+    fontWeight: '600',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  summaryLeft: {
+    flex: 1,
+    paddingRight: 12,
     gap: 4,
   },
-  price: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  summaryTitle: {
+    fontWeight: '700',
   },
-  paymentSection: {
-    marginBottom: 32,
+  summaryPrice: {
+    fontWeight: '800',
   },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  cardInputWrapper: {
+  passwordRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    minHeight: 56,
-  },
-  cardInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: 0,
-  },
-  rowInputs: {
-    flexDirection: 'row',
+    alignItems: 'flex-end',
     gap: 12,
   },
-  halfWidth: {
+  passwordRowLeft: {
     flex: 1,
   },
-  securityNotice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#1a1a2e',
-  },
-  securityText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 18,
+  eyeButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
   },
   confirmSection: {
-    marginTop: 'auto',
-    paddingTop: 24,
+    paddingTop: 8,
   },
   confirmButton: {
     width: '100%',

@@ -46,9 +46,17 @@ export default function LandingScreen() {
           {/* App Logo */}
           <View style={[styles.logoWrapper, { marginBottom: height * 0.04 }]}>
             <View style={[styles.logoContainer, {
-              backgroundColor: 'transparent',
-              paddingVertical: Math.max(height * 0.025, 16),
-              paddingHorizontal: Math.min(width * 0.08, 32),
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+              borderWidth: 1,
+              paddingVertical: Math.max(height * 0.022, 14),
+              paddingHorizontal: Math.min(width * 0.07, 28),
+              borderRadius: 18,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.18,
+              shadowRadius: 18,
+              elevation: 10,
             }]}>
               {/* Professional Candlestick Logo */}
               <View style={styles.logoSymbol}>
@@ -85,11 +93,11 @@ export default function LandingScreen() {
                     color: theme.colors.primary,
                     fontSize: Math.min(width * 0.11, isSmallScreen ? 32 : 42),
                     fontWeight: '800',
-                    letterSpacing: 1.8,
+                    letterSpacing: 1.2,
                     textAlign: 'center',
-                    textShadowColor: theme.colors.primary + '30',
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 3,
+                    textShadowColor: 'transparent',
+                    textShadowOffset: { width: 0, height: 0 },
+                    textShadowRadius: 0,
                   }]}>
                     FOREX
                   </Text>
@@ -97,7 +105,7 @@ export default function LandingScreen() {
                     color: theme.colors.textSecondary || theme.colors.text,
                     fontSize: Math.min(width * 0.075, isSmallScreen ? 20 : 26),
                     fontWeight: '600',
-                    letterSpacing: 1.4,
+                    letterSpacing: 0.9,
                     textAlign: 'center',
                     opacity: 0.95,
                   }]}>
@@ -114,7 +122,7 @@ export default function LandingScreen() {
                 opacity: 0.8,
                 textAlign: 'center',
                 fontWeight: '500',
-                letterSpacing: 1,
+                letterSpacing: 0.6,
               }]}>
                 Advanced Trading Technology
               </Text>
@@ -313,8 +321,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   professionalLogoContainer: {
-    width: 90,
-    height: 85,
+    width: 88,
+    height: 80,
     position: 'relative',
     marginRight: 18,
     alignItems: 'center',
@@ -337,14 +345,14 @@ const styles = StyleSheet.create({
     top: 23,
   },
   candleBody: {
-    width: 14,
-    height: 32,
+    width: 12,
+    height: 30,
     borderRadius: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.16,
-    shadowRadius: 3,
-    elevation: 3,
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    elevation: 2,
   },
   bullishBody: {
     backgroundColor: '#10B981', // Professional green
@@ -357,7 +365,7 @@ const styles = StyleSheet.create({
   },
   candleWick: {
     width: 1.5,
-    backgroundColor: '#6B7280', // Professional gray
+    backgroundColor: '#94A3B8', // Professional gray
     position: 'absolute',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -394,7 +402,7 @@ const styles = StyleSheet.create({
     right: 10,
     height: 2,
     borderRadius: 1,
-    backgroundColor: 'rgba(148, 163, 184, 0.35)',
+    backgroundColor: 'rgba(148, 163, 184, 0.28)',
   },
   forexText: {
     alignItems: 'center',

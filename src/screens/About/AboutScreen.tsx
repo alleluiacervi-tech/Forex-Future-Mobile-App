@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Text, Button } from '../../components/common';
 import { useTheme } from '../../hooks';
@@ -30,25 +31,24 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ icon, iconColor, title, descr
       ]}
     >
       <View style={styles.featureHeaderRow}>
-        <View
-          style={[
-            styles.iconContainer,
-            {
-              backgroundColor: `${iconColor}26`,
-              borderColor: `${iconColor}80`,
-            },
-          ]}
-        >
-          <View style={[styles.iconInnerGlow, { backgroundColor: `${iconColor}33` }]} />
-          <Icon name={icon} size={30} color={iconColor} />
+        <View style={styles.featureTitleRow}>
+          <View
+            style={[
+              styles.iconContainer,
+              {
+                backgroundColor: `${iconColor}1F`,
+                borderColor: `${iconColor}55`,
+              },
+            ]}
+          >
+            <Icon name={icon} size={22} color={iconColor} />
+          </View>
+          <Text variant="h4" style={styles.featureTitle}>
+            {title}
+          </Text>
         </View>
-        <Text variant="caption" color={theme.colors.textSecondary} style={styles.featureBadge}>
-          CORE CAPABILITY
-        </Text>
+        <Icon name="chevron-right" size={22} color={theme.colors.textSecondary} />
       </View>
-      <Text variant="h4" style={styles.featureTitle}>
-        {title}
-      </Text>
       <Text variant="body" color={theme.colors.textSecondary} style={styles.featureDescription}>
         {description}
       </Text>
@@ -67,36 +67,36 @@ export default function AboutScreen() {
   const features = [
     {
       icon: 'show-chart',
-      iconColor: '#4CAF50', // Green
-      title: 'Market Volatility',
-      description: 'Track volatility and momentum so you can react before the move is over.',
+      iconColor: theme.colors.success,
+      title: 'Volatility & Momentum',
+      description: 'See volatility shifts early and track momentum across major pairs in real time.',
     },
     {
       icon: 'insights',
-      iconColor: '#03A9F4', // Light Blue
-      title: 'AI Trade Recommendations',
+      iconColor: theme.colors.info,
+      title: 'AI Trade Signals',
       description:
-        'Professional-grade buy, sell, or wait signals that combine price action, volatility, and trend context into clear, risk-aware recommendations.',
+        'Clear buy/sell/wait guidance that blends price action, volatility, and trend context into risk-aware setups.',
     },
     {
       icon: 'psychology',
-      iconColor: '#9C27B0', // Purple
-      title: 'AI Insights',
+      iconColor: '#A855F7',
+      title: 'Explainable Insights',
       description:
-        'AI‑powered insights that surface high‑probability setups based on price action and volatility.',
+        'Actionable rationale for each setup so you understand why the model is confident (or not).',
     },
     {
       icon: 'notifications-active',
-      iconColor: '#FFC107', // Yellow
-      title: 'Price Alerts',
+      iconColor: theme.colors.warning,
+      title: 'Smart Alerts',
       description:
-        'Smart alerts that notify you when key levels are hit so you don’t sit in front of charts all day.',
+        'Get notified when key levels and conditions are met—no need to watch charts all day.',
     },
   ];
 
   return (
     <ScreenWrapper>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={true}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <Container>
           {/* Back Button */}
           <TouchableOpacity
@@ -110,30 +110,78 @@ export default function AboutScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Title */}
-          <Text variant="h1" style={styles.title}>
-            Institutional‑Grade AI Insights
-          </Text>
+          {/* Hero */}
+          <LinearGradient
+            colors={[theme.colors.surface, theme.colors.surfaceLight]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.heroCard, { borderColor: theme.colors.border }]}
+          >
+            <View style={[styles.heroPill, { borderColor: theme.colors.border }]}
+            >
+              <Icon name="bolt" size={16} color={theme.colors.primary} />
+              <Text variant="caption" color={theme.colors.textSecondary} style={styles.heroPillText}>
+                Built for fast decisions
+              </Text>
+            </View>
 
-          {/* Description */}
-          <Text variant="body" color={theme.colors.textSecondary} style={styles.description}>
-            Forex Future is your AI‑powered trading copilot, built for serious forex professionals.
-            It continuously monitors volatility, scans global markets for opportunity, and delivers
-            precise, signal‑driven alerts so you can focus on strategy and execution—not staring at
-            charts all day.
-          </Text>
+            <Text variant="h1" style={styles.title}>
+              Professional trading tools.
+              {'\n'}Simplified.
+            </Text>
+
+            <Text variant="body" color={theme.colors.textSecondary} style={styles.description}>
+              Forex Future is your AI‑powered trading copilot. It monitors volatility, tracks trend
+              context, and surfaces signal‑driven opportunities—so you can focus on execution.
+            </Text>
+
+            <View style={styles.metricsRow}>
+              <View style={[styles.metricCard, { borderColor: theme.colors.border }]}
+              >
+                <Text variant="caption" color={theme.colors.textSecondary}>
+                  Signals
+                </Text>
+                <Text variant="h3">Buy / Sell / Wait</Text>
+              </View>
+              <View style={[styles.metricCard, { borderColor: theme.colors.border }]}
+              >
+                <Text variant="caption" color={theme.colors.textSecondary}>
+                  Coverage
+                </Text>
+                <Text variant="h3">Major Pairs</Text>
+              </View>
+            </View>
+          </LinearGradient>
 
           {/* Feature Cards */}
           <View style={styles.featuresContainer}>
+            <View style={styles.sectionHeader}>
+              <Text variant="h3">What you get</Text>
+              <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                Core features designed for focus
+              </Text>
+            </View>
             {features.map((feature, index) => (
               <FeatureCard key={index} {...feature} />
             ))}
           </View>
 
           {/* Get Started Button */}
-          <View style={styles.buttonContainer}>
+          <View style={[styles.ctaCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+          >
+            <View style={styles.ctaHeaderRow}>
+              <View style={styles.ctaTitleRow}>
+                <Icon name="verified" size={20} color={theme.colors.primary} />
+                <Text variant="h4" style={styles.ctaTitle}>
+                  Ready to explore?
+                </Text>
+              </View>
+              <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.ctaSubtitle}>
+                Create your profile and start with a free experience.
+              </Text>
+            </View>
             <Button
-              title="Get Started →"
+              title="Get Started"
               onPress={handleGetStarted}
               variant="primary"
               size="large"
@@ -159,75 +207,115 @@ const styles = StyleSheet.create({
   backButtonText: {
     marginLeft: 8,
   },
+  heroCard: {
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 24,
+  },
+  heroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 14,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+  },
+  heroPillText: {
+    fontSize: 12,
+    letterSpacing: 0.2,
+  },
   title: {
-    marginBottom: 16,
-    fontSize: 30,
+    marginBottom: 12,
+    fontSize: 32,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
     textAlign: 'left',
   },
   description: {
-    marginBottom: 32,
-    lineHeight: 26,
+    marginBottom: 16,
+    lineHeight: 24,
     fontSize: 15,
   },
+  metricsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  metricCard: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+  },
   featuresContainer: {
-    gap: 18,
-    marginBottom: 32,
+    gap: 12,
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    gap: 4,
+    marginBottom: 6,
   },
   featureCard: {
-    padding: 18,
-    borderRadius: 12,
-    marginBottom: 4,
+    padding: 16,
+    borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 6,
   },
   featureHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 10,
+  },
+  featureTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
   },
   iconContainer: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  iconInnerGlow: {
-    position: 'absolute',
-    width: '140%',
-    height: '140%',
-    borderRadius: 999,
-    opacity: 0.85,
-  },
-  featureBadge: {
-    fontSize: 11,
-    letterSpacing: 1.2,
   },
   featureTitle: {
-    marginBottom: 6,
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 0,
   },
   featureDescription: {
     lineHeight: 22,
     fontSize: 14,
   },
-  buttonContainer: {
+  ctaCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 32,
+    gap: 14,
+  },
+  ctaHeaderRow: {
+    gap: 6,
+  },
+  ctaTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  ctaTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  ctaSubtitle: {
+    lineHeight: 20,
   },
   getStartedButton: {
     width: '100%',
