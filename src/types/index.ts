@@ -41,22 +41,7 @@ export interface ChartData {
   }[];
 }
 
-// Navigation types
-export type RootStackParamList = {
-  Main: undefined;
-  ChartDetail: { pair: string };
-  TradeDetail: { pair: string };
-  CurrencyDetail: { pair: string };
-};
-
-export type MainTabParamList = {
-  Home: undefined;
-  Market: undefined;
-  Notifications: undefined;
-  Profile: undefined;
-};
-
-// Re-export from other type files
+// Re-export navigation and other type modules
 export * from './navigation';
 export * from './market';
 export * from './components';
