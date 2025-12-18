@@ -8,7 +8,8 @@ import { MainTabParamList, RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { CurrencyPairCard } from '../../components/market';
 import { Text } from '../../components/common';
-import { mockCurrencyPairs } from '../../constants/marketData';
+import { mockCurrencyPairs, mockAIRecommendations } from '../../constants/marketData';
+import AIRecommendationCard from '../../components/market/AIRecommendationCard';
 import { useTheme } from '../../hooks';
 import { formatCurrency, formatPercent } from '../../utils';
 import { CompositeNavigationProp } from '@react-navigation/native';
@@ -82,21 +83,34 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Popular Pairs */}
+          {/* Live Feed */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text variant="h3">Popular Pairs</Text>
+              <Text variant="h3">Live Feed</Text>
               <TouchableOpacity onPress={() => navigation.navigate('Market')}>
-                <Text variant="bodySmall" color={theme.colors.primary}>See All</Text>
+                <Text variant="bodySmall" color={theme.colors.primary}>View All</Text>
               </TouchableOpacity>
             </View>
-            {pairs.slice(0, 5).map((pair) => (
-              <CurrencyPairCard
-                key={pair.id}
-                pair={pair}
-                onPress={() => navigation.navigate('CurrencyDetail', { pair: pair.symbol })}
-              />
-            ))}
+
+            {/* AI Recommendations */}
+            <View style={styles.subSection}>
+              <Text variant="h4" style={styles.subSectionTitle}>AI Trading Signals</Text>
+              {mockAIRecommendations.slice(0, 3).map((rec) => (
+                <AIRecommendationCard key={rec.id} recommendation={rec} />
+              ))}
+            </View>
+
+            {/* Forex Pairs */}
+            <View style={styles.subSection}>
+              <Text variant="h4" style={styles.subSectionTitle}>Market Overview</Text>
+              {pairs.slice(0, 3).map((pair) => (
+                <CurrencyPairCard
+                  key={pair.id}
+                  pair={pair}
+                  onPress={() => navigation.navigate('CurrencyDetail', { pair: pair.symbol })}
+                />
+              ))}
+            </View>
           </View>
         </Container>
       </ScrollView>
@@ -143,6 +157,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  subSection: {
+    marginBottom: 20,
+  },
+  subSectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 12,
   },
 });
 

@@ -1,4 +1,5 @@
 import { CurrencyPair, Trade } from '../types/market';
+import { AIRecommendation } from '../types/ai';
 
 export const mockCurrencyPairs: CurrencyPair[] = [
   {
@@ -157,6 +158,61 @@ export const mockTrades: Trade[] = [
     price: 1.26800,
     timestamp: new Date(Date.now() - 172800000),
     profit: -7.10,
+  },
+];
+
+export const mockAIRecommendations: AIRecommendation[] = [
+  {
+    id: '1',
+    pair: 'EUR/USD',
+    recommendation: 'BUY',
+    confidence: 78,
+    insight: 'Strong bullish momentum with RSI breaking above 60. ECB rate decision expected to be dovish, supporting EUR strength. Technical analysis shows clear uptrend with support at 1.0820.',
+    entryPrice: 1.08542,
+    targetPrice: 1.0920,
+    stopLoss: 1.0820,
+    timeframe: '4H',
+  },
+  {
+    id: '2',
+    pair: 'GBP/USD',
+    recommendation: 'SELL',
+    confidence: 82,
+    insight: 'Cable showing weakness against USD backdrop. Bank of England minutes suggest potential rate cuts. Bearish engulfing pattern formed at resistance level 1.2680.',
+    entryPrice: 1.26458,
+    targetPrice: 1.2580,
+    stopLoss: 1.2680,
+    timeframe: '1H',
+  },
+  {
+    id: '3',
+    pair: 'USD/JPY',
+    recommendation: 'WAIT',
+    confidence: 65,
+    insight: 'Mixed signals in USD/JPY. BoJ policy uncertainty creating volatility. Wait for clearer direction before entering. Current range: 149.50 - 150.10.',
+    timeframe: '2H',
+  },
+  {
+    id: '4',
+    pair: 'USD/CHF',
+    recommendation: 'BUY',
+    confidence: 71,
+    insight: 'USD/CHF testing key support level. SNB maintaining cautious stance while Fed signals potential pause. Bullish divergence on MACD suggests potential reversal.',
+    entryPrice: 0.87542,
+    targetPrice: 0.8820,
+    stopLoss: 0.8720,
+    timeframe: '1H',
+  },
+  {
+    id: '5',
+    pair: 'AUD/USD',
+    recommendation: 'SELL',
+    confidence: 75,
+    insight: 'Australian dollar under pressure from RBA rate cut expectations. Commodity prices weakening, particularly iron ore. Bearish head and shoulders pattern forming.',
+    entryPrice: 0.6542,
+    targetPrice: 0.6480,
+    stopLoss: 0.6580,
+    timeframe: '4H',
   },
 ];
 

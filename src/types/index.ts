@@ -60,4 +60,5 @@ export type MainTabParamList = {
 export * from './navigation';
 export * from './market';
 export * from './components';
+export * from './ai';
 
