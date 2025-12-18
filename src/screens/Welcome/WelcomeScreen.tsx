@@ -23,9 +23,8 @@ export default function WelcomeScreen() {
   };
 
   const handleRequestAccess = () => {
-    // Navigate to registration/request access screen (if you have one)
-    // For now, just show an alert or navigate to a placeholder
-    console.log('Request Access');
+    // Navigate to registration/subscription screen
+    navigation.navigate('Subscription');
   };
 
   const handleForgotPassword = () => {

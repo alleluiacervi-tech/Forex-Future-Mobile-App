@@ -63,6 +63,7 @@ export default function LandingScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Text style={{ color: 'white', fontSize: 20 }}>Landing Screen Loaded</Text>
       <View style={styles.content}>
         {/* App Icon */}
         <View style={styles.iconWrapper}>
