@@ -1,15 +1,17 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Card } from '../common/Card';
 import { Text } from '../common';
 import { useTheme } from '../../hooks';
 import { AIRecommendation, RecommendationType } from '../../types/ai';
 
 interface AIRecommendationCardProps {
   recommendation: AIRecommendation;
+  onPress?: () => void;
 }
 
-export default function AIRecommendationCard({ recommendation }: AIRecommendationCardProps) {
+export default function AIRecommendationCard({ recommendation, onPress }: AIRecommendationCardProps) {
   const theme = useTheme();
 
   const getRecommendationColor = (rec: RecommendationType) => {
@@ -52,87 +54,98 @@ export default function AIRecommendationCard({ recommendation }: AIRecommendatio
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
-      <View style={styles.header}>
-        <View style={styles.pairContainer}>
-          <Text variant="h4" style={styles.pairText}>
-            {recommendation.pair}
-          </Text>
+    <Card onPress={onPress} style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+      <View style={styles.inner}>
+        <View style={styles.header}>
+          <View style={styles.pairContainer}>
+            <Text variant="h4" style={styles.pairText}>
+              {recommendation.pair}
+            </Text>
+            <Text variant="caption" color={theme.colors.textSecondary}>
+              {recommendation.timeframe}
+            </Text>
+          </View>
+          <View style={[styles.recommendationBadge, { backgroundColor: getRecommendationColor(recommendation.recommendation) + '20' }]}>
+            <Icon
+              name={getRecommendationIcon(recommendation.recommendation)}
+              size={16}
+              color={getRecommendationColor(recommendation.recommendation)}
+            />
+            <Text
+              variant="caption"
+              style={[styles.recommendationText, { color: getRecommendationColor(recommendation.recommendation) }]}
+            >
+              {getRecommendationText(recommendation.recommendation)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.confidenceContainer}>
           <Text variant="caption" color={theme.colors.textSecondary}>
-            {recommendation.timeframe}
+            Confidence: {recommendation.confidence}%
           </Text>
+          <View style={styles.confidenceBar}>
+            <View
+              style={[
+                styles.confidenceFill,
+                {
+                  width: `${recommendation.confidence}%`,
+                  backgroundColor: getRecommendationColor(recommendation.recommendation),
+                },
+              ]}
+            />
+          </View>
         </View>
-        <View style={[styles.recommendationBadge, { backgroundColor: getRecommendationColor(recommendation.recommendation) + '20' }]}>
-          <Icon
-            name={getRecommendationIcon(recommendation.recommendation)}
-            size={16}
-            color={getRecommendationColor(recommendation.recommendation)}
-          />
-          <Text
-            variant="caption"
-            style={[styles.recommendationText, { color: getRecommendationColor(recommendation.recommendation) }]}
-          >
-            {getRecommendationText(recommendation.recommendation)}
-          </Text>
-        </View>
-      </View>
 
-      <View style={styles.confidenceContainer}>
-        <Text variant="caption" color={theme.colors.textSecondary}>
-          Confidence: {recommendation.confidence}%
+        <Text variant="body" style={styles.insight}>
+          {recommendation.insight}
         </Text>
-        <View style={styles.confidenceBar}>
-          <View
-            style={[
-              styles.confidenceFill,
-              {
-                width: `${recommendation.confidence}%`,
-                backgroundColor: getRecommendationColor(recommendation.recommendation)
-              }
-            ]}
-          />
-        </View>
+
+        {(recommendation.entryPrice || recommendation.targetPrice || recommendation.stopLoss) && (
+          <View style={styles.levelsContainer}>
+            {recommendation.entryPrice && (
+              <View style={styles.level}>
+                <Text variant="caption" color={theme.colors.textSecondary}>
+                  Entry:
+                </Text>
+                <Text variant="bodySmall">{recommendation.entryPrice.toFixed(4)}</Text>
+              </View>
+            )}
+            {recommendation.targetPrice && (
+              <View style={styles.level}>
+                <Text variant="caption" color={theme.colors.textSecondary}>
+                  Take Profit:
+                </Text>
+                <Text variant="bodySmall" color={theme.colors.success}>
+                  {recommendation.targetPrice.toFixed(4)}
+                </Text>
+              </View>
+            )}
+            {recommendation.stopLoss && (
+              <View style={styles.level}>
+                <Text variant="caption" color={theme.colors.textSecondary}>
+                  Stop Loss:
+                </Text>
+                <Text variant="bodySmall" color={theme.colors.error}>
+                  {recommendation.stopLoss.toFixed(4)}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
-
-      <Text variant="body" style={styles.insight}>
-        {recommendation.insight}
-      </Text>
-
-      {(recommendation.entryPrice || recommendation.targetPrice || recommendation.stopLoss) && (
-        <View style={styles.levelsContainer}>
-          {recommendation.entryPrice && (
-            <View style={styles.level}>
-              <Text variant="caption" color={theme.colors.textSecondary}>Entry:</Text>
-              <Text variant="bodySmall">{recommendation.entryPrice.toFixed(4)}</Text>
-            </View>
-          )}
-          {recommendation.targetPrice && (
-            <View style={styles.level}>
-              <Text variant="caption" color={theme.colors.textSecondary}>Take Profit:</Text>
-              <Text variant="bodySmall" color={theme.colors.success}>
-                {recommendation.targetPrice.toFixed(4)}
-              </Text>
-            </View>
-          )}
-          {recommendation.stopLoss && (
-            <View style={styles.level}>
-              <Text variant="caption" color={theme.colors.textSecondary}>Stop Loss:</Text>
-              <Text variant="bodySmall" color={theme.colors.error}>
-                {recommendation.stopLoss.toFixed(4)}
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  card: {
     marginBottom: 12,
-    padding: 16,
+    padding: 0,
     borderRadius: 12,
+  },
+  inner: {
+    padding: 16,
   },
   header: {
     flexDirection: 'row',

@@ -4,8 +4,19 @@ import { ScreenWrapper, Container, EmptyState } from '../../components/layout';
 import { Text } from '../../components/common';
 import { MarketAlertCard } from '../../components/market/MarketAlertCard';
 import { mockMarketAlerts } from '../../constants/marketData';
+import { useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { CompositeNavigationProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MainTabParamList, RootStackParamList } from '../../types';
+
+type NavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, 'Notifications'>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
 
 export default function NotificationsScreen() {
+  const navigation = useNavigation<NavigationProp>();
   const alerts = mockMarketAlerts;
 
   return (
@@ -22,7 +33,13 @@ export default function NotificationsScreen() {
               message="You don't have any notifications yet"
             />
           ) : (
-            alerts.map((a) => <MarketAlertCard key={a.id} alert={a} />)
+            alerts.map((a) => (
+              <MarketAlertCard
+                key={a.id}
+                alert={a}
+                onPress={() => navigation.navigate('CurrencyDetail', { pair: a.pair })}
+              />
+            ))
           )}
         </Container>
       </ScrollView>

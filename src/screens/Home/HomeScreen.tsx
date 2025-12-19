@@ -63,6 +63,10 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
+          <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.helperText}>
+            Tap any pair to view detailed insights, including momentum and RSI overbought/oversold levels.
+          </Text>
+
           <View style={[styles.filtersRow, { backgroundColor: theme.colors.surface }]}>
             <TouchableOpacity
               onPress={() => setFilter('all')}
@@ -119,9 +123,17 @@ export default function HomeScreen() {
           <View style={styles.feedList}>
             {feed.map((item) =>
               item.kind === 'alert' ? (
-                <MarketAlertCard key={`a-${item.id}`} alert={item.data} />
+                <MarketAlertCard
+                  key={`a-${item.id}`}
+                  alert={item.data}
+                  onPress={() => navigation.navigate('CurrencyDetail', { pair: item.data.pair })}
+                />
               ) : (
-                <AIRecommendationCard key={`r-${item.id}`} recommendation={item.data} />
+                <AIRecommendationCard
+                  key={`r-${item.id}`}
+                  recommendation={item.data}
+                  onPress={() => navigation.navigate('CurrencyDetail', { pair: item.data.pair })}
+                />
               )
             )}
           </View>
@@ -140,6 +152,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  helperText: {
+    marginTop: -6,
+    marginBottom: 12,
+    lineHeight: 18,
   },
   filtersRow: {
     flexDirection: 'row',
