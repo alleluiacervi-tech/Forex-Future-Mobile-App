@@ -1,37 +1,33 @@
 import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useNavigation } from '@react-navigation/native';
-import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Button, Card, Text } from '../../components/common';
 import { useTheme } from '../../hooks';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+interface TermsScreenProps {
+  onAgree: () => void;
+}
 
-export default function TermsScreen() {
+export default function TermsScreen({ onAgree }: TermsScreenProps) {
   const theme = useTheme();
-  const navigation = useNavigation<NavigationProp>();
   const [accepted, setAccepted] = useState(false);
 
   const terms = useMemo(
     () =>
       [
-        'Forex Future provides market insights and analytics for educational and decision-support purposes only.',
-        'Nothing in this app constitutes financial, investment, or trading advice.',
-        'Trading involves risk. You are responsible for your decisions and risk management.',
-        'Past performance and AI-generated insights do not guarantee future results.',
+        'Forex Future is a serious, high-level AI-powered platform built to deliver institutional-grade market insights, AI-driven recommendations, real-time news updates, and advanced analytical tools.',
+        'The platform supports informed decision-making and is designed as a reliable resource for market intelligence and financial insights.',
+        'While the application leverages advanced artificial intelligence and data analysis, it does not guarantee 100% accuracy in predictions, recommendations, signals, or trading outcomes.',
+        'Market conditions are volatile, complex, and inherently unpredictable; results can differ materially from any model-based expectations.',
+        'All information, insights, and recommendations provided are for informational and educational purposes only and must not be considered financial, investment, or trading advice.',
+        'Trading and investing involve significant risk, including the potential loss of capital. You are solely responsible for your decisions, position sizing, and risk management.',
+        'By using this application, you agree that the app and its developers will not be held liable for losses, damages, or claims resulting from reliance on the information provided.',
       ],
     []
   );
 
-  const handleAgree = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Landing' }],
-    });
-  };
+  const handleAgree = () => onAgree();
 
   return (
     <ScreenWrapper>
@@ -41,7 +37,7 @@ export default function TermsScreen() {
             Terms & Agreement
           </Text>
           <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.subtitle}>
-            Please review and accept to continue.
+            Read carefully. You must accept to continue.
           </Text>
 
           <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>

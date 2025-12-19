@@ -3,10 +3,12 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import MainNavigator from './src/navigation';
 import { ThemeProvider } from './src/theme';
 import { useTheme } from './src/hooks';
 import { Text } from './src/components/common';
+import TermsScreen from './src/screens/Terms/TermsScreen';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -14,6 +16,7 @@ SplashScreen.preventAutoHideAsync();
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [showStartupSplash, setShowStartupSplash] = useState(true);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     async function prepare() {
@@ -50,12 +53,20 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
-      <View style={styles.container}>
-        <StatusBar style="light" />
-        {showStartupSplash ? <StartupSplash /> : <MainNavigator />}
-      </View>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <View style={styles.container}>
+          <StatusBar style="light" />
+          {showStartupSplash ? (
+            <StartupSplash />
+          ) : !acceptedTerms ? (
+            <TermsScreen onAgree={() => setAcceptedTerms(true)} />
+          ) : (
+            <MainNavigator />
+          )}
+        </View>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

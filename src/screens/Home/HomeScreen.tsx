@@ -5,6 +5,7 @@ import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { MainTabParamList, RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Text } from '../../components/common';
+import TopNavBar from '../../components/navigation/TopNavBar';
 import { mockAIRecommendations, mockMarketAlerts } from '../../constants/marketData';
 import AIRecommendationCard from '../../components/market/AIRecommendationCard';
 import { MarketAlertCard } from '../../components/market/MarketAlertCard';
@@ -49,6 +50,7 @@ export default function HomeScreen() {
 
   return (
     <ScreenWrapper>
+      <TopNavBar />
       <ScrollView
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

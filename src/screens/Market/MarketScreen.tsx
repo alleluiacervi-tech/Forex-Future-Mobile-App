@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
+import TopNavBar from '../../components/navigation/TopNavBar';
 import { CurrencyPairCard } from '../../components/market';
 import { Tabs } from '../../components/common';
 import { mockCurrencyPairs } from '../../constants/marketData';
@@ -26,6 +27,7 @@ export default function MarketScreen() {
 
   return (
     <ScreenWrapper>
+      <TopNavBar />
       <Container>
         <Tabs tabs={filters} activeTab={selectedFilter} onTabChange={setSelectedFilter} />
         <FlatList

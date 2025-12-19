@@ -1,114 +1,70 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import { ScreenWrapper, Container } from '../../components/layout';
-import { Card, Tabs, Text } from '../../components/common';
-import { mockTrades } from '../../constants/marketData';
+import { Card, Text } from '../../components/common';
+import TopNavBar from '../../components/navigation/TopNavBar';
 import { useTheme } from '../../hooks';
-import { formatCurrency, formatPrice, formatDate } from '../../utils';
 
 export default function ProfileScreen() {
   const theme = useTheme();
-  const [activeTab, setActiveTab] = useState<'positions' | 'history'>('positions');
-
-  const portfolio = {
-    balance: 10000,
-    equity: 10245.50,
-    margin: 2450,
-    freeMargin: 7795.50,
-    marginLevel: 417.78,
-    openPositions: 5,
-    totalProfit: 245.50,
-  };
-
-  const openPositions = mockTrades.filter((t) => !t.profit);
-  const closedPositions = mockTrades.filter((t) => t.profit !== undefined);
 
   return (
     <ScreenWrapper>
+      <TopNavBar />
       <ScrollView style={styles.scrollView}>
         <Container>
-          {/* Portfolio Summary */}
-          <LinearGradient
-            colors={[theme.colors.surface, theme.colors.surfaceLight]}
-            style={styles.summaryCard}
-          >
-            <Text variant="h3" style={styles.summaryTitle}>Account Summary</Text>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
-                <Text variant="caption" color={theme.colors.textSecondary}>Balance</Text>
-                <Text variant="h4">${formatCurrency(portfolio.balance, 0)}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text variant="caption" color={theme.colors.textSecondary}>Equity</Text>
-                <Text variant="h4" color={theme.colors.success}>
-                  ${formatCurrency(portfolio.equity, 0)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
-                <Text variant="caption" color={theme.colors.textSecondary}>Margin Used</Text>
-                <Text variant="h4">${formatCurrency(portfolio.margin, 0)}</Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text variant="caption" color={theme.colors.textSecondary}>Free Margin</Text>
-                <Text variant="h4">${formatCurrency(portfolio.freeMargin, 0)}</Text>
-              </View>
-            </View>
-            <View style={styles.marginLevelContainer}>
-              <Text variant="caption" color={theme.colors.textSecondary}>Margin Level</Text>
-              <Text variant="h2" color={theme.colors.success}>
-                {portfolio.marginLevel.toFixed(2)}%
+          <Text variant="h3" style={styles.title}>
+            Settings
+          </Text>
+          <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.subtitle}>
+            This app focuses on AI-driven market insights and alerts. Execute trades in your preferred trading platform.
+          </Text>
+
+          <Card style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+            <Text variant="h4" style={styles.sectionTitle}>
+              Core Features
+            </Text>
+            <View style={styles.row}>
+              <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                AI recommendations and confidence scoring
               </Text>
             </View>
-          </LinearGradient>
+            <View style={styles.row}>
+              <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                Market alerts for volatility and key moves
+              </Text>
+            </View>
+            <View style={styles.row}>
+              <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                Technical analysis tools (RSI, multi-timeframe charts)
+              </Text>
+            </View>
+          </Card>
 
-          {/* Tabs */}
-          <Tabs
-            tabs={[`Open Positions (${openPositions.length})`, `History (${closedPositions.length})`]}
-            activeTab={activeTab === 'positions' ? `Open Positions (${openPositions.length})` : `History (${closedPositions.length})`}
-            onTabChange={(tab) => setActiveTab(tab.includes('Open') ? 'positions' : 'history')}
-          />
+          <Card style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+            <Text variant="h4" style={styles.sectionTitle}>
+              Legal
+            </Text>
+            <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.legalText}>
+              Insights are informational and educational only; not financial advice. No accuracy guarantees. Trading involves risk.
+            </Text>
+          </Card>
 
-          {/* Positions/History List */}
-          <View style={styles.listContainer}>
-            {(activeTab === 'positions' ? openPositions : closedPositions).map((trade) => (
-              <Card key={trade.id} style={styles.tradeCard}>
-                <View style={styles.tradeHeader}>
-                  <View>
-                    <Text variant="h4">{trade.pair}</Text>
-                    <Text variant="caption" color={theme.colors.textSecondary}>
-                      {trade.type.toUpperCase()} • {trade.amount} lots
-                    </Text>
-                  </View>
-                  <View style={styles.tradePriceContainer}>
-                    <Text variant="body">${formatPrice(trade.price)}</Text>
-                    {trade.profit !== undefined && (
-                      <Text
-                        variant="body"
-                        color={trade.profit >= 0 ? theme.colors.success : theme.colors.error}
-                        style={styles.tradeProfit}
-                      >
-                        {trade.profit >= 0 ? '+' : ''}${formatCurrency(trade.profit)}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-                <View style={styles.tradeFooter}>
-                  <Text variant="caption" color={theme.colors.textSecondary}>
-                    {formatDate(trade.timestamp)}
-                  </Text>
-                  {activeTab === 'positions' && (
-                    <TouchableOpacity style={[styles.closeButton, { backgroundColor: theme.colors.error }]}>
-                      <Text variant="caption" color={theme.colors.text}>Close</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </Card>
-            ))}
-          </View>
+          <Card style={[styles.sectionCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+            <Text variant="h4" style={styles.sectionTitle}>
+              Support
+            </Text>
+            <TouchableOpacity activeOpacity={0.8} style={styles.linkRow}>
+              <Text variant="bodySmall" color={theme.colors.primary}>
+                Contact support
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.8} style={styles.linkRow}>
+              <Text variant="bodySmall" color={theme.colors.primary}>
+                About Forex Future
+              </Text>
+            </TouchableOpacity>
+          </Card>
         </Container>
       </ScrollView>
     </ScreenWrapper>
@@ -119,72 +75,29 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  summaryCard: {
+  title: {
+    marginBottom: 10,
+  },
+  subtitle: {
     marginBottom: 16,
-    padding: 20,
-    borderRadius: 16,
+    lineHeight: 18,
   },
-  summaryTitle: {
-    marginBottom: 20,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  summaryItem: {
-    flex: 1,
-  },
-  marginLevelContainer: {
-    marginTop: 8,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-  },
-  listContainer: {
-    marginTop: 16,
-  },
-  tradeCard: {
+  sectionCard: {
     marginBottom: 12,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  tradeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
+  sectionTitle: {
+    fontWeight: '800',
+    marginBottom: 10,
   },
-  tradePriceContainer: {
-    alignItems: 'flex-end',
-  },
-  tradeProfit: {
-    marginTop: 4,
-    fontWeight: 'bold',
-  },
-  tradeFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#333',
-  },
-  closeButton: {
-    paddingHorizontal: 16,
+  row: {
     paddingVertical: 6,
-    borderRadius: 6,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    gap: 8,
+  legalText: {
+    lineHeight: 18,
   },
-  tab: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  tabActive: {
-    // Handled by inline style
+  linkRow: {
+    paddingVertical: 8,
   },
 });
 

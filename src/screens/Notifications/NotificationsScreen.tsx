@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, ScrollView } from 'react-native';
 import { ScreenWrapper, Container, EmptyState } from '../../components/layout';
 import { Text } from '../../components/common';
+import TopNavBar from '../../components/navigation/TopNavBar';
 import { MarketAlertCard } from '../../components/market/MarketAlertCard';
 import { mockMarketAlerts } from '../../constants/marketData';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +22,7 @@ export default function NotificationsScreen() {
 
   return (
     <ScreenWrapper>
+      <TopNavBar />
       <ScrollView style={styles.scrollView}>
         <Container>
           <Text variant="h3" style={styles.title}>

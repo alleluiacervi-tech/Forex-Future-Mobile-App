@@ -16,6 +16,7 @@ import CurrencyDetailScreen from '../screens/CurrencyDetail';
 import AboutScreen from '../screens/About';
 import WelcomeScreen from '../screens/Welcome';
 import SubscriptionScreen from '../screens/Subscription';
+import SettingsScreen from '../screens/Settings';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -40,6 +41,7 @@ function MainTabs() {
           return <Icon name={iconName} size={size} color={color} />;
         },
         ...NAVIGATION_CONFIG,
+        tabBarStyle: { display: 'none' },
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
@@ -90,6 +92,11 @@ export default function MainNavigator() {
         <Stack.Screen
           name="Subscription"
           component={SubscriptionScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Card, Text } from '../../components/common';
+import TopNavBar from '../../components/navigation/TopNavBar';
 import { useTheme } from '../../hooks';
 import { RootStackParamList } from '../../types';
 
@@ -72,6 +73,7 @@ export default function SettingsScreen() {
 
   return (
     <ScreenWrapper>
+      <TopNavBar />
       <ScrollView style={styles.scrollView}>
         <Container>
           {/* Profile Section */}

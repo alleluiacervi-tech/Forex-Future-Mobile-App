@@ -239,7 +239,7 @@ export default function LandingScreen() {
                 fontSize: Math.min(width * 0.035, isSmallScreen ? 12 : 14),
                 lineHeight: Math.min(width * 0.05, isSmallScreen ? 16 : 20),
               }]}>
-                Portfolio tracking and performance analytics
+                AI-driven recommendations and momentum indicators (RSI)
               </Text>
             </View>
           </View>
@@ -263,24 +263,18 @@ export default function LandingScreen() {
               </Text>
               <Icon name="arrow-forward" size={Math.min(width * 0.04, 20)} color={theme.colors.primary} />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.signInButton, {
-                backgroundColor: theme.colors.primary,
-                paddingVertical: Math.max(height * 0.025, 14),
-                paddingHorizontal: Math.min(width * 0.05, 20),
-                borderRadius: Math.min(width * 0.03, 12),
-              }]}
-              onPress={handleSignIn}
-            >
-              <Text style={[styles.signInButtonText, {
-                color: theme.colors.onPrimary,
-                fontSize: Math.min(width * 0.045, isSmallScreen ? 16 : 18),
-              }]}>
-                Get Started
-              </Text>
-            </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            onPress={handleSignIn}
+            activeOpacity={0.8}
+            style={styles.signInLink}
+          >
+            <Text style={[styles.signInLinkText, { color: theme.colors.textSecondary }]}>
+              Already have access?{' '}
+              <Text style={[styles.signInLinkText, { color: theme.colors.primary, fontWeight: '700' }]}>Sign in</Text>
+            </Text>
+          </TouchableOpacity>
 
           {/* Footer */}
           <View style={[styles.footer, { paddingBottom: Math.max(height * 0.04, 20) }]}>
@@ -467,12 +461,13 @@ const styles = StyleSheet.create({
   exploreButtonText: {
     fontWeight: '600',
   },
-  signInButton: {
+  signInLink: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 12,
   },
-  signInButtonText: {
-    fontWeight: '600',
+  signInLinkText: {
+    fontWeight: '500',
   },
   footer: {
     alignItems: 'center',

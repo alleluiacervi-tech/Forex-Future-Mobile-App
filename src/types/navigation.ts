@@ -7,6 +7,7 @@ export type RootStackParamList = {
   About: undefined;
   Welcome: undefined;
   Subscription: undefined;
+  Settings: undefined;
 };
 
 export type MainTabParamList = {
