@@ -68,9 +68,24 @@ function StartupSplash() {
         <View style={[styles.splashMark, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }]}>
           <View style={styles.splashCandles}>
             <View style={[styles.splashBaseline, { backgroundColor: theme.colors.border }]} />
-            <View style={[styles.splashCandle, styles.splashCandleLeft, { backgroundColor: theme.colors.success }]} />
-            <View style={[styles.splashCandle, styles.splashCandleCenter, { backgroundColor: theme.colors.info }]} />
-            <View style={[styles.splashCandle, styles.splashCandleRight, { backgroundColor: theme.colors.error }]} />
+
+            <View style={[styles.splashCandleWrap, styles.splashCandleLeft]}>
+              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
+              <View style={[styles.splashBody, { backgroundColor: theme.colors.success }]} />
+              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
+            </View>
+
+            <View style={[styles.splashCandleWrap, styles.splashCandleCenter]}>
+              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
+              <View style={[styles.splashBody, { backgroundColor: theme.colors.info }]} />
+              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
+            </View>
+
+            <View style={[styles.splashCandleWrap, styles.splashCandleRight]}>
+              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
+              <View style={[styles.splashBody, { backgroundColor: theme.colors.error }]} />
+              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
+            </View>
           </View>
         </View>
 
@@ -136,23 +151,35 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     opacity: 0.65,
   },
-  splashCandle: {
-    width: 8,
-    borderRadius: 4,
+  splashCandleWrap: {
     position: 'absolute',
     bottom: 14,
+    width: 16,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   splashCandleLeft: {
-    height: 18,
+    height: 22,
     left: 10,
   },
   splashCandleCenter: {
-    height: 26,
+    height: 30,
     left: 24,
   },
   splashCandleRight: {
-    height: 14,
+    height: 18,
     right: 10,
+  },
+  splashWick: {
+    width: 2,
+    height: 7,
+    borderRadius: 1,
+    opacity: 0.8,
+  },
+  splashBody: {
+    width: 10,
+    flex: 1,
+    borderRadius: 5,
   },
   splashWordmark: {
     alignItems: 'center',

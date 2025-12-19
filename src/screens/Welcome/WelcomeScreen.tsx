@@ -68,29 +68,60 @@ export default function WelcomeScreen() {
                 ]}
               >
                 <View style={styles.logoCandles}>
-                  <View style={styles.candleBaseline} />
-                  <View style={[styles.logoCandle, styles.logoCandleLeft, { backgroundColor: theme.colors.success }]} />
-                  <View style={[styles.logoCandle, styles.logoCandleCenter, { backgroundColor: theme.colors.info }]} />
-                  <View style={[styles.logoCandle, styles.logoCandleRight, { backgroundColor: theme.colors.error }]} />
+                  <View style={[styles.candleBaseline, { backgroundColor: theme.colors.border }]} />
+
+                  <View style={[styles.logoCandleWrap, styles.logoCandleLeft]}>
+                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
+                    <View style={[styles.candleBody, { backgroundColor: theme.colors.success }]} />
+                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
+                  </View>
+
+                  <View style={[styles.logoCandleWrap, styles.logoCandleCenter]}>
+                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
+                    <View style={[styles.candleBody, { backgroundColor: theme.colors.info }]} />
+                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
+                  </View>
+
+                  <View style={[styles.logoCandleWrap, styles.logoCandleRight]}>
+                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
+                    <View style={[styles.candleBody, { backgroundColor: theme.colors.error }]} />
+                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
+                  </View>
                 </View>
               </View>
 
-              <Text
-                variant="h2"
-                style={[
-                  styles.brandTitle,
-                  {
-                    color: theme.colors.text,
-                    fontSize: Math.min(width * 0.065, 24),
-                  },
-                ]}
-              >
-                Sign in to{' '}
-                <Text style={[styles.forexWord, { color: theme.colors.primary }]}>Forex</Text>{' '}
-                <Text style={[styles.futureWord, { color: theme.colors.text }]}>Future</Text>
-              </Text>
+              <View style={styles.wordmarkRow}>
+                <Text
+                  variant="h2"
+                  style={[
+                    styles.wordmarkForex,
+                    {
+                      color: theme.colors.primary,
+                      fontSize: Math.min(width * 0.085, 30),
+                    },
+                  ]}
+                >
+                  FOREX
+                </Text>
+                <Text
+                  variant="h2"
+                  style={[
+                    styles.wordmarkFuture,
+                    {
+                      color: theme.colors.text,
+                      fontSize: Math.min(width * 0.07, 24),
+                    },
+                  ]}
+                >
+                  Future
+                </Text>
+              </View>
+
               <Text variant="body" color={theme.colors.textSecondary} style={styles.subtitle}>
                 Get AI‑driven market insights to support smarter financial decisions.
+              </Text>
+              <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.signInHint}>
+                Sign in to continue
               </Text>
             </LinearGradient>
 
@@ -215,44 +246,52 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 1,
     backgroundColor: 'rgba(148, 163, 184, 0.5)',
+    opacity: 0.75,
   },
-  logoCandle: {
-    width: 6,
-    borderRadius: 3,
-    backgroundColor: '#4CAF50',
+  logoCandleWrap: {
+    position: 'absolute',
+    bottom: 10,
+    width: 12,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   logoCandleLeft: {
-    height: 14,
-    position: 'absolute',
-    bottom: 10,
     left: 6,
+    height: 18,
   },
   logoCandleCenter: {
-    height: 20,
-    position: 'absolute',
-    bottom: 10,
     left: 18,
-    backgroundColor: '#3B82F6',
+    height: 24,
   },
   logoCandleRight: {
-    height: 12,
-    position: 'absolute',
-    bottom: 10,
     right: 6,
-    backgroundColor: '#EF4444',
+    height: 16,
   },
-  brandTitle: {
-    fontWeight: '800',
-    letterSpacing: 0.2,
+  candleWick: {
+    width: 2,
+    height: 5,
+    borderRadius: 1,
+    opacity: 0.85,
+  },
+  candleBody: {
+    width: 8,
+    flex: 1,
+    borderRadius: 4,
+  },
+  wordmarkRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
     marginBottom: 6,
   },
-  forexWord: {
+  wordmarkForex: {
     fontWeight: '900',
-    letterSpacing: 0.6,
+    letterSpacing: 1.1,
   },
-  futureWord: {
+  wordmarkFuture: {
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: 0.4,
+    opacity: 0.98,
   },
   backButton: {
     flexDirection: 'row',
@@ -267,6 +306,11 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     lineHeight: 22,
     fontSize: 14,
+  },
+  signInHint: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 18,
   },
   formCard: {
     padding: 16,
