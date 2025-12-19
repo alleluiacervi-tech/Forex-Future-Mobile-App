@@ -5,7 +5,8 @@ import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { PriceChart, RSIChart } from '../../components/charts';
 import { Card, Text, Tabs } from '../../components/common';
-import { mockCurrencyPairs } from '../../constants/marketData';
+import { mockAIRecommendations, mockCurrencyPairs } from '../../constants/marketData';
+import AIRecommendationCard from '../../components/market/AIRecommendationCard';
 import { useTheme } from '../../hooks';
 import { formatPrice, formatPercent, formatNumber } from '../../utils';
 
@@ -18,6 +19,7 @@ export default function CurrencyDetailScreen() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('1H');
 
   const currencyPair = mockCurrencyPairs.find((p) => p.symbol === pair) || mockCurrencyPairs[0];
+  const aiRecommendation = mockAIRecommendations.find((r) => r.pair === pair);
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
 
@@ -71,6 +73,21 @@ export default function CurrencyDetailScreen() {
           <View style={[styles.rsiContainer, { backgroundColor: theme.colors.surface }]}
           >
             <RSIChart basePrice={currencyPair.price} timeframe={selectedTimeframe} />
+          </View>
+
+          <View style={styles.aiContainer}>
+            <Text variant="h4" style={styles.aiTitle}>
+              AI Recommendation
+            </Text>
+            {aiRecommendation ? (
+              <AIRecommendationCard recommendation={aiRecommendation} />
+            ) : (
+              <Card style={[styles.aiEmptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                  No AI recommendation is available for this pair yet.
+                </Text>
+              </Card>
+            )}
           </View>
 
           {/* Stats */}
@@ -130,6 +147,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     padding: 16,
+  },
+  aiContainer: {
+    marginBottom: 16,
+  },
+  aiTitle: {
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  aiEmptyCard: {
+    borderWidth: StyleSheet.hairlineWidth,
   },
   statsContainer: {
     flexDirection: 'row',
