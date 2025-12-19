@@ -58,7 +58,15 @@ export default function WelcomeScreen() {
               end={{ x: 1, y: 1 }}
               style={[styles.heroCard, { borderColor: theme.colors.border }]}
             >
-              <View style={[styles.brandMark, { borderColor: theme.colors.border }]}>
+              <View
+                style={[
+                  styles.brandMark,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.surface,
+                  },
+                ]}
+              >
                 <View style={styles.logoCandles}>
                   <View style={styles.candleBaseline} />
                   <View style={[styles.logoCandle, styles.logoCandleLeft, { backgroundColor: theme.colors.success }]} />
@@ -77,10 +85,12 @@ export default function WelcomeScreen() {
                   },
                 ]}
               >
-                Sign in to Forex Future
+                Sign in to{' '}
+                <Text style={[styles.forexWord, { color: theme.colors.primary }]}>Forex</Text>{' '}
+                <Text style={[styles.futureWord, { color: theme.colors.text }]}>Future</Text>
               </Text>
               <Text variant="body" color={theme.colors.textSecondary} style={styles.subtitle}>
-                Secure access to your AI‑driven trading terminal.
+                Get AI‑driven market insights to support smarter financial decisions.
               </Text>
             </LinearGradient>
 
@@ -235,6 +245,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.2,
     marginBottom: 6,
+  },
+  forexWord: {
+    fontWeight: '900',
+    letterSpacing: 0.6,
+  },
+  futureWord: {
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   backButton: {
     flexDirection: 'row',
