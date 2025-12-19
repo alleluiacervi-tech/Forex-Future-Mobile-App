@@ -59,17 +59,6 @@ export default function CurrencyDetailScreen() {
             <PriceChart pair={currencyPair} timeframe={selectedTimeframe} />
           </View>
 
-          <Card style={[styles.insightsCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-            <Text variant="h4" style={styles.insightsTitle}>
-              Institutional Insights
-            </Text>
-            <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.insightsBody}>
-              These analytics are designed to support smart financial decision-making. Evaluate trend strength, volatility,
-              and momentum across multiple timeframes. RSI highlights potential overbought/oversold conditions; confirm with
-              structure and risk parameters.
-            </Text>
-          </Card>
-
           <View style={[styles.rsiContainer, { backgroundColor: theme.colors.surface }]}
           >
             <RSIChart basePrice={currencyPair.price} timeframe={selectedTimeframe} />
@@ -130,18 +119,6 @@ const styles = StyleSheet.create({
     marginVertical: 16,
     borderRadius: 12,
     padding: 16,
-  },
-  insightsCard: {
-    marginTop: 4,
-    marginBottom: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  insightsTitle: {
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  insightsBody: {
-    lineHeight: 18,
   },
   rsiContainer: {
     marginBottom: 16,
