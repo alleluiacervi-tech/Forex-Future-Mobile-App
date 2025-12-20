@@ -3,10 +3,9 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation, useRoute, CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Icon from 'react-native-vector-icons/Ionicons';
 import { MainTabParamList, RootStackParamList } from '../../types';
 import { useTheme } from '../../hooks';
-import { Text } from '../common';
 
 type NavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList>,
@@ -70,28 +69,26 @@ export default function TopNavBar() {
     >
       {renderItem({
         key: 'Home',
-        icon: 'home',
+        icon: 'grid-outline',
+        activeIcon: 'grid',
         onPress: () => goTab('Home'),
       })}
       {renderItem({
         key: 'Market',
-        icon: 'show-chart',
+        icon: 'stats-chart-outline',
+        activeIcon: 'stats-chart',
         onPress: () => goTab('Market'),
       })}
       {renderItem({
         key: 'Notifications',
-        icon: 'notifications-none',
+        icon: 'notifications-outline',
         activeIcon: 'notifications',
         onPress: () => goTab('Notifications'),
       })}
       {renderItem({
-        key: 'Settings',
-        icon: 'settings',
-        onPress: goSettings,
-      })}
-      {renderItem({
         key: 'Profile',
-        icon: 'account-circle',
+        icon: 'person-circle-outline',
+        activeIcon: 'person-circle',
         onPress: () => goTab('Profile'),
       })}
     </View>

@@ -1,5 +1,5 @@
 import React from 'react';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 interface IconProps {
   size?: number;
@@ -7,6 +7,6 @@ interface IconProps {
 }
 
 export const ProfileIcon: React.FC<IconProps> = ({ size = 24, color = '#fff' }) => {
-  return <Icon name="account-circle" size={size} color={color} />;
+  return <Icon name="person-circle-outline" size={size} color={color} />;
 };
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 interface IconProps {
   size?: number;
@@ -7,6 +7,6 @@ interface IconProps {
 }
 
 export const HomeIcon: React.FC<IconProps> = ({ size = 24, color = '#fff' }) => {
-  return <Icon name="home" size={size} color={color} />;
+  return <Icon name="grid-outline" size={size} color={color} />;
 };
 

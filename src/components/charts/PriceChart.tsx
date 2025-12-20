@@ -1,6 +1,9 @@
-import React, { useMemo } from 'react';
-import { View, StyleSheet, useWindowDimensions } from 'react-native';
+import React, { useMemo, useState, useRef } from 'react';
+import { View, StyleSheet, useWindowDimensions, ScrollView, TouchableOpacity } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Icon from 'react-native-vector-icons/Ionicons';
 import { CurrencyPair } from '../../types/market';
 import { useTheme } from '../../hooks';
 import { Text } from '../common/Text';
@@ -13,6 +16,11 @@ interface PriceChartProps {
 export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
   const theme = useTheme();
   const { width: windowWidth } = useWindowDimensions();
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [scrollPosition, setScrollPosition] = useState(0);
 
   // Generate mock chart data
   const { chartData, latest, ema20Last, ema50Last, ema200Last, trendState, ema20Color, ema50Color, ema200Color } = useMemo(() => {
@@ -66,7 +74,8 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
     const rnd = mulberry32(seed);
 
     const totalCandles = 420;
-    const displayCandles = 180;
+    const baseDisplayCandles = 180;
+    const displayCandles = Math.floor(baseDisplayCandles / zoomLevel);
     const base = pair.price;
 
     const closes: number[] = [];
@@ -137,10 +146,43 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
       ema50Color,
       ema200Color,
     };
-  }, [pair.id, pair.price, pair.symbol, theme.colors.info, theme.colors.primary, theme.colors.textSecondary, timeframe]);
+  }, [pair.id, pair.price, pair.symbol, theme.colors.info, theme.colors.primary, theme.colors.textSecondary, timeframe, zoomLevel]);
 
-  const screenWidth = windowWidth - 64;
+  const baseWidth = windowWidth - 64;
+  const chartWidth = baseWidth * zoomLevel;
   const height = 240;
+  const scrollStep = baseWidth * 0.7;
+
+  const handleScrollForward = () => {
+    const newPosition = scrollPosition + scrollStep;
+    scrollViewRef.current?.scrollTo({ x: newPosition, animated: true });
+  };
+
+  const handleScrollBackward = () => {
+    const newPosition = Math.max(0, scrollPosition - scrollStep);
+    scrollViewRef.current?.scrollTo({ x: newPosition, animated: true });
+  };
+
+  const handleScroll = (event: any) => {
+    setScrollPosition(event.nativeEvent.contentOffset.x);
+  };
+
+  const pinchGesture = Gesture.Pinch()
+    .onUpdate((e) => {
+      scale.value = savedScale.value * e.scale;
+    })
+    .onEnd(() => {
+      const newZoom = Math.max(1, Math.min(4, scale.value));
+      savedScale.value = newZoom;
+      scale.value = newZoom;
+      setZoomLevel(newZoom);
+    });
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: withSpring(scale.value, { damping: 20, stiffness: 90 }) }],
+    };
+  });
 
   const trendAccent =
     trendState === 'bullish' ? theme.colors.success : trendState === 'bearish' ? theme.colors.error : theme.colors.textSecondary;
@@ -148,70 +190,131 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
+      <View style={styles.header}>
         <View>
           <Text variant="h4" style={styles.title}>
             {pair.symbol}
           </Text>
           <Text variant="caption" color={theme.colors.textSecondary}>
-            {timeframe} • EMA 20 / 50 / 200
+            {timeframe} • EMA Analysis • Pinch to zoom
           </Text>
         </View>
         <View style={styles.headerRight}>
-          <View style={[styles.trendPill, { backgroundColor: `${trendAccent}1A`, borderColor: `${trendAccent}55` }]}
+          <View
+            style={[
+              styles.trendPill,
+              {
+                backgroundColor: `${trendAccent}14`,
+                borderColor: `${trendAccent}44`,
+              },
+            ]}
           >
             <Text variant="caption" style={[styles.trendText, { color: trendAccent }]}>
               {trendLabel}
             </Text>
           </View>
-          <Text variant="caption" color={theme.colors.textSecondary}>
-            Last {latest.toFixed(5)}
-          </Text>
+          <View
+            style={[
+              styles.pricePill,
+              {
+                backgroundColor: `${theme.colors.primary}1A`,
+                borderColor: `${theme.colors.primary}55`,
+              },
+            ]}
+          >
+            <Text variant="caption" style={[styles.priceText, { color: theme.colors.primary }]}>
+              {latest.toFixed(5)}
+            </Text>
+          </View>
         </View>
       </View>
 
-      <View style={[styles.chartFrame, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+      <View
+        style={[
+          styles.chartFrame,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+          },
+        ]}
+      >
         <View
           pointerEvents="none"
           style={[
             styles.trendWash,
-            { backgroundColor: `${trendAccent}${trendState === 'neutral' ? '00' : '0A'}` },
+            {
+              backgroundColor:
+                trendState === 'bullish'
+                  ? `${theme.colors.success}08`
+                  : trendState === 'bearish'
+                  ? `${theme.colors.error}08`
+                  : 'transparent',
+            },
           ]}
         />
 
-        <LineChart
-          data={chartData}
-          width={screenWidth}
-          height={height}
-          chartConfig={{
-            backgroundColor: 'transparent',
-            backgroundGradientFrom: 'transparent',
-            backgroundGradientTo: 'transparent',
-            decimalPlaces: 5,
-            color: (opacity = 1) =>
-              `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-            labelColor: (opacity = 1) =>
-              `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-            propsForLabels: {
-              fontSize: 10,
-              fontWeight: '700',
-            },
-            propsForBackgroundLines: {
-              stroke: `${theme.colors.border}55`,
-              strokeDasharray: '2 10',
-            },
-            propsForDots: {
-              r: '0',
-            },
-          }}
-          bezier
-          withDots={false}
-          withInnerLines
-          withOuterLines={false}
-          withShadow={false}
-          segments={5}
-          style={styles.chart}
-        />
+        <ScrollView
+          ref={scrollViewRef}
+          horizontal
+          showsHorizontalScrollIndicator={true}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          contentContainerStyle={{ paddingRight: zoomLevel > 1 ? baseWidth * 0.5 : 0 }}
+        >
+          <GestureDetector gesture={pinchGesture}>
+            <Animated.View style={animatedStyle}>
+              <LineChart
+                data={chartData}
+                width={chartWidth}
+                height={height}
+                chartConfig={{
+                  backgroundColor: 'transparent',
+                  backgroundGradientFrom: 'transparent',
+                  backgroundGradientTo: 'transparent',
+                  decimalPlaces: 5,
+                  color: (opacity = 1) =>
+                    `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+                  labelColor: (opacity = 1) =>
+                    `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+                  propsForLabels: {
+                    fontSize: 10,
+                    fontWeight: '700',
+                  },
+                  propsForBackgroundLines: {
+                    stroke: `${theme.colors.border}44`,
+                    strokeDasharray: '3 12',
+                  },
+                }}
+                bezier
+                withDots={false}
+                withInnerLines
+                withOuterLines={false}
+                withShadow={false}
+                segments={5}
+                style={styles.chart}
+              />
+            </Animated.View>
+          </GestureDetector>
+        </ScrollView>
+
+        {zoomLevel > 1 && (
+          <View style={styles.scrollControls}>
+            <TouchableOpacity
+              onPress={handleScrollBackward}
+              style={[styles.scrollButton, { backgroundColor: `${theme.colors.surface}DD`, borderColor: theme.colors.border }]}
+              activeOpacity={0.7}
+            >
+              <Icon name="chevron-back" size={20} color={theme.colors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleScrollForward}
+              style={[styles.scrollButton, { backgroundColor: `${theme.colors.surface}DD`, borderColor: theme.colors.border }]}
+              activeOpacity={0.7}
+            >
+              <Icon name="chevron-forward" size={20} color={theme.colors.primary} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View pointerEvents="none" style={styles.emaLegend}>
           <View style={[styles.emaChip, { backgroundColor: 'rgba(76, 175, 80, 0.12)', borderColor: 'rgba(76, 175, 80, 0.3)' }]}>
@@ -251,6 +354,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -273,6 +382,18 @@ const styles = StyleSheet.create({
   trendText: {
     fontWeight: '900',
     letterSpacing: 0.2,
+    fontSize: 10,
+  },
+  pricePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  priceText: {
+    fontWeight: '900',
+    letterSpacing: 0.3,
+    fontSize: 14,
   },
   chartFrame: {
     borderRadius: 16,
@@ -318,6 +439,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.15,
     fontSize: 10,
+  },
+  scrollControls: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    flexDirection: 'row',
+    gap: 8,
+    zIndex: 10,
+  },
+  scrollButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });
 
