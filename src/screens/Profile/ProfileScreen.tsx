@@ -19,8 +19,6 @@ export default function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [priceAlertsEnabled, setPriceAlertsEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(true);
-  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
 
   const MenuItem = ({ icon, title, subtitle, onPress, showChevron = true, hasSwitch, switchValue, onSwitchChange, iconColor }: {
     icon: string;
@@ -151,22 +149,6 @@ export default function ProfileScreen() {
                 switchValue={priceAlertsEnabled}
                 onSwitchChange={setPriceAlertsEnabled}
               />
-              <MenuItem
-                icon="moon-outline"
-                title="Dark Mode"
-                subtitle="Use dark theme across the app"
-                hasSwitch
-                switchValue={darkModeEnabled}
-                onSwitchChange={setDarkModeEnabled}
-              />
-              <MenuItem
-                icon="finger-print-outline"
-                title="Biometric Login"
-                subtitle="Use fingerprint or face ID"
-                hasSwitch
-                switchValue={biometricsEnabled}
-                onSwitchChange={setBiometricsEnabled}
-              />
             </Card>
           </View>
 
@@ -179,24 +161,6 @@ export default function ProfileScreen() {
                 icon="language-outline"
                 title="Language"
                 subtitle="English (US)"
-                onPress={() => {}}
-              />
-              <MenuItem
-                icon="cash-outline"
-                title="Currency"
-                subtitle="USD ($)"
-                onPress={() => {}}
-              />
-              <MenuItem
-                icon="time-outline"
-                title="Timezone"
-                subtitle="GMT-10:00 (Hawaii)"
-                onPress={() => {}}
-              />
-              <MenuItem
-                icon="color-palette-outline"
-                title="Theme"
-                subtitle="Customize app appearance"
                 onPress={() => {}}
               />
             </Card>
@@ -225,12 +189,6 @@ export default function ProfileScreen() {
                 subtitle="Payment methods and history"
                 onPress={() => {}}
               />
-              <MenuItem
-                icon="cloud-download-outline"
-                title="Data & Storage"
-                subtitle="Manage app data and cache"
-                onPress={() => {}}
-              />
             </Card>
           </View>
 
@@ -243,25 +201,25 @@ export default function ProfileScreen() {
                 icon="document-text-outline"
                 title="Terms of Service"
                 subtitle="User agreement and conditions"
-                onPress={() => {}}
+                onPress={() => navigation.navigate('TermsOfService' as any)}
               />
               <MenuItem
                 icon="shield-checkmark-outline"
                 title="Privacy Policy"
                 subtitle="How we protect your data"
-                onPress={() => {}}
+                onPress={() => navigation.navigate('PrivacyPolicy' as any)}
               />
               <MenuItem
                 icon="alert-circle-outline"
                 title="Risk Disclosure"
                 subtitle="Trading risks and disclaimers"
-                onPress={() => {}}
+                onPress={() => navigation.navigate('RiskDisclosure' as any)}
               />
               <MenuItem
                 icon="reader-outline"
                 title="Licenses & Compliance"
                 subtitle="Regulatory information"
-                onPress={() => {}}
+                onPress={() => navigation.navigate('Licenses' as any)}
               />
             </Card>
           </View>
@@ -291,13 +249,6 @@ export default function ProfileScreen() {
               DANGER ZONE
             </Text>
             <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-              <MenuItem
-                icon="trash-outline"
-                title="Clear Cache"
-                subtitle="Free up storage space"
-                onPress={() => {}}
-                iconColor={theme.colors.textSecondary}
-              />
               <MenuItem
                 icon="log-out-outline"
                 title="Logout"
