@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -14,21 +14,33 @@ type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>
 export default function ProfileScreen() {
   const theme = useTheme();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
+  
+  // Settings state
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [priceAlertsEnabled, setPriceAlertsEnabled] = useState(true);
+  const [darkModeEnabled, setDarkModeEnabled] = useState(true);
+  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
 
-  const MenuItem = ({ icon, title, subtitle, onPress, showChevron = true }: {
+  const MenuItem = ({ icon, title, subtitle, onPress, showChevron = true, hasSwitch, switchValue, onSwitchChange, iconColor }: {
     icon: string;
     title: string;
     subtitle?: string;
-    onPress: () => void;
+    onPress?: () => void;
     showChevron?: boolean;
+    hasSwitch?: boolean;
+    switchValue?: boolean;
+    onSwitchChange?: (value: boolean) => void;
+    iconColor?: string;
   }) => (
     <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={onPress}
+      activeOpacity={hasSwitch ? 1 : 0.7}
+      onPress={hasSwitch ? undefined : onPress}
       style={[styles.menuItem, { borderBottomColor: theme.colors.border }]}
+      disabled={hasSwitch}
     >
-      <View style={[styles.iconCircle, { backgroundColor: `${theme.colors.primary}14` }]}>
-        <Icon name={icon} size={22} color={theme.colors.primary} />
+      <View style={[styles.iconCircle, { backgroundColor: `${iconColor || theme.colors.primary}14` }]}>
+        <Icon name={icon} size={22} color={iconColor || theme.colors.primary} />
       </View>
       <View style={styles.menuContent}>
         <Text variant="body" style={styles.menuTitle}>
@@ -40,10 +52,37 @@ export default function ProfileScreen() {
           </Text>
         )}
       </View>
-      {showChevron && (
+      {hasSwitch ? (
+        <Switch
+          value={switchValue}
+          onValueChange={onSwitchChange}
+          trackColor={{ false: theme.colors.border, true: `${theme.colors.primary}88` }}
+          thumbColor={switchValue ? theme.colors.primary : theme.colors.textSecondary}
+          ios_backgroundColor={theme.colors.border}
+        />
+      ) : showChevron ? (
         <Icon name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-      )}
+      ) : null}
     </TouchableOpacity>
+  );
+
+  const FeatureCard = ({ icon, title, description, color }: {
+    icon: string;
+    title: string;
+    description: string;
+    color: string;
+  }) => (
+    <View style={[styles.featureCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+      <View style={[styles.featureIconCircle, { backgroundColor: `${color}14` }]}>
+        <Icon name={icon} size={28} color={color} />
+      </View>
+      <Text variant="body" style={styles.featureTitle}>
+        {title}
+      </Text>
+      <Text variant="caption" color={theme.colors.textSecondary} style={styles.featureDescription}>
+        {description}
+      </Text>
+    </View>
   );
 
   return (
@@ -58,9 +97,131 @@ export default function ProfileScreen() {
             <Text variant="h3" style={styles.userName}>
               Trader Account
             </Text>
-            <Text variant="caption" color={theme.colors.textSecondary}>
-              Professional Trading Platform
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.userEmail}>
+              trader@forexfuture.com
             </Text>
+            <TouchableOpacity
+              style={[styles.editProfileButton, { backgroundColor: `${theme.colors.primary}14`, borderColor: `${theme.colors.primary}44` }]}
+              activeOpacity={0.7}
+              onPress={() => {}}
+            >
+              <Icon name="create-outline" size={16} color={theme.colors.primary} />
+              <Text variant="caption" style={[styles.editProfileText, { color: theme.colors.primary }]}>
+                Edit Profile
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.section}>
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.sectionLabel}>
+              CORE FEATURES
+            </Text>
+            <View style={styles.featuresGrid}>
+              <FeatureCard
+                icon="analytics-outline"
+                title="AI Analysis"
+                description="Real-time market insights powered by advanced algorithms"
+                color="#4CAF50"
+              />
+              <FeatureCard
+                icon="notifications-outline"
+                title="Smart Alerts"
+                description="Instant notifications for market volatility and opportunities"
+                color="#2196F3"
+              />
+              <FeatureCard
+                icon="stats-chart-outline"
+                title="Technical Tools"
+                description="Professional charting with EMA, RSI, and multi-timeframe analysis"
+                color="#FFC107"
+              />
+              <FeatureCard
+                icon="shield-checkmark-outline"
+                title="Risk Management"
+                description="Advanced tools to protect your trading capital"
+                color="#f44336"
+              />
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.sectionLabel}>
+              SETTINGS
+            </Text>
+            <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <MenuItem
+                icon="notifications-outline"
+                title="Push Notifications"
+                subtitle="Receive alerts for market events"
+                hasSwitch
+                switchValue={notificationsEnabled}
+                onSwitchChange={setNotificationsEnabled}
+              />
+              <MenuItem
+                icon="volume-high-outline"
+                title="Sound Alerts"
+                subtitle="Audio notifications for price movements"
+                hasSwitch
+                switchValue={soundEnabled}
+                onSwitchChange={setSoundEnabled}
+              />
+              <MenuItem
+                icon="pricetag-outline"
+                title="Price Alerts"
+                subtitle="Custom price level notifications"
+                hasSwitch
+                switchValue={priceAlertsEnabled}
+                onSwitchChange={setPriceAlertsEnabled}
+              />
+              <MenuItem
+                icon="moon-outline"
+                title="Dark Mode"
+                subtitle="Use dark theme across the app"
+                hasSwitch
+                switchValue={darkModeEnabled}
+                onSwitchChange={setDarkModeEnabled}
+              />
+              <MenuItem
+                icon="finger-print-outline"
+                title="Biometric Login"
+                subtitle="Use fingerprint or face ID"
+                hasSwitch
+                switchValue={biometricsEnabled}
+                onSwitchChange={setBiometricsEnabled}
+              />
+            </Card>
+          </View>
+
+          <View style={styles.section}>
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.sectionLabel}>
+              PREFERENCES
+            </Text>
+            <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <MenuItem
+                icon="language-outline"
+                title="Language"
+                subtitle="English (US)"
+                onPress={() => {}}
+              />
+              <MenuItem
+                icon="cash-outline"
+                title="Currency"
+                subtitle="USD ($)"
+                onPress={() => {}}
+              />
+              <MenuItem
+                icon="time-outline"
+                title="Timezone"
+                subtitle="GMT-10:00 (Hawaii)"
+                onPress={() => {}}
+              />
+              <MenuItem
+                icon="color-palette-outline"
+                title="Theme"
+                subtitle="Customize app appearance"
+                onPress={() => {}}
+              />
+            </Card>
           </View>
 
           <View style={styles.section}>
@@ -69,21 +230,27 @@ export default function ProfileScreen() {
             </Text>
             <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
               <MenuItem
-                icon="settings-outline"
-                title="Settings"
-                subtitle="App preferences and configuration"
-                onPress={() => navigation.navigate('Settings')}
-              />
-              <MenuItem
                 icon="card-outline"
-                title="Subscription"
-                subtitle="Manage your plan"
+                title="Subscription Plan"
+                subtitle="Premium • Renews Jan 20, 2026"
                 onPress={() => navigation.navigate('Subscription')}
               />
               <MenuItem
-                icon="notifications-outline"
-                title="Notifications"
-                subtitle="Alert preferences"
+                icon="shield-outline"
+                title="Security"
+                subtitle="Password, 2FA, and security settings"
+                onPress={() => {}}
+              />
+              <MenuItem
+                icon="wallet-outline"
+                title="Billing & Payments"
+                subtitle="Payment methods and history"
+                onPress={() => {}}
+              />
+              <MenuItem
+                icon="cloud-download-outline"
+                title="Data & Storage"
+                subtitle="Manage app data and cache"
                 onPress={() => {}}
               />
             </Card>
@@ -91,19 +258,31 @@ export default function ProfileScreen() {
 
           <View style={styles.section}>
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.sectionLabel}>
-              APP INFO
+              LEGAL & COMPLIANCE
             </Text>
             <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
               <MenuItem
-                icon="information-circle-outline"
-                title="About"
-                subtitle="App version and details"
-                onPress={() => navigation.navigate('About')}
+                icon="document-text-outline"
+                title="Terms of Service"
+                subtitle="User agreement and conditions"
+                onPress={() => {}}
               />
               <MenuItem
-                icon="document-text-outline"
-                title="Terms & Privacy"
-                subtitle="Legal information"
+                icon="shield-checkmark-outline"
+                title="Privacy Policy"
+                subtitle="How we protect your data"
+                onPress={() => {}}
+              />
+              <MenuItem
+                icon="alert-circle-outline"
+                title="Risk Disclosure"
+                subtitle="Trading risks and disclaimers"
+                onPress={() => {}}
+              />
+              <MenuItem
+                icon="reader-outline"
+                title="Licenses & Compliance"
+                subtitle="Regulatory information"
                 onPress={() => {}}
               />
             </Card>
@@ -129,12 +308,44 @@ export default function ProfileScreen() {
             </Card>
           </View>
 
+          <View style={styles.section}>
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.sectionLabel}>
+              DANGER ZONE
+            </Text>
+            <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <MenuItem
+                icon="trash-outline"
+                title="Clear Cache"
+                subtitle="Free up storage space"
+                onPress={() => {}}
+                iconColor={theme.colors.textSecondary}
+              />
+              <MenuItem
+                icon="log-out-outline"
+                title="Logout"
+                subtitle="Sign out of your account"
+                onPress={() => {}}
+                iconColor="#f44336"
+              />
+              <MenuItem
+                icon="close-circle-outline"
+                title="Delete Account"
+                subtitle="Permanently remove your data"
+                onPress={() => {}}
+                iconColor="#f44336"
+              />
+            </Card>
+          </View>
+
           <View style={styles.footer}>
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.footerText}>
-              Forex Future v1.0.0
+              Forex Future v1.0.0 • Build 2024.12.20
             </Text>
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.footerText}>
               AI-driven market insights • Not financial advice
+            </Text>
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.footerText}>
+              © 2024 Forex Future. All rights reserved.
             </Text>
           </View>
         </Container>
@@ -167,6 +378,23 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginBottom: 4,
   },
+  userEmail: {
+    marginBottom: 12,
+  },
+  editProfileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 6,
+    marginTop: 4,
+  },
+  editProfileText: {
+    fontWeight: '700',
+    fontSize: 12,
+  },
   section: {
     marginBottom: 24,
   },
@@ -175,6 +403,37 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 8,
     marginLeft: 4,
+  },
+  featuresGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  featureCard: {
+    flex: 1,
+    minWidth: '47%',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
+  featureIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  featureTitle: {
+    fontWeight: '800',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  featureDescription: {
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: 'center',
   },
   menuCard: {
     borderWidth: StyleSheet.hairlineWidth,
