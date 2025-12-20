@@ -23,7 +23,9 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
   const rsiColor =
     latest >= 70 ? theme.colors.error : latest <= 30 ? theme.colors.success : theme.colors.primary;
 
-  const labels = Array.from({ length: rsiSeries.length }, () => '');
+  const status = latest >= 70 ? 'Overbought' : latest <= 30 ? 'Oversold' : 'Neutral';
+
+  const labels = Array.from({ length: rsiSeries.length }, (_, i) => (i % 12 === 0 ? `${i}` : ''));
 
   const data = {
     labels,
@@ -44,6 +46,11 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
         color: (opacity = 1) => `${theme.colors.success}${Math.round(opacity * 130).toString(16).padStart(2, '0')}`,
         strokeWidth: 1,
         strokeDasharray: [6, 6],
+      },
+      {
+        data: rsiSeries.map(() => 0),
+        color: () => 'transparent',
+        strokeWidth: 0,
       },
       {
         data: rsiSeries.map(() => 100),
@@ -70,11 +77,11 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text variant="h4" style={styles.title}>
-          RSI
+          RSI (14)
         </Text>
         <View style={styles.headerRight}>
           <Text variant="caption" color={theme.colors.textSecondary}>
-            {timeframe} • Overbought 70 / Oversold 30
+            {timeframe} • {status} • 70 / 30
           </Text>
           <View style={[styles.valuePill, { backgroundColor: `${rsiColor}1A`, borderColor: `${rsiColor}55` }]}
           >
@@ -91,18 +98,6 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
           <View style={styles.zoneMiddle} />
           <View style={[styles.zoneBottom, { backgroundColor: `${theme.colors.success}10` }]} />
           <View style={[styles.midLine, { borderTopColor: `${theme.colors.textSecondary}22` }]} />
-        </View>
-
-        <View pointerEvents="none" style={styles.levelLabels}>
-          <View style={[styles.levelLabel, styles.levelLabelTop, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
-            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>70</Text>
-          </View>
-          <View style={[styles.levelLabel, styles.levelLabelMid, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
-            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>50</Text>
-          </View>
-          <View style={[styles.levelLabel, styles.levelLabelBottom, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
-            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>30</Text>
-          </View>
         </View>
 
         <LineChart
@@ -140,11 +135,23 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
           withInnerLines
           withOuterLines={false}
           withShadow
-          withHorizontalLabels={false}
-          withVerticalLabels={false}
+          withHorizontalLabels
+          withVerticalLabels
           style={chartStyle}
           segments={5}
         />
+
+        <View pointerEvents="none" style={styles.levelLabels}>
+          <View style={[styles.levelLabel, styles.levelLabelTop, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
+            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>70</Text>
+          </View>
+          <View style={[styles.levelLabel, styles.levelLabelMid, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
+            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>50</Text>
+          </View>
+          <View style={[styles.levelLabel, styles.levelLabelBottom, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
+            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>30</Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -177,10 +184,11 @@ const styles = StyleSheet.create({
   },
   levelLabels: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
   },
   levelLabel: {
     position: 'absolute',
-    left: 10,
+    right: 10,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
