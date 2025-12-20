@@ -19,6 +19,10 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
     return rsi.map((v) => Math.max(0, Math.min(100, v)));
   }, [basePrice, timeframe]);
 
+  const latest = rsiSeries.length ? rsiSeries[rsiSeries.length - 1] : 50;
+  const rsiColor =
+    latest >= 70 ? theme.colors.error : latest <= 30 ? theme.colors.success : theme.colors.primary;
+
   const labels = Array.from({ length: rsiSeries.length }, (_, i) => (i % 8 === 0 ? `${i}` : ''));
 
   const data = {
@@ -26,22 +30,33 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
     datasets: [
       {
         data: rsiSeries,
-        color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})`,
-        strokeWidth: 2,
+        color: (opacity = 1) => `${rsiColor}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+        strokeWidth: 2.5,
       },
       {
         data: rsiSeries.map(() => 70),
-        color: (opacity = 1) => `rgba(239, 68, 68, ${opacity * 0.75})`,
+        color: (opacity = 1) => `${theme.colors.error}${Math.round(opacity * 180).toString(16).padStart(2, '0')}`,
         strokeWidth: 1,
+        strokeDasharray: [6, 6],
       },
       {
         data: rsiSeries.map(() => 30),
-        color: (opacity = 1) => `rgba(34, 197, 94, ${opacity * 0.75})`,
+        color: (opacity = 1) => `${theme.colors.success}${Math.round(opacity * 180).toString(16).padStart(2, '0')}`,
         strokeWidth: 1,
+        strokeDasharray: [6, 6],
+      },
+      {
+        data: rsiSeries.map(() => 100),
+        color: () => 'transparent',
+        strokeWidth: 0,
       },
     ],
-    legend: ['RSI', 'Overbought 70', 'Oversold 30'],
   };
+
+  const chartStyle = StyleSheet.flatten([
+    styles.chart,
+    { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+  ]);
 
   const width = Dimensions.get('window').width - 64;
 
@@ -51,9 +66,17 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
         <Text variant="h4" style={styles.title}>
           RSI
         </Text>
-        <Text variant="caption" color={theme.colors.textSecondary}>
-          {timeframe} • Overbought 70 / Oversold 30
-        </Text>
+        <View style={styles.headerRight}>
+          <Text variant="caption" color={theme.colors.textSecondary}>
+            {timeframe} • Overbought 70 / Oversold 30
+          </Text>
+          <View style={[styles.valuePill, { backgroundColor: `${rsiColor}1A`, borderColor: `${rsiColor}55` }]}
+          >
+            <Text variant="caption" style={[styles.valueText, { color: rsiColor }]}>
+              {Math.round(latest)}
+            </Text>
+          </View>
+        </View>
       </View>
 
       <LineChart
@@ -67,27 +90,35 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
           backgroundGradientFrom: theme.colors.surface,
           backgroundGradientTo: theme.colors.surface,
           decimalPlaces: 0,
-          color: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
-          labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
+          color: (opacity = 1) => `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+          labelColor: (opacity = 1) => `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+          fillShadowGradient: rsiColor,
+          fillShadowGradientOpacity: 0.12,
+          propsForLabels: {
+            fontSize: 10,
+            fontWeight: '700',
+          },
           propsForDots: {
             r: '0',
           },
           propsForBackgroundLines: {
             stroke: theme.colors.border,
+            strokeDasharray: '4 8',
           },
         }}
+        formatYLabel={(y) => `${Math.round(Number(y))}`}
         bezier
         withDots={false}
         withInnerLines
         withOuterLines={false}
-        withShadow={false}
-        style={styles.chart}
-        segments={4}
+        withShadow
+        style={chartStyle}
+        segments={5}
       />
 
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
-          <View style={[styles.legendSwatch, { backgroundColor: theme.colors.info }]} />
+          <View style={[styles.legendSwatch, { backgroundColor: rsiColor }]} />
           <Text variant="caption" color={theme.colors.textSecondary}>
             RSI
           </Text>
@@ -119,11 +150,26 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     marginBottom: 10,
   },
+  headerRight: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
   title: {
     fontWeight: '800',
   },
   chart: {
     borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  valuePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  valueText: {
+    fontWeight: '900',
+    letterSpacing: 0.2,
   },
   legendRow: {
     flexDirection: 'row',
