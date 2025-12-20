@@ -66,21 +66,17 @@ export default function ProfileScreen() {
     </TouchableOpacity>
   );
 
-  const FeatureCard = ({ icon, title, description, color }: {
+  const FeatureItem = ({ icon, title, color }: {
     icon: string;
     title: string;
-    description: string;
     color: string;
   }) => (
-    <View style={[styles.featureCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-      <View style={[styles.featureIconCircle, { backgroundColor: `${color}14` }]}>
-        <Icon name={icon} size={28} color={color} />
+    <View style={styles.featureItem}>
+      <View style={[styles.featureIconSmall, { backgroundColor: `${color}14` }]}>
+        <Icon name={icon} size={18} color={color} />
       </View>
-      <Text variant="body" style={styles.featureTitle}>
+      <Text variant="body" style={styles.featureItemText}>
         {title}
-      </Text>
-      <Text variant="caption" color={theme.colors.textSecondary} style={styles.featureDescription}>
-        {description}
       </Text>
     </View>
   );
@@ -116,32 +112,14 @@ export default function ProfileScreen() {
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.sectionLabel}>
               CORE FEATURES
             </Text>
-            <View style={styles.featuresGrid}>
-              <FeatureCard
-                icon="analytics-outline"
-                title="AI Analysis"
-                description="Real-time market insights powered by advanced algorithms"
-                color="#4CAF50"
-              />
-              <FeatureCard
-                icon="notifications-outline"
-                title="Smart Alerts"
-                description="Instant notifications for market volatility and opportunities"
-                color="#2196F3"
-              />
-              <FeatureCard
-                icon="stats-chart-outline"
-                title="Technical Tools"
-                description="Professional charting with EMA, RSI, and multi-timeframe analysis"
-                color="#FFC107"
-              />
-              <FeatureCard
-                icon="shield-checkmark-outline"
-                title="Risk Management"
-                description="Advanced tools to protect your trading capital"
-                color="#f44336"
-              />
-            </View>
+            <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <View style={styles.featuresCompact}>
+                <FeatureItem icon="analytics-outline" title="AI Analysis" color="#4CAF50" />
+                <FeatureItem icon="notifications-outline" title="Smart Alerts" color="#2196F3" />
+                <FeatureItem icon="stats-chart-outline" title="Technical Tools" color="#FFC107" />
+                <FeatureItem icon="shield-checkmark-outline" title="Risk Management" color="#f44336" />
+              </View>
+            </Card>
           </View>
 
           <View style={styles.section}>
@@ -404,36 +382,32 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 4,
   },
-  featuresGrid: {
+  featuresCompact: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    padding: 12,
+    gap: 8,
   },
-  featureCard: {
-    flex: 1,
-    minWidth: '47%',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
+  featureItem: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: 'transparent',
+    gap: 8,
+    minWidth: '47%',
   },
-  featureIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  featureIconSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
-  featureTitle: {
-    fontWeight: '800',
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  featureDescription: {
-    fontSize: 11,
-    lineHeight: 15,
-    textAlign: 'center',
+  featureItemText: {
+    fontWeight: '700',
+    fontSize: 13,
   },
   menuCard: {
     borderWidth: StyleSheet.hairlineWidth,
