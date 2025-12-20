@@ -161,19 +161,19 @@ export default function ProfileScreen() {
                 icon="card-outline"
                 title="Subscription Plan"
                 subtitle="Premium • Renews Jan 20, 2026"
-                onPress={() => navigation.navigate('Subscription')}
+                onPress={() => navigation.navigate('SubscriptionPlan' as any)}
               />
               <MenuItem
                 icon="shield-outline"
                 title="Security"
                 subtitle="Password, 2FA, and security settings"
-                onPress={() => {}}
+                onPress={() => navigation.navigate('Security' as any)}
               />
               <MenuItem
                 icon="wallet-outline"
                 title="Billing & Payments"
                 subtitle="Payment methods and history"
-                onPress={() => {}}
+                onPress={() => navigation.navigate('BillingPayments' as any)}
               />
             </Card>
           </View>
@@ -218,14 +218,14 @@ export default function ProfileScreen() {
               <MenuItem
                 icon="help-circle-outline"
                 title="Help Center"
-                subtitle="Get support and answers"
-                onPress={() => {}}
+                subtitle="FAQs and support articles"
+                onPress={() => navigation.navigate('HelpCenter' as any)}
               />
               <MenuItem
                 icon="mail-outline"
                 title="Contact Us"
-                subtitle="Send feedback or report issues"
-                onPress={() => {}}
+                subtitle="Get in touch with our team"
+                onPress={() => navigation.navigate('ContactUs' as any)}
               />
             </Card>
           </View>
