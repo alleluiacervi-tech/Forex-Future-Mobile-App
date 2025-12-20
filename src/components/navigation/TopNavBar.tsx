@@ -85,7 +85,7 @@ export default function TopNavBar() {
         },
       ]}
     >
-      <View style={styles.group}>
+      <View style={[styles.group, styles.groupTop]}>
         {renderItem({
           key: 'Home',
           label: 'Home',
@@ -109,7 +109,7 @@ export default function TopNavBar() {
         })}
       </View>
 
-      <View style={styles.group}>
+      <View style={[styles.group, styles.groupBottom]}>
         {renderItem({
           key: 'Settings',
           label: 'Settings',
@@ -130,11 +130,11 @@ export default function TopNavBar() {
 
 const styles = StyleSheet.create({
   container: {
-    height: 64,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 14,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.12,
@@ -145,6 +145,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  groupTop: {
+    justifyContent: 'center',
+  },
+  groupBottom: {
+    justifyContent: 'center',
+    marginTop: 10,
   },
   pill: {
     width: 64,
