@@ -154,20 +154,6 @@ export default function ProfileScreen() {
 
           <View style={styles.section}>
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.sectionLabel}>
-              PREFERENCES
-            </Text>
-            <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-              <MenuItem
-                icon="language-outline"
-                title="Language"
-                subtitle="English (US)"
-                onPress={() => {}}
-              />
-            </Card>
-          </View>
-
-          <View style={styles.section}>
-            <Text variant="caption" color={theme.colors.textSecondary} style={styles.sectionLabel}>
               ACCOUNT
             </Text>
             <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
