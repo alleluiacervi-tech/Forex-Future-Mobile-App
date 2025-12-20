@@ -34,42 +34,26 @@ export default function TopNavBar() {
 
   const renderItem = (opts: {
     key: string;
-    label: string;
     icon: string;
     activeIcon?: string;
     onPress: () => void;
   }) => {
     const selected = isActive(opts.key);
-    const bg = selected ? `${theme.colors.primary}20` : `${theme.colors.surfaceLight}55`;
-    const border = selected ? `${theme.colors.primary}55` : theme.colors.border;
     const iconName = selected && opts.activeIcon ? opts.activeIcon : opts.icon;
 
     return (
       <TouchableOpacity
         key={opts.key}
         onPress={opts.onPress}
-        activeOpacity={0.82}
-        style={[
-          styles.pill,
-          {
-            backgroundColor: bg,
-            borderColor: border,
-          },
-          selected && styles.pillActive,
-        ]}
+        activeOpacity={0.7}
+        style={styles.navButton}
       >
-        <Icon name={iconName} size={22} color={iconColor(opts.key)} />
-        <Text
-          variant="caption"
-          style={[
-            styles.pillLabel,
-            {
-              color: selected ? theme.colors.primary : theme.colors.textSecondary,
-            },
-          ]}
-        >
-          {opts.label}
-        </Text>
+        <View style={styles.iconWrapper}>
+          <Icon name={iconName} size={24} color={iconColor(opts.key)} />
+          {selected && (
+            <View style={[styles.activeIndicator, { backgroundColor: theme.colors.primary }]} />
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -81,98 +65,64 @@ export default function TopNavBar() {
         {
           backgroundColor: theme.colors.surface,
           borderBottomColor: theme.colors.border,
-          shadowColor: '#000',
         },
       ]}
     >
-      <View style={[styles.group, styles.groupTop]}>
-        {renderItem({
-          key: 'Home',
-          label: 'Home',
-          icon: 'insights',
-          activeIcon: 'insights',
-          onPress: () => goTab('Home'),
-        })}
-        {renderItem({
-          key: 'Market',
-          label: 'Market',
-          icon: 'show-chart',
-          activeIcon: 'trending-up',
-          onPress: () => goTab('Market'),
-        })}
-        {renderItem({
-          key: 'Notifications',
-          label: 'Alerts',
-          icon: 'notifications-none',
-          activeIcon: 'notifications-active',
-          onPress: () => goTab('Notifications'),
-        })}
-      </View>
-
-      <View style={[styles.group, styles.groupBottom]}>
-        {renderItem({
-          key: 'Settings',
-          label: 'Settings',
-          icon: 'tune',
-          activeIcon: 'settings',
-          onPress: goSettings,
-        })}
-        {renderItem({
-          key: 'Profile',
-          label: 'Profile',
-          icon: 'account-circle',
-          onPress: () => goTab('Profile'),
-        })}
-      </View>
+      {renderItem({
+        key: 'Home',
+        icon: 'home',
+        onPress: () => goTab('Home'),
+      })}
+      {renderItem({
+        key: 'Market',
+        icon: 'show-chart',
+        onPress: () => goTab('Market'),
+      })}
+      {renderItem({
+        key: 'Notifications',
+        icon: 'notifications-none',
+        activeIcon: 'notifications',
+        onPress: () => goTab('Notifications'),
+      })}
+      {renderItem({
+        key: 'Settings',
+        icon: 'settings',
+        onPress: goSettings,
+      })}
+      {renderItem({
+        key: 'Profile',
+        icon: 'account-circle',
+        onPress: () => goTab('Profile'),
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 18,
-    elevation: 12,
-  },
-  group: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  groupTop: {
-    justifyContent: 'center',
-  },
-  groupBottom: {
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  pill: {
-    width: 64,
-    height: 46,
+  navButton: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingTop: 6,
+    paddingVertical: 12,
   },
-  pillActive: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 10,
+  iconWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  pillLabel: {
-    marginTop: 2,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.2,
+  activeIndicator: {
+    position: 'absolute',
+    bottom: -8,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
   },
 });

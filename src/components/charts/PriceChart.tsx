@@ -15,7 +15,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
   const { width: windowWidth } = useWindowDimensions();
 
   // Generate mock chart data
-  const { chartData, latest, ema20Last, ema50Last, ema200Last, trendState } = useMemo(() => {
+  const { chartData, latest, ema20Last, ema50Last, ema200Last, trendState, ema20Color, ema50Color, ema200Color } = useMemo(() => {
     const hashString = (s: string) => {
       let h = 2166136261;
       for (let i = 0; i < s.length; i++) {
@@ -103,28 +103,28 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
     const bearish = ema20Last < ema50Last && ema50Last < ema200Last;
     const trendState: 'bullish' | 'bearish' | 'neutral' = bullish ? 'bullish' : bearish ? 'bearish' : 'neutral';
 
+    const ema20Color = '#4CAF50';
+    const ema50Color = '#FFC107';
+    const ema200Color = '#E0E0E0';
+
     return {
       chartData: {
         labels,
         datasets: [
           {
             data: ema20View,
-            color: (opacity = 1) =>
-              `${theme.colors.primary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-            strokeWidth: 2.4,
+            color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
+            strokeWidth: 2.6,
           },
           {
             data: ema50View,
-            color: (opacity = 1) =>
-              `${theme.colors.info}${Math.round(opacity * 230).toString(16).padStart(2, '0')}`,
-            strokeWidth: 2.0,
+            color: (opacity = 1) => `rgba(255, 193, 7, ${opacity})`,
+            strokeWidth: 2.4,
           },
           {
             data: ema200View,
-            color: (opacity = 1) =>
-              `${theme.colors.textSecondary}${Math.round(opacity * 210).toString(16).padStart(2, '0')}`,
-            strokeWidth: 2.0,
-            strokeDasharray: [5, 8],
+            color: (opacity = 1) => `rgba(224, 224, 224, ${opacity * 0.85})`,
+            strokeWidth: 2.2,
           },
         ],
       },
@@ -133,6 +133,9 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
       ema50Last,
       ema200Last,
       trendState,
+      ema20Color,
+      ema50Color,
+      ema200Color,
     };
   }, [pair.id, pair.price, pair.symbol, theme.colors.info, theme.colors.primary, theme.colors.textSecondary, timeframe]);
 
@@ -211,19 +214,31 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
         />
 
         <View pointerEvents="none" style={styles.emaLegend}>
-          <View style={[styles.emaChip, { backgroundColor: `${theme.colors.primary}14`, borderColor: `${theme.colors.primary}33` }]}>
-            <Text variant="caption" style={[styles.emaChipText, { color: theme.colors.primary }]}>
-              EMA20 {ema20Last.toFixed(5)}
+          <View style={[styles.emaChip, { backgroundColor: 'rgba(76, 175, 80, 0.12)', borderColor: 'rgba(76, 175, 80, 0.3)' }]}>
+            <View style={[styles.emaIndicator, { backgroundColor: ema20Color }]} />
+            <Text variant="caption" style={[styles.emaChipText, { color: ema20Color }]}>
+              EMA20
+            </Text>
+            <Text variant="caption" style={[styles.emaValue, { color: theme.colors.text }]}>
+              {ema20Last.toFixed(5)}
             </Text>
           </View>
-          <View style={[styles.emaChip, { backgroundColor: `${theme.colors.info}14`, borderColor: `${theme.colors.info}33` }]}>
-            <Text variant="caption" style={[styles.emaChipText, { color: theme.colors.info }]}>
-              EMA50 {ema50Last.toFixed(5)}
+          <View style={[styles.emaChip, { backgroundColor: 'rgba(255, 193, 7, 0.12)', borderColor: 'rgba(255, 193, 7, 0.3)' }]}>
+            <View style={[styles.emaIndicator, { backgroundColor: ema50Color }]} />
+            <Text variant="caption" style={[styles.emaChipText, { color: ema50Color }]}>
+              EMA50
+            </Text>
+            <Text variant="caption" style={[styles.emaValue, { color: theme.colors.text }]}>
+              {ema50Last.toFixed(5)}
             </Text>
           </View>
-          <View style={[styles.emaChip, { backgroundColor: `${theme.colors.textSecondary}14`, borderColor: `${theme.colors.textSecondary}33` }]}>
-            <Text variant="caption" style={[styles.emaChipText, { color: theme.colors.textSecondary }]}>
-              EMA200 {ema200Last.toFixed(5)}
+          <View style={[styles.emaChip, { backgroundColor: 'rgba(224, 224, 224, 0.12)', borderColor: 'rgba(224, 224, 224, 0.3)' }]}>
+            <View style={[styles.emaIndicator, { backgroundColor: ema200Color }]} />
+            <Text variant="caption" style={[styles.emaChipText, { color: ema200Color }]}>
+              EMA200
+            </Text>
+            <Text variant="caption" style={[styles.emaValue, { color: theme.colors.text }]}>
+              {ema200Last.toFixed(5)}
             </Text>
           </View>
         </View>
@@ -281,14 +296,28 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emaChip: {
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
+    gap: 6,
+  },
+  emaIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   emaChipText: {
     fontWeight: '900',
+    letterSpacing: 0.2,
+    fontSize: 10,
+  },
+  emaValue: {
+    fontWeight: '700',
     letterSpacing: 0.15,
+    fontSize: 10,
   },
 });
 

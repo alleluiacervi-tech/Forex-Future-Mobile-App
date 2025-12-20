@@ -21,7 +21,7 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
 
   const latest = rsiSeries.length ? rsiSeries[rsiSeries.length - 1] : 50;
   const rsiColor =
-    latest >= 70 ? theme.colors.error : latest <= 30 ? theme.colors.success : theme.colors.primary;
+    latest >= 70 ? '#f44336' : latest <= 30 ? '#4CAF50' : '#2196F3';
 
   const status = latest >= 70 ? 'Overbought' : latest <= 30 ? 'Oversold' : 'Neutral';
 
@@ -32,20 +32,24 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
     datasets: [
       {
         data: rsiSeries,
-        color: (opacity = 1) => `${rsiColor}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-        strokeWidth: 2.5,
+        color: (opacity = 1) => {
+          if (latest >= 70) return `rgba(244, 67, 54, ${opacity})`;
+          if (latest <= 30) return `rgba(76, 175, 80, ${opacity})`;
+          return `rgba(33, 150, 243, ${opacity})`;
+        },
+        strokeWidth: 2.8,
       },
       {
         data: rsiSeries.map(() => 70),
-        color: (opacity = 1) => `${theme.colors.error}${Math.round(opacity * 130).toString(16).padStart(2, '0')}`,
-        strokeWidth: 1,
-        strokeDasharray: [6, 6],
+        color: (opacity = 1) => `rgba(244, 67, 54, ${opacity * 0.5})`,
+        strokeWidth: 1.2,
+        strokeDasharray: [8, 6],
       },
       {
         data: rsiSeries.map(() => 30),
-        color: (opacity = 1) => `${theme.colors.success}${Math.round(opacity * 130).toString(16).padStart(2, '0')}`,
-        strokeWidth: 1,
-        strokeDasharray: [6, 6],
+        color: (opacity = 1) => `rgba(76, 175, 80, ${opacity * 0.5})`,
+        strokeWidth: 1.2,
+        strokeDasharray: [8, 6],
       },
       {
         data: rsiSeries.map(() => 0),
@@ -76,15 +80,21 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text variant="h4" style={styles.title}>
-          RSI (14)
-        </Text>
-        <View style={styles.headerRight}>
-          <Text variant="caption" color={theme.colors.textSecondary}>
-            {timeframe} • {status} • 70 / 30
+        <View>
+          <Text variant="h4" style={styles.title}>
+            RSI (14)
           </Text>
-          <View style={[styles.valuePill, { backgroundColor: `${rsiColor}1A`, borderColor: `${rsiColor}55` }]}
-          >
+          <Text variant="caption" color={theme.colors.textSecondary}>
+            {timeframe} • Overbought 70 / Oversold 30
+          </Text>
+        </View>
+        <View style={styles.headerRight}>
+          <View style={[styles.statusPill, { backgroundColor: `${rsiColor}14`, borderColor: `${rsiColor}44` }]}>
+            <Text variant="caption" style={[styles.statusText, { color: rsiColor }]}>
+              {status}
+            </Text>
+          </View>
+          <View style={[styles.valuePill, { backgroundColor: `${rsiColor}1A`, borderColor: `${rsiColor}55` }]}>
             <Text variant="caption" style={[styles.valueText, { color: rsiColor }]}>
               {Math.round(latest)}
             </Text>
@@ -94,10 +104,10 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
 
       <View style={frameStyle}>
         <View pointerEvents="none" style={styles.zones}>
-          <View style={[styles.zoneTop, { backgroundColor: `${theme.colors.error}10` }]} />
+          <View style={[styles.zoneTop, { backgroundColor: 'rgba(244, 67, 54, 0.08)' }]} />
           <View style={styles.zoneMiddle} />
-          <View style={[styles.zoneBottom, { backgroundColor: `${theme.colors.success}10` }]} />
-          <View style={[styles.midLine, { borderTopColor: `${theme.colors.textSecondary}22` }]} />
+          <View style={[styles.zoneBottom, { backgroundColor: 'rgba(76, 175, 80, 0.08)' }]} />
+          <View style={[styles.midLine, { borderTopColor: `${theme.colors.textSecondary}18` }]} />
         </View>
 
         <LineChart
@@ -116,7 +126,7 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
             labelColor: (opacity = 1) =>
               `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
             fillShadowGradient: rsiColor,
-            fillShadowGradientOpacity: 0.06,
+            fillShadowGradientOpacity: 0.08,
             propsForLabels: {
               fontSize: 10,
               fontWeight: '700',
@@ -125,8 +135,8 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
               r: '0',
             },
             propsForBackgroundLines: {
-              stroke: `${theme.colors.border}55`,
-              strokeDasharray: '2 10',
+              stroke: `${theme.colors.border}44`,
+              strokeDasharray: '3 12',
             },
           }}
           formatYLabel={(y) => `${Math.round(Number(y))}`}
@@ -142,14 +152,14 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
         />
 
         <View pointerEvents="none" style={styles.levelLabels}>
-          <View style={[styles.levelLabel, styles.levelLabelTop, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
-            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>70</Text>
+          <View style={[styles.levelLabel, styles.levelLabelTop, { backgroundColor: 'rgba(244, 67, 54, 0.15)', borderColor: 'rgba(244, 67, 54, 0.4)' }]}>
+            <Text variant="caption" style={[styles.levelLabelText, { color: '#f44336' }]}>70</Text>
           </View>
-          <View style={[styles.levelLabel, styles.levelLabelMid, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
+          <View style={[styles.levelLabel, styles.levelLabelMid, { backgroundColor: `${theme.colors.surface}DD`, borderColor: `${theme.colors.border}88` }]}>
             <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>50</Text>
           </View>
-          <View style={[styles.levelLabel, styles.levelLabelBottom, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
-            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>30</Text>
+          <View style={[styles.levelLabel, styles.levelLabelBottom, { backgroundColor: 'rgba(76, 175, 80, 0.15)', borderColor: 'rgba(76, 175, 80, 0.4)' }]}>
+            <Text variant="caption" style={[styles.levelLabelText, { color: '#4CAF50' }]}>30</Text>
           </View>
         </View>
       </View>
@@ -164,8 +174,8 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: 10,
+    alignItems: 'flex-start',
+    marginBottom: 12,
   },
   headerRight: {
     alignItems: 'flex-end',
@@ -189,8 +199,8 @@ const styles = StyleSheet.create({
   levelLabel: {
     position: 'absolute',
     right: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
   },
@@ -208,7 +218,8 @@ const styles = StyleSheet.create({
   },
   levelLabelText: {
     fontWeight: '900',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
+    fontSize: 10,
   },
   zones: {
     ...StyleSheet.absoluteFillObject,
@@ -230,14 +241,26 @@ const styles = StyleSheet.create({
     top: '50%',
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  valuePill: {
+  statusPill: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  statusText: {
+    fontWeight: '900',
+    letterSpacing: 0.3,
+    fontSize: 10,
+  },
+  valuePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
   },
   valueText: {
     fontWeight: '900',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
+    fontSize: 14,
   },
 });
