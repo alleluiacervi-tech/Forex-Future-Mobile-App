@@ -23,7 +23,7 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
   const rsiColor =
     latest >= 70 ? theme.colors.error : latest <= 30 ? theme.colors.success : theme.colors.primary;
 
-  const labels = Array.from({ length: rsiSeries.length }, (_, i) => (i % 8 === 0 ? `${i}` : ''));
+  const labels = Array.from({ length: rsiSeries.length }, () => '');
 
   const data = {
     labels,
@@ -35,13 +35,13 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
       },
       {
         data: rsiSeries.map(() => 70),
-        color: (opacity = 1) => `${theme.colors.error}${Math.round(opacity * 180).toString(16).padStart(2, '0')}`,
+        color: (opacity = 1) => `${theme.colors.error}${Math.round(opacity * 130).toString(16).padStart(2, '0')}`,
         strokeWidth: 1,
         strokeDasharray: [6, 6],
       },
       {
         data: rsiSeries.map(() => 30),
-        color: (opacity = 1) => `${theme.colors.success}${Math.round(opacity * 180).toString(16).padStart(2, '0')}`,
+        color: (opacity = 1) => `${theme.colors.success}${Math.round(opacity * 130).toString(16).padStart(2, '0')}`,
         strokeWidth: 1,
         strokeDasharray: [6, 6],
       },
@@ -55,10 +55,16 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
 
   const chartStyle = StyleSheet.flatten([
     styles.chart,
+    { backgroundColor: 'transparent' },
+  ]);
+
+  const frameStyle = StyleSheet.flatten([
+    styles.chartFrame,
     { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
   ]);
 
   const width = Dimensions.get('window').width - 64;
+  const height = 220;
 
   return (
     <View style={styles.container}>
@@ -79,62 +85,66 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
         </View>
       </View>
 
-      <LineChart
-        data={data}
-        width={width}
-        height={220}
-        fromZero
-        yAxisInterval={1}
-        chartConfig={{
-          backgroundColor: theme.colors.surface,
-          backgroundGradientFrom: theme.colors.surface,
-          backgroundGradientTo: theme.colors.surface,
-          decimalPlaces: 0,
-          color: (opacity = 1) => `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-          labelColor: (opacity = 1) => `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-          fillShadowGradient: rsiColor,
-          fillShadowGradientOpacity: 0.12,
-          propsForLabels: {
-            fontSize: 10,
-            fontWeight: '700',
-          },
-          propsForDots: {
-            r: '0',
-          },
-          propsForBackgroundLines: {
-            stroke: theme.colors.border,
-            strokeDasharray: '4 8',
-          },
-        }}
-        formatYLabel={(y) => `${Math.round(Number(y))}`}
-        bezier
-        withDots={false}
-        withInnerLines
-        withOuterLines={false}
-        withShadow
-        style={chartStyle}
-        segments={5}
-      />
+      <View style={frameStyle}>
+        <View pointerEvents="none" style={styles.zones}>
+          <View style={[styles.zoneTop, { backgroundColor: `${theme.colors.error}10` }]} />
+          <View style={styles.zoneMiddle} />
+          <View style={[styles.zoneBottom, { backgroundColor: `${theme.colors.success}10` }]} />
+          <View style={[styles.midLine, { borderTopColor: `${theme.colors.textSecondary}22` }]} />
+        </View>
 
-      <View style={styles.legendRow}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendSwatch, { backgroundColor: rsiColor }]} />
-          <Text variant="caption" color={theme.colors.textSecondary}>
-            RSI
-          </Text>
+        <View pointerEvents="none" style={styles.levelLabels}>
+          <View style={[styles.levelLabel, styles.levelLabelTop, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
+            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>70</Text>
+          </View>
+          <View style={[styles.levelLabel, styles.levelLabelMid, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
+            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>50</Text>
+          </View>
+          <View style={[styles.levelLabel, styles.levelLabelBottom, { backgroundColor: `${theme.colors.surface}CC`, borderColor: theme.colors.border }]}>
+            <Text variant="caption" style={[styles.levelLabelText, { color: theme.colors.textSecondary }]}>30</Text>
+          </View>
         </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendSwatch, { backgroundColor: theme.colors.error }]} />
-          <Text variant="caption" color={theme.colors.textSecondary}>
-            70
-          </Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendSwatch, { backgroundColor: theme.colors.success }]} />
-          <Text variant="caption" color={theme.colors.textSecondary}>
-            30
-          </Text>
-        </View>
+
+        <LineChart
+          data={data}
+          width={width}
+          height={height}
+          fromZero
+          yAxisInterval={1}
+          chartConfig={{
+            backgroundColor: 'transparent',
+            backgroundGradientFrom: 'transparent',
+            backgroundGradientTo: 'transparent',
+            decimalPlaces: 0,
+            color: (opacity = 1) =>
+              `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+            labelColor: (opacity = 1) =>
+              `${theme.colors.textSecondary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
+            fillShadowGradient: rsiColor,
+            fillShadowGradientOpacity: 0.06,
+            propsForLabels: {
+              fontSize: 10,
+              fontWeight: '700',
+            },
+            propsForDots: {
+              r: '0',
+            },
+            propsForBackgroundLines: {
+              stroke: `${theme.colors.border}55`,
+              strokeDasharray: '2 10',
+            },
+          }}
+          formatYLabel={(y) => `${Math.round(Number(y))}`}
+          bezier
+          withDots={false}
+          withInnerLines
+          withOuterLines={false}
+          withShadow
+          withHorizontalLabels={false}
+          withVerticalLabels={false}
+          style={chartStyle}
+          segments={5}
+        />
       </View>
     </View>
   );
@@ -159,7 +169,58 @@ const styles = StyleSheet.create({
   },
   chart: {
     borderRadius: 16,
+  },
+  chartFrame: {
+    borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  levelLabels: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  levelLabel: {
+    position: 'absolute',
+    left: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  levelLabelTop: {
+    top: '18%',
+    transform: [{ translateY: -10 }],
+  },
+  levelLabelMid: {
+    top: '50%',
+    transform: [{ translateY: -10 }],
+  },
+  levelLabelBottom: {
+    bottom: '18%',
+    transform: [{ translateY: 10 }],
+  },
+  levelLabelText: {
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+  zones: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'space-between',
+  },
+  zoneTop: {
+    height: '30%',
+  },
+  zoneMiddle: {
+    flex: 1,
+  },
+  zoneBottom: {
+    height: '30%',
+  },
+  midLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '50%',
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   valuePill: {
     paddingHorizontal: 10,
@@ -170,20 +231,5 @@ const styles = StyleSheet.create({
   valueText: {
     fontWeight: '900',
     letterSpacing: 0.2,
-  },
-  legendRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 10,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  legendSwatch: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
   },
 });
