@@ -108,28 +108,23 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
         labels,
         datasets: [
           {
-            data: closeView,
-            color: (opacity = 1) =>
-              `${theme.colors.text}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-            strokeWidth: 2.2,
-          },
-          {
             data: ema20View,
             color: (opacity = 1) =>
               `${theme.colors.primary}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
-            strokeWidth: 1.8,
+            strokeWidth: 2.4,
           },
           {
             data: ema50View,
             color: (opacity = 1) =>
               `${theme.colors.info}${Math.round(opacity * 230).toString(16).padStart(2, '0')}`,
-            strokeWidth: 1.6,
+            strokeWidth: 2.0,
           },
           {
             data: ema200View,
             color: (opacity = 1) =>
               `${theme.colors.textSecondary}${Math.round(opacity * 210).toString(16).padStart(2, '0')}`,
-            strokeWidth: 1.6,
+            strokeWidth: 2.0,
+            strokeDasharray: [5, 8],
           },
         ],
       },
@@ -139,7 +134,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
       ema200Last,
       trendState,
     };
-  }, [pair.id, pair.price, pair.symbol, theme.colors.info, theme.colors.primary, theme.colors.text, theme.colors.textSecondary, timeframe]);
+  }, [pair.id, pair.price, pair.symbol, theme.colors.info, theme.colors.primary, theme.colors.textSecondary, timeframe]);
 
   const screenWidth = windowWidth - 64;
   const height = 240;
@@ -167,7 +162,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
             </Text>
           </View>
           <Text variant="caption" color={theme.colors.textSecondary}>
-            {latest.toFixed(5)}
+            Last {latest.toFixed(5)}
           </Text>
         </View>
       </View>
@@ -273,21 +268,21 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   chart: {
-    marginVertical: 8,
+    marginVertical: 0,
     borderRadius: 16,
   },
   emaLegend: {
     position: 'absolute',
     left: 12,
-    bottom: 10,
+    top: 10,
     right: 12,
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
   emaChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 999,
     borderWidth: StyleSheet.hairlineWidth,
   },
