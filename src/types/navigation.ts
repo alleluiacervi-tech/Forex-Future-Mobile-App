@@ -8,6 +8,15 @@ export type RootStackParamList = {
   Welcome: undefined;
   Subscription: undefined;
   Settings: undefined;
+  SubscriptionPlan: undefined;
+  Security: undefined;
+  BillingPayments: undefined;
+  TermsOfService: undefined;
+  PrivacyPolicy: undefined;
+  RiskDisclosure: undefined;
+  Licenses: undefined;
+  HelpCenter: undefined;
+  ContactUs: undefined;
 };
 
 export type MainTabParamList = {

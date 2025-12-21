@@ -17,6 +17,15 @@ import AboutScreen from '../screens/About';
 import WelcomeScreen from '../screens/Welcome';
 import SubscriptionScreen from '../screens/Subscription';
 import SettingsScreen from '../screens/Settings';
+import SubscriptionPlanScreen from '../screens/Account/SubscriptionPlanScreen';
+import SecurityScreen from '../screens/Account/SecurityScreen';
+import BillingPaymentsScreen from '../screens/Account/BillingPaymentsScreen';
+import PrivacyPolicyScreen from '../screens/Legal/PrivacyPolicyScreen';
+import RiskDisclosureScreen from '../screens/Legal/RiskDisclosureScreen';
+import LicensesScreen from '../screens/Legal/LicensesScreen';
+import HelpCenterScreen from '../screens/Support/HelpCenterScreen';
+import ContactUsScreen from '../screens/Support/ContactUsScreen';
+import TermsOfServiceScreen from '../screens/Terms/TermsOfServiceScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -97,6 +106,51 @@ export default function MainNavigator() {
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SubscriptionPlan"
+          component={SubscriptionPlanScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Security"
+          component={SecurityScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="BillingPayments"
+          component={BillingPaymentsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="PrivacyPolicy"
+          component={PrivacyPolicyScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="RiskDisclosure"
+          component={RiskDisclosureScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Licenses"
+          component={LicensesScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="HelpCenter"
+          component={HelpCenterScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ContactUs"
+          component={ContactUsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="TermsOfService"
+          component={TermsOfServiceScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
