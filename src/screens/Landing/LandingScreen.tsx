@@ -60,7 +60,6 @@ export default function LandingScreen() {
             shadowRadius: 18,
             elevation: 10,
           }]}>
-            {/* Globe Badge */}
             <View style={styles.globeBadge}>
               <LinearGradient
                 colors={['#061821', '#0b3946', '#0cc0d6']}
@@ -69,10 +68,10 @@ export default function LandingScreen() {
                 style={styles.globeInner}
               >
                 <Ionicons name="globe-outline" size={56} color="#E7C77A" />
+                <View style={styles.globeHighlight} />
               </LinearGradient>
             </View>
 
-            {/* FOREX/FUTURE Wordmark */}
             <View style={styles.wordmarkContainer}>
               <Text style={[styles.forexTitle, {
                 color: '#E7C77A',
@@ -98,8 +97,7 @@ export default function LandingScreen() {
               </Text>
             </View>
 
-            {/* Professional Candlestick Logo (Hidden) */}
-            <View style={[styles.professionalLogoContainer, { display: 'none' }]}>
+            <View style={styles.professionalLogoContainer}>
               {/* Baseline */}
               <View style={styles.candleBaseline} />
 
@@ -139,8 +137,6 @@ export default function LandingScreen() {
             </Text>
           </View>
         </View>
-
-        {/* ... rest of the code remains the same ... */}
       </View>
     </View>
   );
@@ -170,7 +166,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  globeOuter: {
+  globeBadge: {
     width: 110,
     height: 110,
     borderRadius: 55,
@@ -199,6 +195,10 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 15,
     backgroundColor: 'rgba(255, 255, 255, 0.10)',
+  },
+  wordmarkContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   professionalLogoContainer: {
     width: 88,
