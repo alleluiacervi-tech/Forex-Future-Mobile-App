@@ -4,6 +4,8 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
 import MainNavigator from './src/navigation';
 import { ThemeProvider } from './src/theme';
 import { useTheme } from './src/hooks';
@@ -77,6 +79,17 @@ function StartupSplash() {
     <View style={[styles.splashContainer, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.splashCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <View style={[styles.splashMark, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }]}>
+          <View style={styles.splashGlobeBadge}>
+            <LinearGradient
+              colors={['#061821', '#0b3946', '#0cc0d6']}
+              start={{ x: 0.2, y: 0.1 }}
+              end={{ x: 0.8, y: 1 }}
+              style={styles.splashGlobeInner}
+            >
+              <Ionicons name="globe-outline" size={44} color="#E7C77A" />
+              <View style={styles.splashGlobeHighlight} />
+            </LinearGradient>
+          </View>
           <View style={styles.splashCandles}>
             <View style={[styles.splashBaseline, { backgroundColor: theme.colors.border }]} />
 
@@ -101,11 +114,11 @@ function StartupSplash() {
         </View>
 
         <View style={styles.splashWordmark}>
-          <Text variant="h1" style={[styles.splashForex, { color: theme.colors.primary }]}>
+          <Text variant="h1" style={[styles.splashForex, { color: '#E7C77A' }]}>
             FOREX
           </Text>
-          <Text variant="h3" style={[styles.splashFuture, { color: theme.colors.textSecondary }]}>
-            Future
+          <Text variant="h3" style={[styles.splashFuture, { color: '#00CFEA' }]}>
+            FUTURE
           </Text>
         </View>
 
@@ -147,11 +160,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 16,
   },
+  splashGlobeBadge: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    padding: 3,
+    borderWidth: 2,
+    borderColor: '#E7C77A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  splashGlobeInner: {
+    flex: 1,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  splashGlobeHighlight: {
+    position: 'absolute',
+    top: 10,
+    left: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+  },
   splashCandles: {
     width: 56,
     height: 44,
     alignItems: 'center',
     justifyContent: 'flex-end',
+    display: 'none',
   },
   splashBaseline: {
     position: 'absolute',

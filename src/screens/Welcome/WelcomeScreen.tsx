@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'reac
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Text, Button, Input } from '../../components/common';
@@ -67,6 +68,17 @@ export default function WelcomeScreen() {
                   },
                 ]}
               >
+                <View style={styles.globeBadge}>
+                  <LinearGradient
+                    colors={['#061821', '#0b3946', '#0cc0d6']}
+                    start={{ x: 0.2, y: 0.1 }}
+                    end={{ x: 0.8, y: 1 }}
+                    style={styles.globeInner}
+                  >
+                    <Ionicons name="globe-outline" size={28} color="#E7C77A" />
+                    <View style={styles.globeHighlight} />
+                  </LinearGradient>
+                </View>
                 <View style={styles.logoCandles}>
                   <View style={[styles.candleBaseline, { backgroundColor: theme.colors.border }]} />
 
@@ -96,7 +108,7 @@ export default function WelcomeScreen() {
                   style={[
                     styles.wordmarkForex,
                     {
-                      color: theme.colors.primary,
+                      color: '#E7C77A',
                       fontSize: Math.min(width * 0.085, 30),
                     },
                   ]}
@@ -108,12 +120,12 @@ export default function WelcomeScreen() {
                   style={[
                     styles.wordmarkFuture,
                     {
-                      color: theme.colors.text,
+                      color: '#00CFEA',
                       fontSize: Math.min(width * 0.07, 24),
                     },
                   ]}
                 >
-                  Future
+                  FUTURE
                 </Text>
               </View>
 
@@ -237,6 +249,31 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'flex-end',
+    display: 'none',
+  },
+  globeBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    padding: 2,
+    borderWidth: 2,
+    borderColor: '#E7C77A',
+  },
+  globeInner: {
+    flex: 1,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  globeHighlight: {
+    position: 'absolute',
+    top: 6,
+    left: 7,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
   },
   candleBaseline: {
     position: 'absolute',
@@ -279,14 +316,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   wordmarkRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 0,
     marginBottom: 6,
   },
   wordmarkForex: {
     fontWeight: '900',
     letterSpacing: 1.1,
+    marginBottom: -4,
   },
   wordmarkFuture: {
     fontWeight: '700',
