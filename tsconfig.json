@@ -1,5 +1,4 @@
 {
-  "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
     "esModuleInterop": true,
@@ -8,7 +7,9 @@
     "isolatedModules": true,
     "jsx": "react-native",
     "lib": [
-      "esnext"
+      "esnext",
+      "dom",
+      "dom.iterable"
     ],
     "moduleResolution": "node",
     "noEmit": true,

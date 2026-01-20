@@ -2,9 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
-import * as Font from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import MainNavigator from './src/navigation';
 import { ThemeProvider } from './src/theme';
@@ -12,8 +11,7 @@ import { useTheme } from './src/hooks';
 import { Text } from './src/components/common';
 import TermsScreen from './src/screens/Terms/TermsScreen';
 
-// Keep the splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+const STARTUP_SPLASH_DURATION_MS = 5000;
 
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
@@ -21,32 +19,40 @@ export default function App() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
-    async function prepare() {
+    let isMounted = true;
+
+    const prepare = async () => {
       try {
-        // Pre-load fonts, make any API calls you need to do here
-        await Font.loadAsync({
-          // Add any custom fonts here if needed
-        });
+        await SplashScreen.preventAutoHideAsync();
+        // If you add custom fonts later, you can load them here.
+        // Example:
+        // await Font.loadAsync({
+        //   'YourFontName': require('./assets/fonts/YourFont.ttf'),
+        // });
       } catch (e) {
         console.warn(e);
       } finally {
-        // Tell the application to render
-        setAppIsReady(true);
+        if (isMounted) {
+          setAppIsReady(true);
+        }
       }
-    }
+    };
 
-    prepare();
+    void prepare();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (appIsReady) {
-      SplashScreen.hideAsync();
-    }
+    if (!appIsReady) return;
+    void SplashScreen.hideAsync();
   }, [appIsReady]);
 
   useEffect(() => {
     if (!appIsReady) return;
-    const t = setTimeout(() => setShowStartupSplash(false), 5000);
+    const t = setTimeout(() => setShowStartupSplash(false), STARTUP_SPLASH_DURATION_MS);
     return () => clearTimeout(t);
   }, [appIsReady]);
 
@@ -90,6 +96,7 @@ function StartupSplash() {
               <View style={styles.splashGlobeHighlight} />
             </LinearGradient>
           </View>
+
           <View style={styles.splashCandles}>
             <View style={[styles.splashBaseline, { backgroundColor: theme.colors.border }]} />
 
@@ -123,7 +130,7 @@ function StartupSplash() {
         </View>
 
         <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.splashSubtitle}>
-          AI‑driven market insights for smarter financial decisions
+          AI-driven market insights for smarter financial decisions
         </Text>
 
         <ActivityIndicator style={styles.splashSpinner} color={theme.colors.primary} />
@@ -258,4 +265,3 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
 });
-

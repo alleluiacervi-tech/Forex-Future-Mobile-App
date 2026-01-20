@@ -3,7 +3,7 @@ import { View, StyleSheet, useWindowDimensions, ScrollView, TouchableOpacity } f
 import { LineChart } from 'react-native-chart-kit';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { Ionicons } from '@expo/vector-icons';
 import { CurrencyPair } from '../../types/market';
 import { useTheme } from '../../hooks';
 import { Text } from '../common/Text';
@@ -304,14 +304,14 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
               style={[styles.scrollButton, { backgroundColor: `${theme.colors.surface}DD`, borderColor: theme.colors.border }]}
               activeOpacity={0.7}
             >
-              <Icon name="chevron-back" size={20} color={theme.colors.primary} />
+              <Ionicons name="chevron-back" size={20} color={theme.colors.primary} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleScrollForward}
               style={[styles.scrollButton, { backgroundColor: `${theme.colors.surface}DD`, borderColor: theme.colors.border }]}
               activeOpacity={0.7}
             >
-              <Icon name="chevron-forward" size={20} color={theme.colors.primary} />
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
             </TouchableOpacity>
           </View>
         )}
