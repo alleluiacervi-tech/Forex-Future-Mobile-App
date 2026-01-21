@@ -1,10 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList } from '../../types';
 import { Button, Text } from '../../components/common';
 import { useTheme } from '../../hooks';
@@ -18,11 +15,6 @@ export default function LandingScreen() {
 
   // Responsive sizing
   const isSmallScreen = height < 700;
-  const isNarrowScreen = width < 380;
-
-  // Responsive scale for logo candles
-  const candleScale = Math.min(Math.max(width / 380, 0.85), 1.25);
-
   const handleExploreFeatures = () => {
     // Navigate to about screen
     navigation.navigate('About');
@@ -65,68 +57,17 @@ export default function LandingScreen() {
             shadowRadius: 18,
             elevation: 10,
           }]}>
-            <View style={styles.globeBadge}>
-              <LinearGradient
-                colors={['#061821', '#0b3946', '#0cc0d6']}
-                start={{ x: 0.2, y: 0.1 }}
-                end={{ x: 0.8, y: 1 }}
-                style={styles.globeInner}
-              >
-                <Ionicons name="globe-outline" size={56} color="#E7C77A" />
-                <View style={styles.globeHighlight} />
-              </LinearGradient>
-            </View>
-
-            <View style={styles.wordmarkContainer}>
-              <Text style={[styles.forexTitle, {
-                color: '#E7C77A',
-                fontSize: Math.min(width * 0.11, isSmallScreen ? 32 : 42),
-                fontWeight: '800',
-                letterSpacing: 1.2,
-                textAlign: 'center',
-                textShadowColor: 'transparent',
-                textShadowOffset: { width: 0, height: 0 },
-                textShadowRadius: 0,
-              }]}>
-                FOREX
-              </Text>
-              <Text style={[styles.futureTitle, {
-                color: '#00CFEA',
-                fontSize: Math.min(width * 0.075, isSmallScreen ? 20 : 26),
-                fontWeight: '600',
-                letterSpacing: 0.9,
-                textAlign: 'center',
-                opacity: 0.95,
-              }]}>
-                FUTURE
-              </Text>
-            </View>
-
-            <View style={styles.professionalLogoContainer}>
-              {/* Baseline */}
-              <View style={styles.candleBaseline} />
-
-              {/* Bullish Candle (Green) */}
-              <View style={[styles.professionalCandle, styles.candle1]}>
-                <View style={[styles.candleWick, styles.upperWick]} />
-                <View style={[styles.candleBody, styles.bullishBody, { transform: [{ scaleY: candleScale }] }]} />
-                <View style={[styles.candleWick, styles.lowerWick]} />
-              </View>
-
-              {/* Neutral Center Candle (Blue) */}
-              <View style={[styles.professionalCandle, styles.candleCenter]}>
-                <View style={[styles.candleWick, styles.upperWick]} />
-                <View style={[styles.candleBody, styles.neutralBody, { transform: [{ scaleY: candleScale * 1.1 }] }]} />
-                <View style={[styles.candleWick, styles.lowerWick]} />
-              </View>
-
-              {/* Bearish Candle (Red) */}
-              <View style={[styles.professionalCandle, styles.candle2]}>
-                <View style={[styles.candleWick, styles.upperWick]} />
-                <View style={[styles.candleBody, styles.bearishBody, { transform: [{ scaleY: candleScale * 0.95 }] }]} />
-                <View style={[styles.candleWick, styles.lowerWick]} />
-              </View>
-            </View>
+            <Image
+              source={require('../../../assets/image.png')}
+              resizeMode="contain"
+              style={[
+                styles.logoImage,
+                {
+                  width: Math.min(width * 0.7, isSmallScreen ? 240 : 280),
+                  height: Math.min(width * 0.7, isSmallScreen ? 240 : 280),
+                },
+              ]}
+            />
 
             {/* Professional tagline */}
             <Text style={[styles.logoTagline, {
@@ -195,6 +136,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 140,
     minHeight: 100,
+  },
+  logoImage: {
+    borderRadius: 32,
   },
   logoSymbol: {
     flexDirection: 'column',
