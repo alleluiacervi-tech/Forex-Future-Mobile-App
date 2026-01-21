@@ -14,9 +14,9 @@ export const inputStyles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceLight,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderLight,
     borderRadius: 12,
     paddingHorizontal: spacing.md,
     minHeight: 52,
@@ -42,4 +42,3 @@ export const inputStyles = StyleSheet.create({
     marginTop: spacing.xs,
   },
 });
-

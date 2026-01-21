@@ -1,16 +1,16 @@
 export const typography = {
   h1: {
-    fontSize: 32,
-    fontWeight: 'bold' as const,
-    lineHeight: 40,
+    fontSize: 34,
+    fontWeight: '800' as const,
+    lineHeight: 42,
   },
   h2: {
-    fontSize: 24,
-    fontWeight: 'bold' as const,
-    lineHeight: 32,
+    fontSize: 26,
+    fontWeight: '700' as const,
+    lineHeight: 34,
   },
   h3: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: '600' as const,
     lineHeight: 28,
   },
@@ -42,4 +42,3 @@ export const typography = {
 };
 
 export type Typography = typeof typography;
-

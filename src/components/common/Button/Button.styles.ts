@@ -10,16 +10,18 @@ export const buttonStyles = StyleSheet.create({
   },
   primary: {
     backgroundColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.primaryDark,
   },
   secondary: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceLight,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderLight,
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: colors.primary,
+    borderColor: colors.accent,
   },
   danger: {
     backgroundColor: colors.error,
@@ -53,7 +55,7 @@ export const buttonStyles = StyleSheet.create({
     color: colors.text,
   },
   textOutline: {
-    color: colors.primary,
+    color: colors.accent,
   },
   textDanger: {
     color: colors.text,
@@ -68,4 +70,3 @@ export const buttonStyles = StyleSheet.create({
     fontSize: 18,
   },
 });
-

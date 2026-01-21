@@ -1,42 +1,41 @@
 export const colors = {
   // Primary colors
-  primary: '#4CAF50',
-  primaryDark: '#388E3C',
-  primaryLight: '#81C784',
-  onPrimary: '#ffffff',
+  primary: '#00CFEA',
+  primaryDark: '#009FB3',
+  primaryLight: '#63E7F5',
+  onPrimary: '#001215',
 
   // Accent colors
-  accent: '#2196F3',
-  accentDark: '#1976D2',
-  accentLight: '#64B5F6',
+  accent: '#E7C77A',
+  accentDark: '#C8A457',
+  accentLight: '#F2DBA2',
 
   // Background colors
-  background: '#0f0f1e',
-  surface: '#1a1a2e',
-  surfaceLight: '#16213e',
-  surfaceDark: '#0a0a14',
+  background: '#04141B',
+  surface: '#0B2530',
+  surfaceLight: '#103742',
+  surfaceDark: '#020A0D',
 
   // Text colors
-  text: '#ffffff',
-  textSecondary: '#9e9e9e',
-  textDisabled: '#666666',
+  text: '#F4FBFF',
+  textSecondary: '#9BB3BD',
+  textDisabled: '#5B707A',
 
   // Status colors
-  success: '#4CAF50',
-  error: '#f44336',
-  warning: '#FF9800',
-  info: '#2196F3',
+  success: '#2DD4BF',
+  error: '#F87171',
+  warning: '#FBBF24',
+  info: '#38BDF8',
 
   // Border colors
-  border: '#333333',
-  borderLight: '#444444',
-  borderDark: '#222222',
+  border: '#1C3A44',
+  borderLight: '#284854',
+  borderDark: '#12252B',
 
   // Chart colors
-  chartUp: '#4CAF50',
-  chartDown: '#f44336',
-  chartNeutral: '#9e9e9e',
+  chartUp: '#2DD4BF',
+  chartDown: '#F87171',
+  chartNeutral: '#9BB3BD',
 };
 
 export type Colors = typeof colors;
-

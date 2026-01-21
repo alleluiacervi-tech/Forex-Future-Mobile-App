@@ -6,10 +6,11 @@ export const cardStyles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 12,
     padding: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     ...shadows.small,
   },
   pressable: {
     ...shadows.small,
   },
 });
-

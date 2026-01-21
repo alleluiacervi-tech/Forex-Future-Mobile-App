@@ -5,6 +5,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types';
 import { Button, Text } from '../../components/common';
 import { useTheme } from '../../hooks';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -21,7 +22,14 @@ export default function LandingScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <LinearGradient
+      colors={[theme.colors.background, theme.colors.surface, theme.colors.background]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.container}
+    >
+      <View style={[styles.glowTop, { backgroundColor: theme.colors.accent }]} />
+      <View style={[styles.glowBottom, { backgroundColor: theme.colors.primary }]} />
       <View
         style={[
           styles.content,
@@ -76,10 +84,10 @@ export default function LandingScreen() {
 
         <View style={styles.actions}>
           <Text style={[styles.actionsTitle, { color: theme.colors.text }]}>
-            Discover Forex Future
+            Navigate the markets with clarity
           </Text>
           <Text style={[styles.actionsSubtitle, { color: theme.colors.textSecondary }]}>
-            Explore the core features before creating your account.
+            Explore signals, alerts, and AI insights inspired by the Forex Future mark.
           </Text>
 
           <Button
@@ -91,13 +99,31 @@ export default function LandingScreen() {
           />
         </View>
       </View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  glowTop: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    top: -80,
+    right: -60,
+    opacity: 0.12,
+  },
+  glowBottom: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    bottom: -140,
+    left: -80,
+    opacity: 0.1,
   },
   content: {
     flex: 1,
