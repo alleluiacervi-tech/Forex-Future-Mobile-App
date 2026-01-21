@@ -1,13 +1,14 @@
+import { colors } from '../theme';
+
 export const NAVIGATION_CONFIG = {
-  tabBarActiveTintColor: '#4CAF50',
-  tabBarInactiveTintColor: '#757575',
+  tabBarActiveTintColor: colors.primary,
+  tabBarInactiveTintColor: colors.textSecondary,
   headerStyle: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: colors.surface,
   },
-  headerTintColor: '#fff',
+  headerTintColor: colors.text,
   tabBarStyle: {
-    backgroundColor: '#1a1a2e',
-    borderTopColor: '#333',
+    backgroundColor: colors.surfaceLight,
+    borderTopColor: colors.borderLight,
   },
 } as const;
-

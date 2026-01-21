@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-nat
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper } from '../../components/layout';
 import { Card, Text, Button, Input } from '../../components/common';
 import { useTheme } from '../../hooks';
@@ -74,13 +75,21 @@ export default function SubscriptionScreen() {
         price: selectedPrice,
       },
     });
-    navigation.replace('Main');
+    navigation.replace('Main', { screen: 'Home' } as any);
   };
 
   return (
-    <ScreenWrapper>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.container}>
+    <ScreenWrapper style={styles.screen}>
+      <LinearGradient
+        colors={[theme.colors.background, theme.colors.surface, theme.colors.background]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.background}
+      >
+        <View style={[styles.glowTop, { backgroundColor: theme.colors.primary }]} />
+        <View style={[styles.glowBottom, { backgroundColor: theme.colors.accent }]} />
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
@@ -316,13 +325,38 @@ export default function SubscriptionScreen() {
               </Text>
             </View>
           </Card>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </LinearGradient>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    backgroundColor: 'transparent',
+  },
+  background: {
+    flex: 1,
+  },
+  glowTop: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    top: -90,
+    right: -60,
+    opacity: 0.14,
+  },
+  glowBottom: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    bottom: -140,
+    left: -90,
+    opacity: 0.12,
+  },
   scrollView: {
     flex: 1,
   },

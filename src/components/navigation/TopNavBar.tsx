@@ -47,10 +47,21 @@ export default function TopNavBar() {
         activeOpacity={0.7}
         style={styles.navButton}
       >
-        <View style={styles.iconWrapper}>
+        <View
+          style={[
+            styles.iconWrapper,
+            selected && [
+              styles.iconWrapperActive,
+              {
+                backgroundColor: `${theme.colors.primary}1A`,
+                borderColor: theme.colors.primary,
+              },
+            ],
+          ]}
+        >
           <Icon name={iconName} size={24} color={iconColor(opts.key)} />
           {selected && (
-            <View style={[styles.activeIndicator, { backgroundColor: theme.colors.primary }]} />
+            <View style={[styles.activeIndicator, { backgroundColor: theme.colors.accent }]} />
           )}
         </View>
       </TouchableOpacity>
@@ -62,8 +73,8 @@ export default function TopNavBar() {
       style={[
         styles.container,
         {
-          backgroundColor: theme.colors.surface,
-          borderBottomColor: theme.colors.border,
+          backgroundColor: theme.colors.surfaceLight,
+          borderBottomColor: theme.colors.borderLight,
         },
       ]}
     >
@@ -114,6 +125,11 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 6,
+    borderRadius: 14,
+  },
+  iconWrapperActive: {
+    borderWidth: StyleSheet.hairlineWidth,
   },
   activeIndicator: {
     position: 'absolute',

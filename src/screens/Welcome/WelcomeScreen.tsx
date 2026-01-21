@@ -35,9 +35,15 @@ export default function WelcomeScreen() {
   };
 
   return (
-    <ScreenWrapper>
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <Container>
+    <ScreenWrapper style={styles.screen}>
+      <LinearGradient
+        colors={[theme.colors.background, theme.colors.surface, theme.colors.background]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.background}
+      >
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+          <Container>
           <View style={styles.contentInner}>
             {/* Back Button */}
             <TouchableOpacity
@@ -62,8 +68,8 @@ export default function WelcomeScreen() {
                 style={[
                   styles.brandMark,
                   {
-                    borderColor: theme.colors.border,
-                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.accent,
+                    backgroundColor: theme.colors.surfaceLight,
                   },
                 ]}
               >
@@ -72,33 +78,6 @@ export default function WelcomeScreen() {
                   resizeMode="contain"
                   style={styles.brandLogo}
                 />
-              </View>
-
-              <View style={styles.wordmarkRow}>
-                <Text
-                  variant="h2"
-                  style={[
-                    styles.wordmarkForex,
-                    {
-                      color: '#E7C77A',
-                      fontSize: Math.min(width * 0.085, 30),
-                    },
-                  ]}
-                >
-                  FOREX
-                </Text>
-                <Text
-                  variant="h2"
-                  style={[
-                    styles.wordmarkFuture,
-                    {
-                      color: '#00CFEA',
-                      fontSize: Math.min(width * 0.07, 24),
-                    },
-                  ]}
-                >
-                  FUTURE
-                </Text>
               </View>
 
               <Text variant="body" color={theme.colors.textSecondary} style={styles.subtitle}>
@@ -181,13 +160,20 @@ export default function WelcomeScreen() {
               </Text>
             </View>
           </View>
-        </Container>
-      </ScrollView>
+          </Container>
+        </ScrollView>
+      </LinearGradient>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    backgroundColor: 'transparent',
+  },
+  background: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
@@ -220,22 +206,6 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 16,
-  },
-  wordmarkRow: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 0,
-    marginBottom: 6,
-  },
-  wordmarkForex: {
-    fontWeight: '900',
-    letterSpacing: 1.1,
-    marginBottom: -4,
-  },
-  wordmarkFuture: {
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    opacity: 0.98,
   },
   backButton: {
     flexDirection: 'row',

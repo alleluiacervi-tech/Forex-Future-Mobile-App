@@ -84,14 +84,14 @@ export default function LandingScreen() {
 
         <View style={styles.actions}>
           <Text style={[styles.actionsTitle, { color: theme.colors.text }]}>
-            Navigate the markets with clarity
+            Welcome to Forex Future
           </Text>
           <Text style={[styles.actionsSubtitle, { color: theme.colors.textSecondary }]}>
-            Explore signals, alerts, and AI insights inspired by the Forex Future mark.
+            Start with a quick tour, then move on to sign in when you are ready.
           </Text>
 
           <Button
-            title="Explore features"
+            title="Continue to About"
             onPress={handleExploreFeatures}
             variant="primary"
             size="large"

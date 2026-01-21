@@ -71,7 +71,7 @@ export default function MainNavigator() {
           },
           headerTintColor: NAVIGATION_CONFIG.headerTintColor,
         }}
-        initialRouteName="About"
+        initialRouteName="Landing"
       >
         <Stack.Screen
           name="Landing"

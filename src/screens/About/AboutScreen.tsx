@@ -60,12 +60,8 @@ export default function AboutScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
 
-  const handleSignIn = () => {
+  const handleContinue = () => {
     navigation.navigate('Welcome');
-  };
-
-  const handleRequestAccess = () => {
-    navigation.navigate('Subscription');
   };
 
   const features = [
@@ -84,7 +80,7 @@ export default function AboutScreen() {
     },
     {
       icon: 'psychology',
-      iconColor: '#A855F7',
+      iconColor: theme.colors.accent,
       title: 'Explainable Insights',
       description:
         'Actionable rationale for each setup so you understand why the model is confident (or not).',
@@ -99,9 +95,15 @@ export default function AboutScreen() {
   ];
 
   return (
-    <ScreenWrapper>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <Container>
+    <ScreenWrapper style={styles.screen}>
+      <LinearGradient
+        colors={[theme.colors.background, theme.colors.surface, theme.colors.background]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.background}
+      >
+        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+          <Container>
           {/* Back Button */}
           <TouchableOpacity
             style={styles.backButton}
@@ -179,9 +181,8 @@ export default function AboutScreen() {
             ))}
           </View>
 
-          {/* Access Buttons */}
-          <View style={[styles.ctaCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
-          >
+          {/* Continue CTA */}
+          <View style={[styles.ctaCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
             <View style={styles.ctaHeaderRow}>
               <View style={styles.ctaTitleRow}>
                 <Icon name="verified" size={20} color={theme.colors.primary} />
@@ -190,31 +191,31 @@ export default function AboutScreen() {
                 </Text>
               </View>
               <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.ctaSubtitle}>
-                Sign in to your account or request access to get started.
+                Continue to sign in or request access after you explore.
               </Text>
             </View>
             <Button
-              title="Sign in"
-              onPress={handleSignIn}
+              title="Continue to Login"
+              onPress={handleContinue}
               variant="primary"
               size="large"
               style={styles.getStartedButton}
             />
-            <Button
-              title="Request access"
-              onPress={handleRequestAccess}
-              variant="outline"
-              size="large"
-              style={styles.requestAccessButton}
-            />
           </View>
-        </Container>
-      </ScrollView>
+          </Container>
+        </ScrollView>
+      </LinearGradient>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    backgroundColor: 'transparent',
+  },
+  background: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
   },
@@ -361,9 +362,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   getStartedButton: {
-    width: '100%',
-  },
-  requestAccessButton: {
     width: '100%',
   },
 });
