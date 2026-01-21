@@ -6,7 +6,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList } from '../../types';
-import { Text } from '../../components/common';
+import { Button, Text } from '../../components/common';
 import { useTheme } from '../../hooks';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -31,6 +31,11 @@ export default function LandingScreen() {
   const handleSignIn = () => {
     // Navigate to welcome/login screen
     navigation.navigate('Welcome');
+  };
+
+  const handleCreateAccount = () => {
+    // Navigate to registration/subscription screen
+    navigation.navigate('Subscription');
   };
 
   return (
@@ -136,6 +141,30 @@ export default function LandingScreen() {
               Advanced Trading Technology
             </Text>
           </View>
+        </View>
+
+        <View style={styles.actions}>
+          <Text style={[styles.actionsTitle, { color: theme.colors.text }]}>
+            Continue to your account
+          </Text>
+          <Text style={[styles.actionsSubtitle, { color: theme.colors.textSecondary }]}>
+            Sign in to access AI insights, or create a new account to get started.
+          </Text>
+
+          <Button
+            title="Sign in"
+            onPress={handleSignIn}
+            variant="primary"
+            size="large"
+            style={styles.primaryAction}
+          />
+          <Button
+            title="Create account"
+            onPress={handleCreateAccount}
+            variant="outline"
+            size="large"
+            style={styles.secondaryAction}
+          />
         </View>
       </View>
     </View>
@@ -303,6 +332,29 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
     letterSpacing: 1,
+  },
+  actions: {
+    paddingHorizontal: 8,
+    paddingBottom: 10,
+  },
+  actionsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  actionsSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  primaryAction: {
+    width: '100%',
+  },
+  secondaryAction: {
+    width: '100%',
+    marginTop: 10,
   },
   headline: {
     fontWeight: '700',

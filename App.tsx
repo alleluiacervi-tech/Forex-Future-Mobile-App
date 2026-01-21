@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
@@ -13,6 +13,10 @@ import TermsScreen from './src/screens/Terms/TermsScreen';
 
 const STARTUP_SPLASH_DURATION_MS = 5000;
 
+void SplashScreen.preventAutoHideAsync().catch(() => {
+  // Ignore if the splash screen is already prevented or unavailable.
+});
+
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false);
   const [showStartupSplash, setShowStartupSplash] = useState(true);
@@ -23,7 +27,6 @@ export default function App() {
 
     const prepare = async () => {
       try {
-        await SplashScreen.preventAutoHideAsync();
         // If you add custom fonts later, you can load them here.
         // Example:
         // await Font.loadAsync({
@@ -45,9 +48,13 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
+  const onLayoutRootView = useCallback(async () => {
     if (!appIsReady) return;
-    void SplashScreen.hideAsync();
+    try {
+      await SplashScreen.hideAsync();
+    } catch (e) {
+      console.warn(e);
+    }
   }, [appIsReady]);
 
   useEffect(() => {
@@ -63,7 +70,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <View style={styles.container}>
+        <View style={styles.container} onLayout={onLayoutRootView}>
           <StatusBar style="light" />
           {showStartupSplash ? (
             <StartupSplash />
