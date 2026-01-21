@@ -165,6 +165,13 @@ export default function LandingScreen() {
             size="large"
             style={styles.secondaryAction}
           />
+          <Button
+            title="Explore features"
+            onPress={handleExploreFeatures}
+            variant="secondary"
+            size="large"
+            style={styles.tertiaryAction}
+          />
         </View>
       </View>
     </View>
@@ -353,6 +360,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   secondaryAction: {
+    width: '100%',
+    marginTop: 10,
+  },
+  tertiaryAction: {
     width: '100%',
     marginTop: 10,
   },
