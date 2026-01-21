@@ -20,16 +20,6 @@ export default function LandingScreen() {
     navigation.navigate('About');
   };
 
-  const handleSignIn = () => {
-    // Navigate to welcome/login screen
-    navigation.navigate('Welcome');
-  };
-
-  const handleCreateAccount = () => {
-    // Navigate to registration/subscription screen
-    navigation.navigate('Subscription');
-  };
-
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View
@@ -86,32 +76,18 @@ export default function LandingScreen() {
 
         <View style={styles.actions}>
           <Text style={[styles.actionsTitle, { color: theme.colors.text }]}>
-            Continue to your account
+            Discover Forex Future
           </Text>
           <Text style={[styles.actionsSubtitle, { color: theme.colors.textSecondary }]}>
-            Sign in to access AI insights, or create a new account to get started.
+            Explore the core features before creating your account.
           </Text>
 
           <Button
-            title="Sign in"
-            onPress={handleSignIn}
+            title="Explore features"
+            onPress={handleExploreFeatures}
             variant="primary"
             size="large"
             style={styles.primaryAction}
-          />
-          <Button
-            title="Create account"
-            onPress={handleCreateAccount}
-            variant="outline"
-            size="large"
-            style={styles.secondaryAction}
-          />
-          <Button
-            title="Explore features"
-            onPress={handleExploreFeatures}
-            variant="secondary"
-            size="large"
-            style={styles.tertiaryAction}
           />
         </View>
       </View>
@@ -302,14 +278,6 @@ const styles = StyleSheet.create({
   },
   primaryAction: {
     width: '100%',
-  },
-  secondaryAction: {
-    width: '100%',
-    marginTop: 10,
-  },
-  tertiaryAction: {
-    width: '100%',
-    marginTop: 10,
   },
   headline: {
     fontWeight: '700',

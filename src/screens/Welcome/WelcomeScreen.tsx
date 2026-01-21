@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Text, Button, Input } from '../../components/common';
@@ -68,38 +67,11 @@ export default function WelcomeScreen() {
                   },
                 ]}
               >
-                <View style={styles.globeBadge}>
-                  <LinearGradient
-                    colors={['#061821', '#0b3946', '#0cc0d6']}
-                    start={{ x: 0.2, y: 0.1 }}
-                    end={{ x: 0.8, y: 1 }}
-                    style={styles.globeInner}
-                  >
-                    <Ionicons name="globe-outline" size={28} color="#E7C77A" />
-                    <View style={styles.globeHighlight} />
-                  </LinearGradient>
-                </View>
-                <View style={styles.logoCandles}>
-                  <View style={[styles.candleBaseline, { backgroundColor: theme.colors.border }]} />
-
-                  <View style={[styles.logoCandleWrap, styles.logoCandleLeft]}>
-                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
-                    <View style={[styles.candleBody, { backgroundColor: theme.colors.success }]} />
-                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
-                  </View>
-
-                  <View style={[styles.logoCandleWrap, styles.logoCandleCenter]}>
-                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
-                    <View style={[styles.candleBody, { backgroundColor: theme.colors.info }]} />
-                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
-                  </View>
-
-                  <View style={[styles.logoCandleWrap, styles.logoCandleRight]}>
-                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
-                    <View style={[styles.candleBody, { backgroundColor: theme.colors.error }]} />
-                    <View style={[styles.candleWick, { backgroundColor: theme.colors.border }]} />
-                  </View>
-                </View>
+                <Image
+                  source={require('../../../assets/image.png')}
+                  resizeMode="contain"
+                  style={styles.brandLogo}
+                />
               </View>
 
               <View style={styles.wordmarkRow}>
@@ -235,85 +207,19 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   brandMark: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+    width: 80,
+    height: 80,
+    borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.02)',
     marginBottom: 14,
   },
-  logoCandles: {
-    width: 42,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    display: 'none',
-  },
-  globeBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    padding: 2,
-    borderWidth: 2,
-    borderColor: '#E7C77A',
-  },
-  globeInner: {
-    flex: 1,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  globeHighlight: {
-    position: 'absolute',
-    top: 6,
-    left: 7,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.10)',
-  },
-  candleBaseline: {
-    position: 'absolute',
-    bottom: 6,
-    left: 4,
-    right: 4,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: 'rgba(148, 163, 184, 0.5)',
-    opacity: 0.75,
-  },
-  logoCandleWrap: {
-    position: 'absolute',
-    bottom: 10,
-    width: 12,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  logoCandleLeft: {
-    left: 6,
-    height: 18,
-  },
-  logoCandleCenter: {
-    left: 18,
-    height: 24,
-  },
-  logoCandleRight: {
-    right: 6,
-    height: 16,
-  },
-  candleWick: {
-    width: 2,
-    height: 5,
-    borderRadius: 1,
-    opacity: 0.85,
-  },
-  candleBody: {
-    width: 8,
-    flex: 1,
-    borderRadius: 4,
+  brandLogo: {
+    width: 68,
+    height: 68,
+    borderRadius: 16,
   },
   wordmarkRow: {
     flexDirection: 'column',

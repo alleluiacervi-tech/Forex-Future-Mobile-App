@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -94,6 +94,16 @@ export default function SubscriptionScreen() {
               Request Access
             </Text>
             <View style={styles.placeholder} />
+          </View>
+
+          <View style={styles.logoRow}>
+            <View style={[styles.logoShell, { borderColor: theme.colors.border }]}>
+              <Image
+                source={require('../../../assets/image.png')}
+                resizeMode="contain"
+                style={styles.logoImage}
+              />
+            </View>
           </View>
 
           {/* Free Trial Banner */}
@@ -330,6 +340,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 24,
     marginTop: 8,
+  },
+  logoRow: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logoShell: {
+    width: 86,
+    height: 86,
+    borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  logoImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
   },
   backButton: {
     padding: 4,

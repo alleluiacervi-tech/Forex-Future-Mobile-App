@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -60,8 +60,12 @@ export default function AboutScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
 
-  const handleGetStarted = () => {
+  const handleSignIn = () => {
     navigation.navigate('Welcome');
+  };
+
+  const handleRequestAccess = () => {
+    navigation.navigate('Subscription');
   };
 
   const features = [
@@ -117,6 +121,15 @@ export default function AboutScreen() {
             end={{ x: 1, y: 1 }}
             style={[styles.heroCard, { borderColor: theme.colors.border }]}
           >
+            <View style={styles.logoRow}>
+              <View style={[styles.logoShell, { borderColor: theme.colors.border }]}>
+                <Image
+                  source={require('../../../assets/image.png')}
+                  resizeMode="contain"
+                  style={styles.logoImage}
+                />
+              </View>
+            </View>
             <View style={[styles.heroPill, { borderColor: theme.colors.border }]}
             >
               <Icon name="bolt" size={16} color={theme.colors.primary} />
@@ -166,26 +179,33 @@ export default function AboutScreen() {
             ))}
           </View>
 
-          {/* Get Started Button */}
+          {/* Access Buttons */}
           <View style={[styles.ctaCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
           >
             <View style={styles.ctaHeaderRow}>
               <View style={styles.ctaTitleRow}>
                 <Icon name="verified" size={20} color={theme.colors.primary} />
                 <Text variant="h4" style={styles.ctaTitle}>
-                  Ready to explore?
+                  Ready to continue?
                 </Text>
               </View>
               <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.ctaSubtitle}>
-                Create your profile and start with a free experience.
+                Sign in to your account or request access to get started.
               </Text>
             </View>
             <Button
-              title="Get Started"
-              onPress={handleGetStarted}
+              title="Sign in"
+              onPress={handleSignIn}
               variant="primary"
               size="large"
               style={styles.getStartedButton}
+            />
+            <Button
+              title="Request access"
+              onPress={handleRequestAccess}
+              variant="outline"
+              size="large"
+              style={styles.requestAccessButton}
             />
           </View>
         </Container>
@@ -212,6 +232,29 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 24,
+  },
+  logoRow: {
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  logoShell: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.02)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  logoImage: {
+    width: 62,
+    height: 62,
+    borderRadius: 14,
   },
   heroPill: {
     flexDirection: 'row',
@@ -318,6 +361,9 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   getStartedButton: {
+    width: '100%',
+  },
+  requestAccessButton: {
     width: '100%',
   },
 });

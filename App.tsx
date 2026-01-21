@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, Image } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import MainNavigator from './src/navigation';
 import { ThemeProvider } from './src/theme';
 import { useTheme } from './src/hooks';
@@ -92,39 +90,11 @@ function StartupSplash() {
     <View style={[styles.splashContainer, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.splashCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
         <View style={[styles.splashMark, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }]}>
-          <View style={styles.splashGlobeBadge}>
-            <LinearGradient
-              colors={['#061821', '#0b3946', '#0cc0d6']}
-              start={{ x: 0.2, y: 0.1 }}
-              end={{ x: 0.8, y: 1 }}
-              style={styles.splashGlobeInner}
-            >
-              <Ionicons name="globe-outline" size={44} color="#E7C77A" />
-              <View style={styles.splashGlobeHighlight} />
-            </LinearGradient>
-          </View>
-
-          <View style={styles.splashCandles}>
-            <View style={[styles.splashBaseline, { backgroundColor: theme.colors.border }]} />
-
-            <View style={[styles.splashCandleWrap, styles.splashCandleLeft]}>
-              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
-              <View style={[styles.splashBody, { backgroundColor: theme.colors.success }]} />
-              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
-            </View>
-
-            <View style={[styles.splashCandleWrap, styles.splashCandleCenter]}>
-              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
-              <View style={[styles.splashBody, { backgroundColor: theme.colors.info }]} />
-              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
-            </View>
-
-            <View style={[styles.splashCandleWrap, styles.splashCandleRight]}>
-              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
-              <View style={[styles.splashBody, { backgroundColor: theme.colors.error }]} />
-              <View style={[styles.splashWick, { backgroundColor: theme.colors.border }]} />
-            </View>
-          </View>
+          <Image
+            source={require('./assets/image.png')}
+            resizeMode="contain"
+            style={styles.splashLogo}
+          />
         </View>
 
         <View style={styles.splashWordmark}>
@@ -166,88 +136,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   splashMark: {
-    width: 84,
-    height: 84,
-    borderRadius: 22,
+    width: 108,
+    height: 108,
+    borderRadius: 26,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
-  splashGlobeBadge: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    padding: 3,
-    borderWidth: 2,
-    borderColor: '#E7C77A',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    elevation: 10,
-  },
-  splashGlobeInner: {
-    flex: 1,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  splashGlobeHighlight: {
-    position: 'absolute',
-    top: 10,
-    left: 12,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.10)',
-  },
-  splashCandles: {
-    width: 56,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    display: 'none',
-  },
-  splashBaseline: {
-    position: 'absolute',
-    left: 6,
-    right: 6,
-    bottom: 10,
-    height: 2,
-    borderRadius: 1,
-    opacity: 0.65,
-  },
-  splashCandleWrap: {
-    position: 'absolute',
-    bottom: 14,
-    width: 16,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  splashCandleLeft: {
-    height: 22,
-    left: 10,
-  },
-  splashCandleCenter: {
-    height: 30,
-    left: 24,
-  },
-  splashCandleRight: {
-    height: 18,
-    right: 10,
-  },
-  splashWick: {
-    width: 2,
-    height: 7,
-    borderRadius: 1,
-    opacity: 0.8,
-  },
-  splashBody: {
-    width: 10,
-    flex: 1,
-    borderRadius: 5,
+  splashLogo: {
+    width: 92,
+    height: 92,
+    borderRadius: 20,
   },
   splashWordmark: {
     alignItems: 'center',
