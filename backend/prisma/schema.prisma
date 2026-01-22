@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderSide {
+  buy
+  sell
+}
+
+enum OrderStatus {
+  filled
+  pending
+  canceled
+}
+
+enum TransactionType {
+  trade
+  deposit
+  withdrawal
+}
+
+enum RiskLevel {
+  conservative
+  moderate
+  aggressive
+}
+
+model User {
+  id            String      @id @default(uuid())
+  name          String
+  email         String      @unique
+  passwordHash  String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  baseCurrency  String      @default("USD")
+  riskLevel     RiskLevel   @default(moderate)
+  notifications Boolean     @default(true)
+  account       Account?
+  positions     Position[]
+  orders        Order[]
+  transactions  Transaction[]
+  watchlist     Watchlist?
+  recommendations Recommendation[]
+}
+
+model Account {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String   @unique
+  balance    Float    @default(100000)
+  equity     Float    @default(100000)
+  marginUsed Float    @default(0)
+  currency   String   @default("USD")
+  updatedAt  DateTime @updatedAt
+}
+
+model Position {
+  id           String   @id @default(uuid())
+  user         User     @relation(fields: [userId], references: [id])
+  userId       String
+  pair         String
+  side         OrderSide
+  units        Float
+  entryPrice   Float
+  openTime     DateTime @default(now())
+  unrealizedPnl Float   @default(0)
+}
+
+model Order {
+  id        String      @id @default(uuid())
+  user      User        @relation(fields: [userId], references: [id])
+  userId    String
+  pair      String
+  side      OrderSide
+  units     Float
+  price     Float
+  status    OrderStatus @default(filled)
+  createdAt DateTime    @default(now())
+}
+
+model Transaction {
+  id        String          @id @default(uuid())
+  user      User            @relation(fields: [userId], references: [id])
+  userId    String
+  type      TransactionType
+  pair      String?
+  side      OrderSide?
+  units     Float?
+  price     Float?
+  timestamp DateTime        @default(now())
+}
+
+model Watchlist {
+  id     String   @id @default(uuid())
+  user   User     @relation(fields: [userId], references: [id])
+  userId String   @unique
+  pairs  String[]
+}
+
+model Recommendation {
+  id               String   @id @default(uuid())
+  user             User     @relation(fields: [userId], references: [id])
+  userId           String
+  pair             String
+  action           String
+  confidence       Float
+  entry            Float?
+  stopLoss         Float?
+  takeProfit1      Float?
+  takeProfit2      Float?
+  riskReward       String?
+  positionSizeLots Float?
+  rationale        String
+  createdAt        DateTime @default(now())
+}
