@@ -11,7 +11,7 @@
       "dom",
       "dom.iterable"
     ],
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "noEmit": true,
     "target": "esnext"
   },
