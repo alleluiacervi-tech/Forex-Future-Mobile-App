@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { PriceChart, RSIChart } from '../../components/charts';
 import { Card, Text, Tabs } from '../../components/common';
-import { mockAIRecommendations, mockCurrencyPairs } from '../../constants/marketData';
+import { mockAIRecommendations } from '../../constants/marketData';
 import AIRecommendationCard from '../../components/market/AIRecommendationCard';
-import { useTheme } from '../../hooks';
+import { useMarketData, useTheme } from '../../hooks';
 import { formatPrice, formatPercent, formatNumber } from '../../utils';
+import { APP_CONFIG } from '../../config';
 
 type CurrencyDetailRouteProp = RouteProp<RootStackParamList, 'CurrencyDetail'>;
 
@@ -17,11 +18,27 @@ export default function CurrencyDetailScreen() {
   const theme = useTheme();
   const { pair } = route.params;
   const [selectedTimeframe, setSelectedTimeframe] = useState('1H');
+  const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
 
-  const currencyPair = mockCurrencyPairs.find((p) => p.symbol === pair) || mockCurrencyPairs[0];
+  const currencyPair = pairs.find((p) => p.symbol === pair) || pairs[0];
   const aiRecommendation = mockAIRecommendations.find((r) => r.pair === pair);
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
+
+  if (!currencyPair) {
+    return (
+      <ScreenWrapper>
+        <Container>
+          <View style={styles.stateContainer}>
+            {loading ? <ActivityIndicator size="large" /> : null}
+            <Text variant="bodySmall" style={styles.stateText}>
+              {error || 'Loading market data...'}
+            </Text>
+          </View>
+        </Container>
+      </ScreenWrapper>
+    );
+  }
 
   return (
     <ScreenWrapper>
@@ -144,5 +161,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+  stateContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 8,
+  },
+  stateText: {
+    textAlign: 'center',
+  },
 });
-
