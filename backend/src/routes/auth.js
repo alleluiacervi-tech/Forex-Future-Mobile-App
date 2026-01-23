@@ -11,46 +11,74 @@ const router = express.Router();
 const issueToken = (userId) =>
   jwt.sign({ sub: userId }, config.jwtSecret, { expiresIn: config.jwtExpiresIn });
 
+const userSelect = {
+  id: true,
+  name: true,
+  email: true,
+  createdAt: true,
+  updatedAt: true,
+  baseCurrency: true,
+  riskLevel: true,
+  notifications: true,
+  account: true,
+  watchlist: true
+};
+
+const normalizeEmail = (email) => email.trim().toLowerCase();
+const normalizeName = (name) => name.trim();
+
 router.post("/register", async (req, res) => {
   const { data, error } = parseSchema(registerSchema, req.body);
   if (error) {
     return res.status(400).json({ error });
   }
 
-  const { email, password, name } = data;
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const email = normalizeEmail(data.email);
+  const name = normalizeName(data.name);
+  const { password } = data;
+  if (name.length < 2) {
+    return res.status(400).json({ error: "Name must be at least 2 characters." });
+  }
+
+  const existing = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } }
+  });
   if (existing) {
     return res.status(409).json({ error: "Email already registered." });
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
 
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      passwordHash,
-      account: {
-        create: {
-          balance: 100000,
-          equity: 100000,
-          marginUsed: 0,
-          currency: "USD"
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        passwordHash,
+        account: {
+          create: {
+            balance: 100000,
+            equity: 100000,
+            marginUsed: 0,
+            currency: "USD"
+          }
+        },
+        watchlist: {
+          create: {
+            pairs: ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD"]
+          }
         }
       },
-      watchlist: {
-        create: {
-          pairs: ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD"]
-        }
-      }
-    },
-    include: {
-      account: true,
-      watchlist: true
-    }
-  });
+      select: userSelect
+    });
 
-  return res.status(201).json({ user, account: user.account, token: issueToken(user.id) });
+    return res.status(201).json({ user, account: user.account, token: issueToken(user.id) });
+  } catch (error) {
+    if (error?.code === "P2002") {
+      return res.status(409).json({ error: "Email already registered." });
+    }
+    return res.status(500).json({ error: "Registration failed." });
+  }
 });
 
 router.post("/login", async (req, res) => {
@@ -59,13 +87,14 @@ router.post("/login", async (req, res) => {
     return res.status(400).json({ error });
   }
 
-  const { email, password } = data;
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: { account: true, watchlist: true }
+  const email = normalizeEmail(data.email);
+  const { password } = data;
+  const user = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+    select: { ...userSelect, passwordHash: true }
   });
 
-  if (!user) {
+  if (!user || !user.passwordHash) {
     return res.status(401).json({ error: "Invalid credentials." });
   }
 
@@ -74,13 +103,14 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials." });
   }
 
-  return res.json({ user, account: user.account, token: issueToken(user.id) });
+  const { passwordHash: _passwordHash, ...safeUser } = user;
+  return res.json({ user: safeUser, account: user.account, token: issueToken(user.id) });
 });
 
 router.get("/me", authenticate, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user.id },
-    include: { account: true, watchlist: true }
+    select: userSelect
   });
 
   if (!user) {
