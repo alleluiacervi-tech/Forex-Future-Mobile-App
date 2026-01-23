@@ -1,14 +1,24 @@
 import config from "../config.js";
 
-const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
 const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const GEMINI_ENDPOINT = (model) => `${GEMINI_BASE_URL}/models/${model}:generateContent`;
 const GEMINI_LIST_MODELS = `${GEMINI_BASE_URL}/models`;
 
 const normalizeModelName = (name) => (name || "").replace(/^models\//, "");
+const rawDefaultModel = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+const DEFAULT_GEMINI_MODEL = normalizeModelName(rawDefaultModel).startsWith("gemini")
+  ? normalizeModelName(rawDefaultModel)
+  : "gemini-1.5-flash";
 
 const selectFallbackModel = (models = []) => {
-  const normalized = models.map((m) => normalizeModelName(m.name || m));
+  const eligible = models.filter((m) =>
+    Array.isArray(m?.supportedGenerationMethods)
+      ? m.supportedGenerationMethods.includes("generateContent")
+      : false
+  );
+  const normalized = eligible
+    .map((m) => normalizeModelName(m.name || m))
+    .filter((name) => name.startsWith("gemini"));
   const preferred = [
     "gemini-1.5-flash-latest",
     "gemini-1.5-flash",

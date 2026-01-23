@@ -1,5 +1,5 @@
 import { WebSocket, WebSocketServer } from "ws";
-import { recordTrade } from "./marketCache.js";
+import { recordQuote, recordTrade } from "./marketCache.js";
 import { supportedSymbols } from "./marketSymbols.js";
 
 /**
@@ -144,14 +144,26 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       const msg = raw.toString();
       try {
         const payload = JSON.parse(msg);
-        if (payload?.type === "trade" && Array.isArray(payload.data)) {
-          payload.data.forEach((item) => {
-            recordTrade({
-              symbol: item?.s,
-              price: Number(item?.p),
-              timestampMs: Number(item?.t)
+        if (Array.isArray(payload?.data)) {
+          if (payload.type === "trade") {
+            payload.data.forEach((item) => {
+              recordTrade({
+                symbol: item?.s,
+                price: Number(item?.p),
+                timestampMs: Number(item?.t)
+              });
             });
-          });
+          }
+          if (payload.type === "quote") {
+            payload.data.forEach((item) => {
+              recordQuote({
+                symbol: item?.s,
+                bid: item?.b,
+                ask: item?.a,
+                timestampMs: Number(item?.t)
+              });
+            });
+          }
         }
       } catch {}
       wss.clients.forEach((ws) => {

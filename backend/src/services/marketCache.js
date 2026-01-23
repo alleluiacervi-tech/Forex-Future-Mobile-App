@@ -38,6 +38,15 @@ const recordTrade = ({ symbol, price, timestampMs }) => {
   historyBySymbol.set(symbol, history);
 };
 
+const recordQuote = ({ symbol, bid, ask, timestampMs }) => {
+  if (!symbolToPair[symbol]) return;
+  const b = Number(bid);
+  const a = Number(ask);
+  if (!Number.isFinite(b) || !Number.isFinite(a)) return;
+  const mid = (b + a) / 2;
+  recordTrade({ symbol, price: mid, timestampMs });
+};
+
 const buildRateFromPrice = ({ pair, price, timestampMs }) => {
   const pip = pipSizeForPair(pair);
   const spread = pip * 1.5;
@@ -101,4 +110,4 @@ const getHistoricalFromCache = ({ pair, points, interval }) => {
   return data;
 };
 
-export { recordTrade, getLiveRatesFromCache, getHistoricalFromCache };
+export { recordTrade, recordQuote, getLiveRatesFromCache, getHistoricalFromCache };
