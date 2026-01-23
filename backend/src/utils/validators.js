@@ -11,6 +11,11 @@ const loginSchema = z.object({
   password: z.string().min(6)
 });
 
+const trialStartSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6)
+});
+
 const orderSchema = z.object({
   pair: z.string().regex(/^[A-Z]{3}\/[A-Z]{3}$/),
   side: z.enum(["buy", "sell"]),
@@ -53,5 +58,6 @@ export {
   parseSchema,
   recommendationSchema,
   registerSchema,
+  trialStartSchema,
   updateUserSchema
 };

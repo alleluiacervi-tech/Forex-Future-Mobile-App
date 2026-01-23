@@ -19,6 +19,8 @@ const main = async () => {
       baseCurrency: "USD",
       riskLevel: "moderate",
       notifications: true,
+      trialActive: true,
+      trialStartedAt: new Date(),
       account: {
         create: {
           balance: 100000,

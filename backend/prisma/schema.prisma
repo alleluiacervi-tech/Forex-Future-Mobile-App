@@ -40,6 +40,8 @@ model User {
   baseCurrency  String      @default("USD")
   riskLevel     RiskLevel   @default(moderate)
   notifications Boolean     @default(true)
+  trialActive   Boolean     @default(false)
+  trialStartedAt DateTime?
   account       Account?
   positions     Position[]
   orders        Order[]
