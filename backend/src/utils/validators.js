@@ -35,10 +35,10 @@ const updateUserSchema = z.object({
 
 const recommendationSchema = z.object({
   pair: z.string().regex(/^[A-Z]{3}\/[A-Z]{3}$/),
-  timeframe: z.string().min(2),
-  currentPrice: z.number().positive(),
-  accountBalance: z.number().positive(),
-  riskPercent: z.number().positive().max(10),
+  timeframe: z.string().min(2).optional(),
+  currentPrice: z.number().positive().optional(),
+  accountBalance: z.number().positive().optional(),
+  riskPercent: z.number().positive().max(10).optional(),
   notes: z.string().optional()
 });
 
