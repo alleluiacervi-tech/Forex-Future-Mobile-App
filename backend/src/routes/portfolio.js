@@ -24,36 +24,44 @@ const calculateEquity = async (account, positions) => {
 };
 
 router.get("/summary", authenticate, async (req, res) => {
-  const account = await prisma.account.findUnique({ where: { userId: req.user.id } });
-  const positions = await prisma.position.findMany({ where: { userId: req.user.id } });
-  const { equity, unrealizedPnl } = await calculateEquity(account, positions);
+  try {
+    const account = await prisma.account.findUnique({ where: { userId: req.user.id } });
+    const positions = await prisma.position.findMany({ where: { userId: req.user.id } });
+    const { equity, unrealizedPnl } = await calculateEquity(account, positions);
 
-  const updatedAccount = await prisma.account.update({
-    where: { id: account.id },
-    data: { equity }
-  });
+    const updatedAccount = await prisma.account.update({
+      where: { id: account.id },
+      data: { equity }
+    });
 
-  return res.json({
-    account: updatedAccount,
-    unrealizedPnl,
-    openPositions: positions.length
-  });
+    return res.json({
+      account: updatedAccount,
+      unrealizedPnl,
+      openPositions: positions.length
+    });
+  } catch (error) {
+    return res.status(502).json({ error: error.message });
+  }
 });
 
 router.get("/positions", authenticate, async (req, res) => {
-  const positions = await prisma.position.findMany({ where: { userId: req.user.id } });
-  const enriched = await Promise.all(positions.map(async (position) => {
-    const pricing = await getPriceForPair(position.pair);
-    const current = position.side === "buy" ? pricing.bid : pricing.ask;
-    const delta = (current - position.entryPrice) * (position.side === "buy" ? 1 : -1);
-    return {
-      ...position,
-      currentPrice: current,
-      unrealizedPnl: Number((delta * position.units).toFixed(2))
-    };
-  }));
+  try {
+    const positions = await prisma.position.findMany({ where: { userId: req.user.id } });
+    const enriched = await Promise.all(positions.map(async (position) => {
+      const pricing = await getPriceForPair(position.pair);
+      const current = position.side === "buy" ? pricing.bid : pricing.ask;
+      const delta = (current - position.entryPrice) * (position.side === "buy" ? 1 : -1);
+      return {
+        ...position,
+        currentPrice: current,
+        unrealizedPnl: Number((delta * position.units).toFixed(2))
+      };
+    }));
 
-  return res.json({ positions: enriched });
+    return res.json({ positions: enriched });
+  } catch (error) {
+    return res.status(502).json({ error: error.message });
+  }
 });
 
 router.get("/transactions", authenticate, async (req, res) => {
