@@ -27,7 +27,7 @@ router.post("/orders", authenticate, async (req, res) => {
     return res.status(404).json({ error: "Account not found." });
   }
 
-  const pricing = getPriceForPair(pair);
+  const pricing = await getPriceForPair(pair);
   const price = side === "buy" ? pricing.ask : pricing.bid;
   const notional = units * price;
 

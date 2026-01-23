@@ -13,7 +13,7 @@ const createRecommendation = async (req, res) => {
   } = req.body;
 
   try {
-    const footprint = buildFootprintSummary(pair);
+    const footprint = await buildFootprintSummary(pair);
     const recommendation = await requestRecommendation({
       pair,
       timeframe,

@@ -1,4 +1,4 @@
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import { getLiveRates } from "./rates.js";
 
 /**
@@ -49,7 +49,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   const clientState = new WeakMap();
 
   const send = (ws, messageObj) => {
-    if (ws.readyState !== ws.OPEN) return;
+    if (ws.readyState !== WebSocket.OPEN) return;
 
     // Backpressure guard: if client is slow, skip sending to avoid memory buildup
     if (ws.bufferedAmount > config.maxBufferedBytes) return;
@@ -57,18 +57,30 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     ws.send(safeJson(messageObj));
   };
 
-  const buildRatesMessage = () => ({
+  const buildRatesMessage = async () => ({
     type: "rates",
     ts: nowIso(),
-    data: getLiveRates()
+    data: await getLiveRates()
   });
 
   // Broadcast loop
-  const broadcastRates = () => {
-    const msg = safeJson(buildRatesMessage());
+  let broadcasting = false;
+
+  const broadcastRates = async () => {
+    if (broadcasting) return;
+    broadcasting = true;
+    let msg;
+    try {
+      msg = safeJson(await buildRatesMessage());
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Failed to build rates message:", error.message);
+      broadcasting = false;
+      return;
+    }
 
     wss.clients.forEach((ws) => {
-      if (ws.readyState !== ws.OPEN) return;
+      if (ws.readyState !== WebSocket.OPEN) return;
 
       // Backpressure guard
       if (ws.bufferedAmount > config.maxBufferedBytes) return;
@@ -79,9 +91,12 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
       ws.send(msg);
     });
+    broadcasting = false;
   };
 
-  const broadcastInterval = setInterval(broadcastRates, config.broadcastMs);
+  const broadcastInterval = setInterval(() => {
+    void broadcastRates();
+  }, config.broadcastMs);
 
   // Heartbeat ping/pong
   const pingInterval = setInterval(() => {
@@ -132,7 +147,15 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       if (msg?.type === "subscribe" && msg?.channel) {
         state.subscriptions.add(String(msg.channel));
         send(ws, { type: "subscribed", ts: nowIso(), channel: String(msg.channel) });
-        if (msg.channel === "rates") send(ws, buildRatesMessage());
+        if (msg.channel === "rates") {
+          void (async () => {
+            try {
+              send(ws, await buildRatesMessage());
+            } catch (error) {
+              send(ws, { type: "error", ts: nowIso(), message: error.message });
+            }
+          })();
+        }
         return;
       }
 
@@ -167,7 +190,13 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       path: config.path
     });
 
-    send(ws, buildRatesMessage());
+    void (async () => {
+      try {
+        send(ws, await buildRatesMessage());
+      } catch (error) {
+        send(ws, { type: "error", ts: nowIso(), message: error.message });
+      }
+    })();
   });
 
   // Cleanup on server close (wss "close" event means the WS server was closed)

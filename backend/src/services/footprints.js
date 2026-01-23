@@ -75,14 +75,14 @@ const percentile = (values, p) => {
  * Uses getHistoricalRates(pair, points) which returns { timestamp, value, volatility?, volume? }.
  * If you later replace that with real OHLCV candles from broker/exchange, plug them in here.
  */
-const buildCandles = (pair, points = 120, opts = {}) => {
+const buildCandles = async (pair, points = 120, opts = {}) => {
   const {
     syntheticSpreadFactor = 0.002, // only used if point.volatility missing
     ensureVolume = true,
     defaultVolume = 1
   } = opts;
 
-  const history = getHistoricalRates(pair, points);
+  const history = await getHistoricalRates(pair, points);
   if (!Array.isArray(history) || history.length === 0) return [];
 
   return history.map((point) => {
@@ -430,7 +430,7 @@ const detectRubberBand = (candles, opts = {}) => {
 /** -------------------------
  * Multi-Timeframe Bias (simple but consistent)
  * ------------------------*/
-const detectMultiTimeframeBias = (pair, opts = {}) => {
+const detectMultiTimeframeBias = async (pair, opts = {}) => {
   const {
     frames = [
       { label: "M15", points: 60, maPeriod: 20 },
@@ -440,8 +440,8 @@ const detectMultiTimeframeBias = (pair, opts = {}) => {
     candleOpts = {}
   } = opts;
 
-  const results = frames.map((f) => {
-    const candles = buildCandles(pair, f.points, candleOpts);
+  const results = await Promise.all(frames.map(async (f) => {
+    const candles = await buildCandles(pair, f.points, candleOpts);
     if (candles.length < f.maPeriod + 5) {
       return {
         timeframe: f.label,
@@ -471,7 +471,7 @@ const detectMultiTimeframeBias = (pair, opts = {}) => {
       rationale: "Bias derived from price distance to rolling mean (normalized by volatility).",
       evidence: { z: round(z, 2), ma: round(mean, 5), sd: round(sd, 5), last: round(last, 5) }
     };
-  });
+  }));
 
   const bullish = results.filter((r) => r.bias === "bullish").length;
   const bearish = results.filter((r) => r.bias === "bearish").length;
@@ -494,7 +494,7 @@ const detectMultiTimeframeBias = (pair, opts = {}) => {
 /** -------------------------
  * Overall summary builder
  * ------------------------*/
-const buildFootprintSummary = (pair, opts = {}) => {
+const buildFootprintSummary = async (pair, opts = {}) => {
   const {
     points = 180,
     candleOpts = {},
@@ -505,7 +505,7 @@ const buildFootprintSummary = (pair, opts = {}) => {
     mtfOpts = {}
   } = opts;
 
-  const candles = buildCandles(pair, points, candleOpts);
+  const candles = await buildCandles(pair, points, candleOpts);
 
   if (!candles.length) {
     return {
@@ -521,7 +521,7 @@ const buildFootprintSummary = (pair, opts = {}) => {
   const smartMoney = detectSmartMoney(candles, smartMoneyOpts);
   const rubberBand = detectRubberBand(candles, rubberBandOpts);
   const imbalanceFVG = detectImbalanceFVG(candles, { lookback: 80, maxFVG: 5 });
-  const timeframeBias = detectMultiTimeframeBias(pair, { ...mtfOpts, candleOpts });
+  const timeframeBias = await detectMultiTimeframeBias(pair, { ...mtfOpts, candleOpts });
 
   // Professional “composite” sentiment (NOT a trade call, just environment scoring)
   const composite = (() => {

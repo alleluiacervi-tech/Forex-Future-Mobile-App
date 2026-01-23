@@ -1,9 +1,4 @@
-/**
- * Professional Simulated FX Market Data Engine (for demo/dev)
- * - NOT real market data
- * - Produces more realistic behavior than pure jitter:
- *   random walk + volatility regimes + spread dynamics + correct decimal precision
- */
+import config from "../config.js";
 
 const basePrices = {
   "EUR/USD": 1.0842,
@@ -16,211 +11,212 @@ const basePrices = {
   "EUR/GBP": 0.8526
 };
 
-/** ---- Pair conventions ---- */
+const supportedPairs = Object.keys(basePrices);
+
+const TWELVE_BASE_URL = "https://api.twelvedata.com";
+const LIVE_CACHE_TTL_MS = 8000;
+const HISTORY_CACHE_TTL_MS = 60_000;
+const FETCH_TIMEOUT_MS = 8000;
+
 const isJpyPair = (pair) => pair.includes("JPY");
-const decimalsForPair = (pair) => (isJpyPair(pair) ? 3 : 5); // mid/bid/ask rounding
+const decimalsForPair = (pair) => (isJpyPair(pair) ? 3 : 5);
 const pipSizeForPair = (pair) => (isJpyPair(pair) ? 0.01 : 0.0001);
-
-/** ---- RNG helpers (optional deterministic seed) ---- */
-let _seed = null; // set to a number for deterministic output
-
-const setSeed = (seed) => {
-  _seed = Number.isFinite(seed) ? seed : null;
-};
-
-// Mulberry32 PRNG for determinism in tests (only used if _seed is set)
-const mulberry32 = (a) => () => {
-  let t = (a += 0x6d2b79f5);
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-
-const rand = (() => {
-  let prng = null;
-  return () => {
-    if (_seed === null) return Math.random();
-    if (!prng) prng = mulberry32(_seed);
-    return prng();
-  };
-})();
-
-/** Standard normal (Box-Muller) */
-const randn = () => {
-  let u = 0,
-    v = 0;
-  while (u === 0) u = rand();
-  while (v === 0) v = rand();
-  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-};
-
 const roundTo = (value, decimals) => Number(Number(value).toFixed(decimals));
 
-/** ---- Market state per pair (drift + volatility regime) ---- */
-const pairState = new Map();
-/**
- * Initialize state if needed:
- * - drift: tiny directional bias
- * - regime: CALM/NORMAL/HIGH (switches slowly)
- */
-const initState = (pair) => {
-  if (pairState.has(pair)) return;
-
-  pairState.set(pair, {
-    mid: basePrices[pair] ?? 1.0,
-    drift: (rand() - 0.5) * 0.00002, // tiny drift
-    regime: "NORMAL",
-    regimeStrength: 0.5 + rand() * 0.5 // 0.5..1.0
-  });
+const toNumberOrNull = (value) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 };
 
-const maybeSwitchRegime = (state) => {
-  // Small chance to switch regime; more stable than random every call
-  const r = rand();
-  if (r < 0.02) state.regime = "CALM";
-  else if (r < 0.96) state.regime = "NORMAL";
-  else state.regime = "HIGH";
-
-  // regimeStrength slowly fluctuates
-  state.regimeStrength = Math.max(0.3, Math.min(1.3, state.regimeStrength + (rand() - 0.5) * 0.05));
+const liveCache = {
+  timestamp: 0,
+  data: null
 };
 
-const volatilityForPair = (pair, state) => {
-  const pip = pipSizeForPair(pair);
+const historyCache = new Map();
 
-  // Volatility scales by regime
-  // These are per-step vol estimates (not annualized)
-  const base = state.regime === "CALM" ? 6 : state.regime === "HIGH" ? 20 : 12; // in pips
-  const pips = base * state.regimeStrength;
-
-  return pips * pip;
-};
-
-const spreadForPair = (pair, state) => {
-  const pip = pipSizeForPair(pair);
-
-  // Typical spreads (in pips), widen in HIGH regime
-  const typical = isJpyPair(pair) ? 1.2 : 1.0;
-  const widen = state.regime === "HIGH" ? 1.8 : state.regime === "CALM" ? 0.8 : 1.2;
-
-  // Add small randomness
-  const spreadPips = Math.max(0.6, typical * widen + (rand() - 0.5) * 0.3);
-  return spreadPips * pip;
-};
-
-const volumeForState = (state) => {
-  // Volume correlates with volatility regime (for realism)
-  const base = 700;
-  const boost = state.regime === "HIGH" ? 1400 : state.regime === "CALM" ? 500 : 900;
-  const noise = Math.floor(rand() * 400);
-  return base + boost + noise;
-};
-
-/**
- * One step price evolution: random walk + drift + mild mean reversion to base price.
- * This creates realistic "wiggle" without pure jitter.
- */
-const evolveMidPrice = (pair, state) => {
-  maybeSwitchRegime(state);
-
-  const vol = volatilityForPair(pair, state);
-  const base = basePrices[pair] ?? 1.0;
-
-  // Random shock
-  const shock = randn() * vol;
-
-  // Mild mean reversion to base (keeps sim stable over time)
-  const meanRevert = (base - state.mid) * 0.02;
-
-  // Drift (slow)
-  const drift = state.drift;
-
-  state.mid = Math.max(0.00001, state.mid + shock + meanRevert + drift);
-  return state.mid;
-};
-
-/** ---- Public API ---- */
-const getPriceForPair = (pair) => {
-  initState(pair);
-  const state = pairState.get(pair);
-
-  const midRaw = evolveMidPrice(pair, state);
-  const spread = spreadForPair(pair, state);
-
-  const decimals = decimalsForPair(pair);
-  const mid = roundTo(midRaw, decimals);
-  const bid = roundTo(midRaw - spread / 2, decimals);
-  const ask = roundTo(midRaw + spread / 2, decimals);
-
-  return {
-    bid,
-    ask,
-    mid,
-    spread: roundTo(ask - bid, decimals),
-    regime: state.regime
-  };
-};
-
-const getLiveRates = () => {
-  const timestamp = new Date().toISOString();
-
-  return Object.keys(basePrices).map((pair) => {
-    const px = getPriceForPair(pair);
-    initState(pair);
-    const state = pairState.get(pair);
-
-    return {
-      pair,
-      bid: px.bid,
-      ask: px.ask,
-      mid: px.mid,
-      spread: px.spread,
-      regime: px.regime,
-      volume: volumeForState(state),
-      timestamp
-    };
-  });
-};
-
-/**
- * getHistoricalRates
- * Generates synthetic historical points:
- * - uses same evolution function, but steps backward in time
- * - For demo: timeframe is "1H" per point by default
- *
- * NOTE: This produces {timestamp, value, volatility, volume}
- * to match your existing candle builder.
- */
-const getHistoricalRates = (pair, points = 60, opts = {}) => {
-  const { stepMs = 60 * 60 * 1000 } = opts; // 1 hour per point
-  initState(pair);
-
-  // Create a local copy so we don't mutate live state in a big historical request
-  const original = pairState.get(pair);
-  const localState = { ...original };
-
-  const now = Date.now();
-  const out = [];
-
-  // Start near base price and "walk forward" generating past series (reverse at the end)
-  localState.mid = basePrices[pair] ?? 1.0;
-
-  for (let i = 0; i < points; i++) {
-    const ts = new Date(now - (points - i) * stepMs).toISOString();
-    evolveMidPrice(pair, localState);
-
-    const vol = volatilityForPair(pair, localState);
-    const volume = volumeForState(localState);
-
-    out.push({
-      timestamp: ts,
-      value: roundTo(localState.mid, decimalsForPair(pair)),
-      volatility: vol,
-      volume
-    });
+const fetchJson = async (path, params) => {
+  if (!config.twelveDataApiKey) {
+    throw new Error("Missing TWELVEDATA_API_KEY configuration.");
   }
 
-  return out;
+  const url = new URL(`${TWELVE_BASE_URL}${path}`);
+  const searchParams = new URLSearchParams(params);
+  searchParams.set("apikey", config.twelveDataApiKey);
+  url.search = searchParams.toString();
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url.toString(), { signal: controller.signal });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Twelve Data error (${response.status}): ${body}`);
+    }
+    const payload = await response.json();
+    if (payload?.status === "error") {
+      throw new Error(payload.message || "Twelve Data error.");
+    }
+    return payload;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
 
-export { getHistoricalRates, getLiveRates, getPriceForPair, setSeed };
+const normalizeBatchResponse = (payload, symbols) => {
+  if (!payload || typeof payload !== "object") {
+    return {};
+  }
+
+  if (payload.status === "error") {
+    throw new Error(payload.message || "Twelve Data error.");
+  }
+
+  if (payload.values) {
+    const symbol = payload?.meta?.symbol || symbols[0];
+    return { [symbol]: payload };
+  }
+
+  const container = payload.data && typeof payload.data === "object" ? payload.data : payload;
+  const result = {};
+
+  symbols.forEach((symbol) => {
+    const entry = container?.[symbol];
+    if (!entry) return;
+    if (entry.status === "error") return;
+    if (entry.values) {
+      result[symbol] = entry;
+    }
+  });
+
+  return result;
+};
+
+const fetchTimeSeries = async ({ symbols, interval, outputsize }) => {
+  const payload = await fetchJson("/time_series", {
+    symbol: symbols.join(","),
+    interval,
+    outputsize: String(outputsize),
+    order: "DESC"
+  });
+
+  return normalizeBatchResponse(payload, symbols);
+};
+
+const getLiveRates = async () => {
+  const now = Date.now();
+  if (liveCache.data && now - liveCache.timestamp < LIVE_CACHE_TTL_MS) {
+    return liveCache.data;
+  }
+
+  try {
+    const seriesMap = await fetchTimeSeries({
+      symbols: supportedPairs,
+      interval: "1min",
+      outputsize: 1
+    });
+
+    const timestamp = new Date().toISOString();
+    const rates = supportedPairs
+      .map((pair) => {
+        const series = seriesMap[pair];
+        const latest = series?.values?.[0];
+        const mid = toNumberOrNull(latest?.close ?? latest?.open);
+        if (!latest || mid === null) return null;
+
+        const pip = pipSizeForPair(pair);
+        const spread = pip * 1.5;
+        const decimals = decimalsForPair(pair);
+        const bid = roundTo(mid - spread / 2, decimals);
+        const ask = roundTo(mid + spread / 2, decimals);
+
+        return {
+          pair,
+          bid,
+          ask,
+          mid: roundTo(mid, decimals),
+          spread: roundTo(ask - bid, decimals),
+          volume: toNumberOrNull(latest?.volume) ?? 0,
+          timestamp: latest?.datetime ? new Date(latest.datetime).toISOString() : timestamp
+        };
+      })
+      .filter(Boolean);
+
+    if (rates.length === 0 && liveCache.data) {
+      return liveCache.data;
+    }
+
+    liveCache.timestamp = now;
+    liveCache.data = rates;
+    return rates;
+  } catch (error) {
+    if (liveCache.data) {
+      return liveCache.data;
+    }
+    throw error;
+  }
+};
+
+const getHistoricalRates = async (pair, points = 60, opts = {}) => {
+  const { interval = "1h" } = opts;
+  const cacheKey = `${pair}:${points}:${interval}`;
+  const cached = historyCache.get(cacheKey);
+  const now = Date.now();
+  if (cached && now - cached.timestamp < HISTORY_CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  try {
+    const seriesMap = await fetchTimeSeries({
+      symbols: [pair],
+      interval,
+      outputsize: points
+    });
+
+    const series = seriesMap[pair];
+    const values = Array.isArray(series?.values) ? series.values : [];
+    const ordered = values.slice().reverse();
+
+    const data = ordered
+      .map((item) => {
+        const close = toNumberOrNull(item?.close);
+        const high = toNumberOrNull(item?.high);
+        const low = toNumberOrNull(item?.low);
+        if (close === null || high === null || low === null) return null;
+
+        const volatility = close !== 0 ? Math.abs(high - low) / close : 0;
+        return {
+          timestamp: item?.datetime ? new Date(item.datetime).toISOString() : new Date().toISOString(),
+          value: close,
+          volatility,
+          volume: toNumberOrNull(item?.volume) ?? 0
+        };
+      })
+      .filter(Boolean);
+
+    if (data.length === 0 && cached?.data) {
+      return cached.data;
+    }
+
+    historyCache.set(cacheKey, { timestamp: now, data });
+    return data;
+  } catch (error) {
+    if (cached?.data) {
+      return cached.data;
+    }
+    throw error;
+  }
+};
+
+const getPriceForPair = async (pair) => {
+  const rates = await getLiveRates();
+  const found = rates.find((rate) => rate.pair === pair);
+  if (found) {
+    return found;
+  }
+
+  throw new Error(`No live rate available for ${pair}.`);
+};
+
+export { getHistoricalRates, getLiveRates, getPriceForPair };
