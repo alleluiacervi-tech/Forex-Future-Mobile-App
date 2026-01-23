@@ -21,8 +21,9 @@ const DEFAULTS = {
     process.env.FINNHUB_WS_URL ||
     (process.env.FINNHUB_API_KEY
       ? `wss://ws.finnhub.io?token=${process.env.FINNHUB_API_KEY}`
-      : "wss://ws.finnhub.io?token=d5pouppr01qq2b68gt90d5pouppr01qq2b68gt9g"),
-  finnhubReconnectMs: 5000
+      : ""),
+  finnhubReconnectMs: 5000,
+  logConnections: true
 };
 
 const safeJson = (obj) => {
@@ -49,7 +50,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   }
 
   if (!config.finnhubUrl) {
-    throw new Error("initializeSocket: missing Finnhub WS url/token");
+    throw new Error("initializeSocket: missing FINNHUB_API_KEY or FINNHUB_WS_URL");
   }
 
   const wss = new WebSocketServer({ server, path: config.path });
@@ -136,6 +137,10 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     }
 
     finnhub.on("open", () => {
+      if (config.logConnections) {
+        // eslint-disable-next-line no-console
+        console.log("Finnhub WS connected.");
+      }
       flushFinnhubQueue();
       resubscribeAllSymbols();
     });
@@ -148,6 +153,10 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
 
     finnhub.on("close", () => {
+      if (config.logConnections) {
+        // eslint-disable-next-line no-console
+        console.log("Finnhub WS disconnected. Reconnecting...");
+      }
       scheduleFinnhubReconnect();
     });
 
@@ -193,45 +202,12 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
 
     ws.on("message", (raw) => {
-      // Optional: handle subscribe/unsubscribe messages
-      // Example: { "type": "subscribe", "channel": "rates" }
+      // Only ping supported; majors-only symbols are fixed server-side
       let msg;
       try {
         msg = JSON.parse(raw.toString());
       } catch {
-        send(ws, { type: "error", ts: nowIso(), message: "Invalid JSON message." });
-        return;
-      }
-
-      const state = clientState.get(ws);
-      if (!state) return;
-
-      if (msg?.type === "subscribe" && msg?.symbol) {
-        const symbol = String(msg.symbol);
-        if (!state.subscriptions.has(symbol)) {
-          state.subscriptions.add(symbol);
-          const current = symbolCounts.get(symbol) || 0;
-          symbolCounts.set(symbol, current + 1);
-          if (current === 0) sendToFinnhub({ type: "subscribe", symbol });
-        }
-        sendJson(ws, { type: "subscribed", ts: nowIso(), symbol });
-        return;
-      }
-
-      if (msg?.type === "unsubscribe" && msg?.symbol) {
-        const symbol = String(msg.symbol);
-        if (state.subscriptions.has(symbol)) {
-          state.subscriptions.delete(symbol);
-          const current = symbolCounts.get(symbol) || 0;
-          const next = Math.max(0, current - 1);
-          if (next === 0) {
-            symbolCounts.delete(symbol);
-            sendToFinnhub({ type: "unsubscribe", symbol });
-          } else {
-            symbolCounts.set(symbol, next);
-          }
-        }
-        sendJson(ws, { type: "unsubscribed", ts: nowIso(), symbol });
+        sendJson(ws, { type: "error", ts: nowIso(), message: "Invalid JSON message." });
         return;
       }
 
@@ -263,6 +239,11 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       // Avoid crashing the server due to a client socket error
     });
 
+    if (config.logConnections) {
+      // eslint-disable-next-line no-console
+      console.log(`Client connected. Active: ${wss.clients.size}`);
+    }
+
     // Welcome + initial snapshot
     defaultSymbols.forEach((symbol) => {
       const current = symbolCounts.get(symbol) || 0;
@@ -276,6 +257,13 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       message: "Connected to Finnhub market stream.",
       path: config.path,
       symbols: defaultSymbols
+    });
+
+    ws.on("close", () => {
+      if (config.logConnections) {
+        // eslint-disable-next-line no-console
+        console.log(`Client disconnected. Active: ${wss.clients.size}`);
+      }
     });
   });
 
