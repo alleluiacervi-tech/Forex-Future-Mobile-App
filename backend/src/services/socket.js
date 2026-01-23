@@ -1,4 +1,6 @@
 import { WebSocket, WebSocketServer } from "ws";
+import { recordTrade } from "./marketCache.js";
+import { supportedSymbols } from "./marketSymbols.js";
 
 /**
  * Professional WS Market Stream
@@ -58,14 +60,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   // Track subscriptions per client and aggregate symbol counts
   const clientState = new WeakMap();
   const symbolCounts = new Map();
-  const defaultSymbols = [
-    "OANDA:EUR_USD",
-    "OANDA:GBP_USD",
-    "OANDA:USD_JPY",
-    "OANDA:USD_CHF",
-    "OANDA:AUD_USD",
-    "OANDA:NZD_USD"
-  ];
+  const defaultSymbols = supportedSymbols;
 
   const sendJson = (ws, messageObj) => {
     if (ws.readyState !== WebSocket.OPEN) return;
@@ -147,6 +142,18 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
     finnhub.on("message", (raw) => {
       const msg = raw.toString();
+      try {
+        const payload = JSON.parse(msg);
+        if (payload?.type === "trade" && Array.isArray(payload.data)) {
+          payload.data.forEach((item) => {
+            recordTrade({
+              symbol: item?.s,
+              price: Number(item?.p),
+              timestampMs: Number(item?.t)
+            });
+          });
+        }
+      } catch {}
       wss.clients.forEach((ws) => {
         sendRaw(ws, msg);
       });
