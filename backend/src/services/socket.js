@@ -1,23 +1,28 @@
 import { WebSocket, WebSocketServer } from "ws";
-import { getLiveRates } from "./rates.js";
 
 /**
  * Professional WS Market Stream
  * Path: /ws/market
  *
  * Features:
+ * - Upstream Finnhub WS relay
  * - Server-side ping/pong heartbeat (detect dead clients)
  * - Backpressure protection (skip sends if buffer is high)
  * - Clean interval lifecycle
- * - Optional subscribe/unsubscribe handling
+ * - Subscribe/unsubscribe handling with symbol ref-counting
  */
 
 const DEFAULTS = {
   path: "/ws/market",
-  broadcastMs: 1000,          // how often to broadcast rates
   pingMs: 15000,              // ping frequency
   clientTimeoutMs: 30000,     // terminate if no pong within this window
-  maxBufferedBytes: 1_000_000 // ~1MB backpressure threshold
+  maxBufferedBytes: 1_000_000, // ~1MB backpressure threshold
+  finnhubUrl:
+    process.env.FINNHUB_WS_URL ||
+    (process.env.FINNHUB_API_KEY
+      ? `wss://ws.finnhub.io?token=${process.env.FINNHUB_API_KEY}`
+      : "wss://ws.finnhub.io?token=d5pouppr01qq2b68gt90d5pouppr01qq2b68gt9g"),
+  finnhubReconnectMs: 5000
 };
 
 const safeJson = (obj) => {
@@ -38,17 +43,30 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     ...opts
   };
 
-  // Backward compatibility: heartbeatMs = broadcast interval
+  // Backward compatibility: heartbeatMs retained but unused in Finnhub relay mode
   if (Number.isFinite(Number(heartbeatMs)) && Number(heartbeatMs) > 0) {
-    config.broadcastMs = Number(heartbeatMs);
+    config.pingMs = Number(heartbeatMs);
+  }
+
+  if (!config.finnhubUrl) {
+    throw new Error("initializeSocket: missing Finnhub WS url/token");
   }
 
   const wss = new WebSocketServer({ server, path: config.path });
 
-  // Track subscriptions (future-proof). Default: subscribed to rates.
+  // Track subscriptions per client and aggregate symbol counts
   const clientState = new WeakMap();
+  const symbolCounts = new Map();
+  const defaultSymbols = [
+    "OANDA:EUR_USD",
+    "OANDA:GBP_USD",
+    "OANDA:USD_JPY",
+    "OANDA:USD_CHF",
+    "OANDA:AUD_USD",
+    "OANDA:NZD_USD"
+  ];
 
-  const send = (ws, messageObj) => {
+  const sendJson = (ws, messageObj) => {
     if (ws.readyState !== WebSocket.OPEN) return;
 
     // Backpressure guard: if client is slow, skip sending to avoid memory buildup
@@ -57,46 +75,89 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     ws.send(safeJson(messageObj));
   };
 
-  const buildRatesMessage = async () => ({
-    type: "rates",
-    ts: nowIso(),
-    data: await getLiveRates()
-  });
+  const sendRaw = (ws, rawMessage) => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    if (ws.bufferedAmount > config.maxBufferedBytes) return;
+    ws.send(rawMessage);
+  };
 
-  // Broadcast loop
-  let broadcasting = false;
+  // Upstream Finnhub connection
+  let finnhub = null;
+  let finnhubReconnectTimer = null;
+  const pendingFinnhubMessages = [];
 
-  const broadcastRates = async () => {
-    if (broadcasting) return;
-    broadcasting = true;
-    let msg;
+  const flushFinnhubQueue = () => {
+    if (!finnhub || finnhub.readyState !== WebSocket.OPEN) return;
+    while (pendingFinnhubMessages.length > 0) {
+      const payload = pendingFinnhubMessages.shift();
+      try {
+        finnhub.send(payload);
+      } catch {
+        break;
+      }
+    }
+  };
+
+  const sendToFinnhub = (messageObj) => {
+    const payload = safeJson(messageObj);
+    if (!finnhub || finnhub.readyState !== WebSocket.OPEN) {
+      pendingFinnhubMessages.push(payload);
+      return;
+    }
     try {
-      msg = safeJson(await buildRatesMessage());
+      finnhub.send(payload);
+    } catch {
+      pendingFinnhubMessages.push(payload);
+    }
+  };
+
+  const resubscribeAllSymbols = () => {
+    symbolCounts.forEach((count, symbol) => {
+      if (count > 0) sendToFinnhub({ type: "subscribe", symbol });
+    });
+  };
+
+  const scheduleFinnhubReconnect = () => {
+    if (finnhubReconnectTimer) return;
+    finnhubReconnectTimer = setTimeout(() => {
+      finnhubReconnectTimer = null;
+      connectFinnhub();
+    }, config.finnhubReconnectMs);
+  };
+
+  const connectFinnhub = () => {
+    try {
+      finnhub = new WebSocket(config.finnhubUrl);
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error("Failed to build rates message:", error.message);
-      broadcasting = false;
+      console.error("Failed to create Finnhub WS:", error.message);
+      scheduleFinnhubReconnect();
       return;
     }
 
-    wss.clients.forEach((ws) => {
-      if (ws.readyState !== WebSocket.OPEN) return;
-
-      // Backpressure guard
-      if (ws.bufferedAmount > config.maxBufferedBytes) return;
-
-      const state = clientState.get(ws);
-      const subscribed = state?.subscriptions?.has("rates") ?? true;
-      if (!subscribed) return;
-
-      ws.send(msg);
+    finnhub.on("open", () => {
+      flushFinnhubQueue();
+      resubscribeAllSymbols();
     });
-    broadcasting = false;
+
+    finnhub.on("message", (raw) => {
+      const msg = raw.toString();
+      wss.clients.forEach((ws) => {
+        sendRaw(ws, msg);
+      });
+    });
+
+    finnhub.on("close", () => {
+      scheduleFinnhubReconnect();
+    });
+
+    finnhub.on("error", (error) => {
+      // eslint-disable-next-line no-console
+      console.error("Finnhub WS error:", error.message);
+    });
   };
 
-  const broadcastInterval = setInterval(() => {
-    void broadcastRates();
-  }, config.broadcastMs);
+  connectFinnhub();
 
   // Heartbeat ping/pong
   const pingInterval = setInterval(() => {
@@ -119,10 +180,11 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   }, config.pingMs);
 
   wss.on("connection", (ws, req) => {
+    const initialSubscriptions = new Set(defaultSymbols);
     clientState.set(ws, {
       connectedAt: Date.now(),
       lastPongAt: Date.now(),
-      subscriptions: new Set(["rates"])
+      subscriptions: initialSubscriptions
     });
 
     ws.on("pong", () => {
@@ -144,38 +206,57 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       const state = clientState.get(ws);
       if (!state) return;
 
-      if (msg?.type === "subscribe" && msg?.channel) {
-        state.subscriptions.add(String(msg.channel));
-        send(ws, { type: "subscribed", ts: nowIso(), channel: String(msg.channel) });
-        if (msg.channel === "rates") {
-          void (async () => {
-            try {
-              send(ws, await buildRatesMessage());
-            } catch (error) {
-              send(ws, { type: "error", ts: nowIso(), message: error.message });
-            }
-          })();
+      if (msg?.type === "subscribe" && msg?.symbol) {
+        const symbol = String(msg.symbol);
+        if (!state.subscriptions.has(symbol)) {
+          state.subscriptions.add(symbol);
+          const current = symbolCounts.get(symbol) || 0;
+          symbolCounts.set(symbol, current + 1);
+          if (current === 0) sendToFinnhub({ type: "subscribe", symbol });
         }
+        sendJson(ws, { type: "subscribed", ts: nowIso(), symbol });
         return;
       }
 
-      if (msg?.type === "unsubscribe" && msg?.channel) {
-        state.subscriptions.delete(String(msg.channel));
-        send(ws, { type: "unsubscribed", ts: nowIso(), channel: String(msg.channel) });
+      if (msg?.type === "unsubscribe" && msg?.symbol) {
+        const symbol = String(msg.symbol);
+        if (state.subscriptions.has(symbol)) {
+          state.subscriptions.delete(symbol);
+          const current = symbolCounts.get(symbol) || 0;
+          const next = Math.max(0, current - 1);
+          if (next === 0) {
+            symbolCounts.delete(symbol);
+            sendToFinnhub({ type: "unsubscribe", symbol });
+          } else {
+            symbolCounts.set(symbol, next);
+          }
+        }
+        sendJson(ws, { type: "unsubscribed", ts: nowIso(), symbol });
         return;
       }
 
       if (msg?.type === "ping") {
-        send(ws, { type: "pong", ts: nowIso() });
+        sendJson(ws, { type: "pong", ts: nowIso() });
         return;
       }
 
       // Unknown message type
-      send(ws, { type: "error", ts: nowIso(), message: "Unsupported message type." });
+      sendJson(ws, { type: "error", ts: nowIso(), message: "Unsupported message type." });
     });
 
     ws.on("close", () => {
-      // WeakMap cleans itself; nothing needed
+      const state = clientState.get(ws);
+      if (!state) return;
+      state.subscriptions.forEach((symbol) => {
+        const current = symbolCounts.get(symbol) || 0;
+        const next = Math.max(0, current - 1);
+        if (next === 0) {
+          symbolCounts.delete(symbol);
+          sendToFinnhub({ type: "unsubscribe", symbol });
+        } else {
+          symbolCounts.set(symbol, next);
+        }
+      });
     });
 
     ws.on("error", () => {
@@ -183,32 +264,37 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
 
     // Welcome + initial snapshot
-    send(ws, {
-      type: "welcome",
-      ts: nowIso(),
-      message: "Connected to live market stream.",
-      path: config.path
+    defaultSymbols.forEach((symbol) => {
+      const current = symbolCounts.get(symbol) || 0;
+      symbolCounts.set(symbol, current + 1);
+      if (current === 0) sendToFinnhub({ type: "subscribe", symbol });
     });
 
-    void (async () => {
-      try {
-        send(ws, await buildRatesMessage());
-      } catch (error) {
-        send(ws, { type: "error", ts: nowIso(), message: error.message });
-      }
-    })();
+    sendJson(ws, {
+      type: "welcome",
+      ts: nowIso(),
+      message: "Connected to Finnhub market stream.",
+      path: config.path,
+      symbols: defaultSymbols
+    });
   });
 
   // Cleanup on server close (wss "close" event means the WS server was closed)
   wss.on("close", () => {
-    clearInterval(broadcastInterval);
     clearInterval(pingInterval);
+    if (finnhubReconnectTimer) clearTimeout(finnhubReconnectTimer);
+    try {
+      finnhub?.close();
+    } catch {}
   });
 
   // Allow caller to close cleanly
   wss.closeGracefully = () => {
-    clearInterval(broadcastInterval);
     clearInterval(pingInterval);
+    if (finnhubReconnectTimer) clearTimeout(finnhubReconnectTimer);
+    try {
+      finnhub?.close();
+    } catch {}
     try {
       wss.close();
     } catch {}
