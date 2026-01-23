@@ -1,7 +1,37 @@
 import config from "../config.js";
 
-const GEMINI_MODEL = "gemini-1.5-pro";
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
+const GEMINI_ENDPOINT = (model) => `${GEMINI_BASE_URL}/models/${model}:generateContent`;
+const GEMINI_LIST_MODELS = `${GEMINI_BASE_URL}/models`;
+
+const normalizeModelName = (name) => (name || "").replace(/^models\//, "");
+
+const selectFallbackModel = (models = []) => {
+  const normalized = models.map((m) => normalizeModelName(m.name || m));
+  const preferred = [
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro-002",
+    "gemini-1.5-pro-001",
+    "gemini-1.5-pro",
+    "gemini-1.0-pro"
+  ];
+  for (const candidate of preferred) {
+    if (normalized.includes(candidate)) return candidate;
+  }
+  return normalized[0] || DEFAULT_GEMINI_MODEL;
+};
+
+const listModels = async (apiKey) => {
+  const res = await fetch(`${GEMINI_LIST_MODELS}?key=${apiKey}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Gemini listModels error (${res.status}): ${body}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data?.models) ? data.models : [];
+};
 
 /**
  * Small helpers
@@ -224,7 +254,8 @@ const requestRecommendation = async (payload, opts = {}) => {
     throw new Error("Missing GEMINI_API_KEY configuration.");
   }
 
-  const url = `${GEMINI_ENDPOINT}?key=${config.geminiApiKey}`;
+  const model = normalizeModelName(DEFAULT_GEMINI_MODEL);
+  const url = `${GEMINI_ENDPOINT(model)}?key=${config.geminiApiKey}`;
   const prompt = buildPrompt(payload);
 
   const requestBody = {
@@ -299,6 +330,58 @@ const requestRecommendation = async (payload, opts = {}) => {
       const isAbort = msg.includes("aborted") || msg.toLowerCase().includes("abort");
       const isNetwork = msg.toLowerCase().includes("network");
       const is5xx = msg.includes("Gemini API error (5");
+      const is404 = msg.includes("Gemini API error (404)");
+
+      if (is404 && attempt < maxRetries) {
+        try {
+          const models = await listModels(config.geminiApiKey);
+          const fallback = selectFallbackModel(models);
+          const fallbackUrl = `${GEMINI_ENDPOINT(fallback)}?key=${config.geminiApiKey}`;
+          const retryResponse = await fetchWithTimeout(
+            fallbackUrl,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestBody)
+            },
+            timeoutMs
+          );
+          if (!retryResponse.ok) {
+            const retryText = await retryResponse.text();
+            throw new Error(`Gemini API error (${retryResponse.status}): ${retryText}`);
+          }
+          const retryData = await retryResponse.json();
+          const retryText = retryData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+          const retryParsed = parseStrictJson(retryText);
+          if (!retryParsed) {
+            throw new Error("Unable to parse Gemini response as JSON.");
+          }
+
+          const normalized = {
+            ...retryParsed,
+            confidence: toNumberOrNull(retryParsed.confidence) ?? 0,
+            entry: retryParsed.entry === null ? null : toNumberOrNull(retryParsed.entry),
+            stopLoss: retryParsed.stopLoss === null ? null : toNumberOrNull(retryParsed.stopLoss),
+            takeProfit1: retryParsed.takeProfit1 === null ? null : toNumberOrNull(retryParsed.takeProfit1),
+            takeProfit2: retryParsed.takeProfit2 === null ? null : toNumberOrNull(retryParsed.takeProfit2),
+            positionSizeLots:
+              retryParsed.positionSizeLots === null ? null : toNumberOrNull(retryParsed.positionSizeLots),
+            validityMinutes:
+              retryParsed.validityMinutes === null ? null : toNumberOrNull(retryParsed.validityMinutes),
+            keyLevels: Array.isArray(retryParsed.keyLevels) ? retryParsed.keyLevels.map(Number) : []
+          };
+
+          const validation = validateRecommendation(normalized);
+          if (!validation.ok) {
+            throw new Error(`Invalid model output schema: ${validation.reason}`);
+          }
+
+          return normalized;
+        } catch (fallbackErr) {
+          lastError = fallbackErr;
+          break;
+        }
+      }
 
       const shouldRetry = attempt < maxRetries && (isAbort || isNetwork || is5xx);
       if (!shouldRetry) break;
