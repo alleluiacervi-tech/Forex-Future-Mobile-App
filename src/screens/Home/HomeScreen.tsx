@@ -6,12 +6,13 @@ import { MainTabParamList, RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
-import { mockAIRecommendations, mockMarketAlerts } from '../../constants/marketData';
+import { mockMarketAlerts } from '../../constants/marketData';
 import AIRecommendationCard from '../../components/market/AIRecommendationCard';
 import { MarketAlertCard } from '../../components/market/MarketAlertCard';
-import { useTheme } from '../../hooks';
+import { useAIRecommendations, useMarketData, useTheme } from '../../hooks';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { APP_CONFIG } from '../../config';
 
 type NavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Home'>,
@@ -23,6 +24,13 @@ export default function HomeScreen() {
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'ai' | 'alerts'>('all');
+  const { pairs } = useMarketData(APP_CONFIG.refreshInterval);
+
+  const topPairs = pairs.slice(0, 3).map((pair) => pair.symbol);
+  const { recommendations: aiRecommendations } = useAIRecommendations(topPairs, {
+    timeframe: '1H',
+    riskPercent: 1,
+  });
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -31,7 +39,7 @@ export default function HomeScreen() {
     }, 1000);
   }, []);
 
-  const ai = mockAIRecommendations;
+  const ai = aiRecommendations;
   const alerts = mockMarketAlerts;
 
   const feed =
@@ -181,4 +189,3 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
 });
-

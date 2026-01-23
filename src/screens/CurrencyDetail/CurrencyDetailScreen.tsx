@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { PriceChart, RSIChart } from '../../components/charts';
 import { Card, Text, Tabs } from '../../components/common';
-import { mockAIRecommendations } from '../../constants/marketData';
 import AIRecommendationCard from '../../components/market/AIRecommendationCard';
-import { useMarketData, useTheme } from '../../hooks';
+import { useAIRecommendation, useMarketData, useTheme } from '../../hooks';
 import { formatPrice, formatPercent, formatNumber } from '../../utils';
 import { APP_CONFIG } from '../../config';
 
@@ -21,7 +20,20 @@ export default function CurrencyDetailScreen() {
   const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
 
   const currencyPair = pairs.find((p) => p.symbol === pair) || pairs[0];
-  const aiRecommendation = mockAIRecommendations.find((r) => r.pair === pair);
+  const recommendationOptions = useMemo(
+    () => ({
+      timeframe: selectedTimeframe,
+      currentPrice: currencyPair?.price,
+      riskPercent: 1,
+    }),
+    [selectedTimeframe, currencyPair?.price],
+  );
+
+  const {
+    recommendation: aiRecommendation,
+    loading: aiLoading,
+    error: aiError,
+  } = useAIRecommendation(pair, recommendationOptions);
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
 
@@ -85,8 +97,18 @@ export default function CurrencyDetailScreen() {
             <Text variant="h4" style={styles.aiTitle}>
               AI Recommendation
             </Text>
-            {aiRecommendation ? (
+            {aiLoading ? (
+              <Card style={[styles.aiEmptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                <ActivityIndicator size="small" />
+              </Card>
+            ) : aiRecommendation ? (
               <AIRecommendationCard recommendation={aiRecommendation} />
+            ) : aiError ? (
+              <Card style={[styles.aiEmptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                  {aiError}
+                </Text>
+              </Card>
             ) : (
               <Card style={[styles.aiEmptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
                 <Text variant="bodySmall" color={theme.colors.textSecondary}>
