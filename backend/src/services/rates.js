@@ -180,6 +180,7 @@ const getHistoricalRates = async (pair, points = 60, opts = {}) => {
 
     const data = ordered
       .map((item) => {
+        const open = toNumberOrNull(item?.open);
         const close = toNumberOrNull(item?.close);
         const high = toNumberOrNull(item?.high);
         const low = toNumberOrNull(item?.low);
@@ -189,6 +190,10 @@ const getHistoricalRates = async (pair, points = 60, opts = {}) => {
         return {
           timestamp: item?.datetime ? new Date(item.datetime).toISOString() : new Date().toISOString(),
           value: close,
+          open,
+          high,
+          low,
+          close,
           volatility,
           volume: toNumberOrNull(item?.volume) ?? 0
         };

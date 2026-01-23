@@ -86,16 +86,27 @@ const buildCandles = async (pair, points = 120, opts = {}) => {
   if (!Array.isArray(history) || history.length === 0) return [];
 
   return history.map((point) => {
-    const v = Number(point.value);
-    const vol = Number(point.volatility);
-    const spread = Number.isFinite(vol) ? vol : syntheticSpreadFactor;
+    const open = Number(point.open);
+    const high = Number(point.high);
+    const low = Number(point.low);
+    const close = Number(point.close);
 
-    // Synthetic OHLC approximation from a single value:
-    // (Replace with real OHLCV when available)
-    const open = v - spread * 0.3;
-    const close = v;
-    const high = v + spread * 0.6;
-    const low = v - spread * 0.6;
+    let resolvedOpen = open;
+    let resolvedHigh = high;
+    let resolvedLow = low;
+    let resolvedClose = close;
+
+    if (![open, high, low, close].every((v) => Number.isFinite(v))) {
+      const v = Number(point.value);
+      const vol = Number(point.volatility);
+      const spread = Number.isFinite(vol) ? vol : syntheticSpreadFactor;
+
+      // Synthetic OHLC approximation from a single value
+      resolvedOpen = v - spread * 0.3;
+      resolvedClose = v;
+      resolvedHigh = v + spread * 0.6;
+      resolvedLow = v - spread * 0.6;
+    }
 
     const volume = ensureVolume
       ? Number.isFinite(Number(point.volume)) ? Number(point.volume) : defaultVolume
@@ -103,10 +114,10 @@ const buildCandles = async (pair, points = 120, opts = {}) => {
 
     return {
       timestamp: point.timestamp,
-      open,
-      high,
-      low,
-      close,
+      open: resolvedOpen,
+      high: resolvedHigh,
+      low: resolvedLow,
+      close: resolvedClose,
       volume
     };
   });
