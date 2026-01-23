@@ -1,4 +1,4 @@
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import { getLiveRates } from "./rates.js";
 
 const initializeSocket = ({ server, heartbeatMs }) => {
@@ -7,7 +7,7 @@ const initializeSocket = ({ server, heartbeatMs }) => {
   const broadcastRates = () => {
     const payload = JSON.stringify({ type: "rates", data: getLiveRates() });
     wss.clients.forEach((client) => {
-      if (client.readyState === client.OPEN) {
+      if (client.readyState === WebSocket.OPEN) {
         client.send(payload);
       }
     });

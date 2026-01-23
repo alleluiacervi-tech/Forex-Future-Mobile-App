@@ -1,5 +1,6 @@
 import prisma from "../db/prisma.js";
 import { requestRecommendation } from "../services/gemini.js";
+import { buildFootprintSummary } from "../services/footprints.js";
 
 const createRecommendation = async (req, res) => {
   const {
@@ -12,13 +13,15 @@ const createRecommendation = async (req, res) => {
   } = req.body;
 
   try {
+    const footprint = buildFootprintSummary(pair);
     const recommendation = await requestRecommendation({
       pair,
       timeframe,
       currentPrice,
       accountBalance,
       riskPercent,
-      notes
+      notes,
+      lstmContext: footprint
     });
 
     const stored = await prisma.recommendation.create({
@@ -37,7 +40,7 @@ const createRecommendation = async (req, res) => {
       }
     });
 
-    return res.status(201).json({ recommendation: stored });
+    return res.status(201).json({ recommendation: stored, footprint });
   } catch (error) {
     return res.status(502).json({ error: error.message });
   }
