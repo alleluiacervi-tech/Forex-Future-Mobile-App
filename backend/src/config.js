@@ -1,6 +1,17 @@
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
+// Load .env from process.cwd() first (default), then fall back to backend/.env
 dotenv.config();
+
+// If important keys aren't present, attempt to load the backend/.env file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const backendEnvPath = path.join(__dirname, "..", ".env");
+if (!process.env.GEMINI_API_KEY) {
+  dotenv.config({ path: backendEnvPath });
+}
 
 const config = {
   port: Number(process.env.PORT || 4000),
