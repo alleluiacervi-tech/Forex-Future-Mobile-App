@@ -66,28 +66,28 @@ export default function AboutScreen() {
       icon: 'show-chart',
       iconColor: theme.colors.success,
       title: 'Volatility & Momentum',
-      description: 'See volatility shifts early and track momentum across major pairs in real time.',
+      description: 'Detect volatility shifts early and track momentum across major pairs in real time.',
     },
     {
       icon: 'insights',
       iconColor: theme.colors.info,
       title: 'AI Trade Signals',
       description:
-        'Clear buy/sell/wait guidance that blends price action, volatility, and trend context into risk-aware setups.',
+        'Generate buy/sell/wait guidance that blends price action, volatility, and trend context into risk-aware setups.',
     },
     {
       icon: 'psychology',
       iconColor: theme.colors.accent,
       title: 'Explainable Insights',
       description:
-        'Actionable rationale for each setup so you understand why the model is confident (or not).',
+        'Explain the rationale behind each setup so you know why the model is confident (or not).',
     },
     {
       icon: 'notifications-active',
       iconColor: theme.colors.warning,
       title: 'Smart Alerts',
       description:
-        'Get notified when key levels and conditions are met—no need to watch charts all day.',
+        'Alert you when key levels and conditions are met—no need to watch charts all day.',
     },
   ];
 
@@ -121,7 +121,7 @@ export default function AboutScreen() {
             style={[styles.heroCard, { borderColor: theme.colors.border }]}
           >
             <View style={styles.logoRow}>
-              <BrandLogo />
+              <BrandLogo style={styles.heroLogo} />
             </View>
             <View style={[styles.heroPill, { borderColor: theme.colors.border }]}
             >
@@ -136,27 +136,29 @@ export default function AboutScreen() {
               {'\n'}Simplified.
             </Text>
 
-            <Text variant="body" color={theme.colors.textSecondary} style={styles.description}>
-              Forex Future is your AI‑powered trading copilot. It monitors volatility, tracks trend
-              context, and surfaces signal‑driven opportunities—so you can focus on execution.
-            </Text>
-
             <View style={styles.metricsRow}>
-              <View style={[styles.metricCard, { borderColor: theme.colors.border }]}
-              >
+              <View style={[styles.metricCard, { borderColor: theme.colors.border }]}>
                 <Text variant="caption" color={theme.colors.textSecondary}>
                   Signals
                 </Text>
                 <Text variant="h3">Buy / Sell / Wait</Text>
               </View>
-              <View style={[styles.metricCard, { borderColor: theme.colors.border }]}
-              >
+              <View style={[styles.metricCard, { borderColor: theme.colors.border }]}>
                 <Text variant="caption" color={theme.colors.textSecondary}>
                   Coverage
                 </Text>
                 <Text variant="h3">Major Pairs</Text>
               </View>
             </View>
+
+            <Text variant="body" color={theme.colors.textSecondary} style={styles.description}>
+              Forex Future is an AI-powered trading copilot built for disciplined decisions. It
+              monitors volatility, tracks trend context, and surfaces signal-driven opportunities.
+            </Text>
+
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.credibilityLine}>
+              Built with institutional-grade data pipelines and rigorous risk checks.
+            </Text>
           </LinearGradient>
 
           {/* Feature Cards */}
@@ -186,7 +188,7 @@ export default function AboutScreen() {
               </Text>
             </View>
             <Button
-              title="Continue to Login"
+              title="Proceed to Sign In"
               onPress={handleContinue}
               variant="primary"
               size="large"
@@ -226,8 +228,12 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   logoRow: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
+  },
+  heroLogo: {
+    transform: [{ scale: 0.82 }],
   },
   heroPill: {
     flexDirection: 'row',
@@ -253,13 +259,14 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   description: {
-    marginBottom: 16,
+    marginBottom: 10,
     lineHeight: 24,
     fontSize: 15,
   },
   metricsRow: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 14,
   },
   metricCard: {
     flex: 1,
@@ -267,6 +274,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     backgroundColor: 'rgba(255,255,255,0.02)',
+  },
+  credibilityLine: {
+    letterSpacing: 0.2,
+    lineHeight: 18,
   },
   featuresContainer: {
     gap: 12,
