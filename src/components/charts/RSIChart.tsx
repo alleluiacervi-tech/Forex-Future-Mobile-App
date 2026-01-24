@@ -3,7 +3,7 @@ import { View, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'reac
 import { LineChart } from 'react-native-chart-kit';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { Ionicons as Icon } from '@expo/vector-icons';
 import { useTheme } from '../../hooks';
 import { Text } from '../common/Text';
 import { calculateRSI, generateMockSeries } from '../../utils/rsi';

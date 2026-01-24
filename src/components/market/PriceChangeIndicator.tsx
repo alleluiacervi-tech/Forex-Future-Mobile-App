@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { Text } from '../common/Text';
 import { getPriceColor } from '../../utils';
 import { formatPercent } from '../../utils';

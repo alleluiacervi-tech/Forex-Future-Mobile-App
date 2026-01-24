@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, View, TouchableOpacity, TouchableWithoutFeedback } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { ModalProps } from './Modal.types';
 import { modalStyles } from './Modal.styles';
 import { Text } from '../Text';
