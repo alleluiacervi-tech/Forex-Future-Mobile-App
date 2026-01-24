@@ -52,6 +52,11 @@ const recordQuote = ({ symbol, bid, ask, timestampMs }) => {
   const a = Number(ask);
   if (!Number.isFinite(b) || !Number.isFinite(a)) return;
   const mid = (b + a) / 2;
+  try {
+    // eslint-disable-next-line no-console
+    console.log('recordQuote: symbol=', symbol, 'bid=', b, 'ask=', a, 'mid=', mid, 'ts=', new Date(timestampMs ?? Date.now()).toISOString());
+  } catch {}
+
   recordTrade({ symbol, price: mid, timestampMs });
 };
 
