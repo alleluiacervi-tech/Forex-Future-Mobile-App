@@ -97,15 +97,6 @@ function StartupSplash() {
           />
         </View>
 
-        <View style={styles.splashWordmark}>
-          <Text variant="h1" style={[styles.splashForex, { color: '#E7C77A' }]}>
-            FOREX
-          </Text>
-          <Text variant="h3" style={[styles.splashFuture, { color: '#00CFEA' }]}>
-            FUTURE
-          </Text>
-        </View>
-
         <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.splashSubtitle}>
           AI-driven market insights for smarter financial decisions
         </Text>
@@ -148,20 +139,6 @@ const styles = StyleSheet.create({
     width: 92,
     height: 92,
     borderRadius: 20,
-  },
-  splashWordmark: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  splashForex: {
-    fontWeight: '900',
-    letterSpacing: 1.6,
-    marginBottom: 2,
-  },
-  splashFuture: {
-    fontWeight: '700',
-    letterSpacing: 0.9,
-    opacity: 0.95,
   },
   splashSubtitle: {
     textAlign: 'center',
