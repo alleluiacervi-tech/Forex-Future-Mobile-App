@@ -28,6 +28,14 @@ const recordTrade = ({ symbol, price, timestampMs }) => {
   if (!Number.isFinite(price)) return;
   const ts = Number.isFinite(timestampMs) ? timestampMs : Date.now();
 
+  const previous = liveBySymbol.get(symbol);
+  const prevPrice = previous?.price;
+  // Log cache update when price changes (or first write)
+  try {
+    // eslint-disable-next-line no-console
+    console.log('recordTrade: symbol=', symbol, 'price=', price, 'prev=', prevPrice, 'ts=', new Date(ts).toISOString());
+  } catch {}
+
   liveBySymbol.set(symbol, { price, timestampMs: ts });
 
   const history = historyBySymbol.get(symbol) || [];
