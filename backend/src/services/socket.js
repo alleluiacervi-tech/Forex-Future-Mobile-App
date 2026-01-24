@@ -61,6 +61,8 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   const clientState = new WeakMap();
   const symbolCounts = new Map();
   const defaultSymbols = supportedSymbols;
+  // Always keep a baseline subscription so REST endpoints still receive updates
+  const alwaysSubscribedSymbols = new Set(defaultSymbols);
 
   const sendJson = (ws, messageObj) => {
     if (ws.readyState !== WebSocket.OPEN) return;
@@ -108,6 +110,9 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   };
 
   const resubscribeAllSymbols = () => {
+    alwaysSubscribedSymbols.forEach((symbol) => {
+      sendToFinnhub({ type: "subscribe", symbol });
+    });
     symbolCounts.forEach((count, symbol) => {
       if (count > 0) sendToFinnhub({ type: "subscribe", symbol });
     });
@@ -245,7 +250,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       state.subscriptions.forEach((symbol) => {
         const current = symbolCounts.get(symbol) || 0;
         const next = Math.max(0, current - 1);
-        if (next === 0) {
+        if (next === 0 && !alwaysSubscribedSymbols.has(symbol)) {
           symbolCounts.delete(symbol);
           sendToFinnhub({ type: "unsubscribe", symbol });
         } else {
