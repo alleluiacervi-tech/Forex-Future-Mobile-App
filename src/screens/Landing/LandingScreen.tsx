@@ -13,6 +13,7 @@ export default function LandingScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
   const { width, height } = Dimensions.get('window');
+  const logoSize = Math.min(width * 0.6, isSmallScreen ? 200 : 240);
 
   // Responsive sizing
   const isSmallScreen = height < 700;
@@ -42,44 +43,51 @@ export default function LandingScreen() {
       >
         {/* App Logo */}
         <View style={[styles.logoWrapper, { marginBottom: height * 0.04 }]}>
-          <View style={[styles.logoContainer, {
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
-            borderWidth: 1,
-            paddingVertical: Math.max(height * 0.022, 14),
-            paddingHorizontal: Math.min(width * 0.07, 28),
-            borderRadius: 18,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: 0.18,
-            shadowRadius: 18,
-            elevation: 10,
-          }]}>
-            <Image
-              source={require('../../../assets/image.png')}
-              resizeMode="contain"
+          <LinearGradient
+            colors={[`${theme.colors.accent}55`, `${theme.colors.primary}44`]}
+            start={{ x: 0.1, y: 0.1 }}
+            end={{ x: 0.9, y: 0.9 }}
+            style={styles.logoHalo}
+          >
+            <View
               style={[
-                styles.logoImage,
+                styles.logoPlate,
                 {
-                  width: Math.min(width * 0.7, isSmallScreen ? 240 : 280),
-                  height: Math.min(width * 0.7, isSmallScreen ? 240 : 280),
+                  backgroundColor: theme.colors.surfaceLight,
+                  borderColor: theme.colors.borderLight,
                 },
               ]}
-            />
+            >
+              <Image
+                source={require('../../../assets/image.png')}
+                resizeMode="contain"
+                style={[
+                  styles.logoImage,
+                  {
+                    width: logoSize,
+                    height: logoSize,
+                  },
+                ]}
+              />
+            </View>
+          </LinearGradient>
 
-            {/* Professional tagline */}
-            <Text style={[styles.logoTagline, {
-              color: theme.colors.textSecondary || theme.colors.text,
-              fontSize: Math.min(width * 0.04, isSmallScreen ? 12 : 14),
-              marginTop: Math.max(height * 0.02, 8),
-              opacity: 0.8,
-              textAlign: 'center',
-              fontWeight: '500',
-              letterSpacing: 0.6,
-            }]}>
-              Advanced Trading Technology
-            </Text>
-          </View>
+          <Text
+            style={[
+              styles.logoTagline,
+              {
+                color: theme.colors.textSecondary || theme.colors.text,
+                fontSize: Math.min(width * 0.04, isSmallScreen ? 12 : 14),
+                marginTop: Math.max(height * 0.02, 8),
+                opacity: 0.8,
+                textAlign: 'center',
+                fontWeight: '500',
+                letterSpacing: 0.6,
+              },
+            ]}
+          >
+            Advanced Trading Technology
+          </Text>
         </View>
 
         <View style={styles.actions}>
@@ -133,14 +141,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoContainer: {
+  logoHalo: {
+    width: 140,
+    height: 140,
+    borderRadius: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 140,
-    minHeight: 100,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#2B5260',
+    shadowColor: '#0A1216',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 22,
+    elevation: 10,
+  },
+  logoPlate: {
+    width: 120,
+    height: 120,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   logoImage: {
-    borderRadius: 32,
+    borderRadius: 24,
   },
   logoSymbol: {
     flexDirection: 'column',
