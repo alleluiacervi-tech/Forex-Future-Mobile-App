@@ -1,11 +1,11 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper, Container } from '../../components/layout';
-import { Text, Button } from '../../components/common';
+import { Text, Button, BrandLogo } from '../../components/common';
 import { useTheme } from '../../hooks';
 import { RootStackParamList } from '../../types';
 
@@ -124,13 +124,7 @@ export default function AboutScreen() {
             style={[styles.heroCard, { borderColor: theme.colors.border }]}
           >
             <View style={styles.logoRow}>
-              <View style={[styles.logoShell, { borderColor: theme.colors.border }]}>
-                <Image
-                  source={require('../../../assets/image.png')}
-                  resizeMode="contain"
-                  style={styles.logoImage}
-                />
-              </View>
+              <BrandLogo />
             </View>
             <View style={[styles.heroPill, { borderColor: theme.colors.border }]}
             >
@@ -237,25 +231,6 @@ const styles = StyleSheet.create({
   logoRow: {
     alignItems: 'flex-start',
     marginBottom: 12,
-  },
-  logoShell: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  logoImage: {
-    width: 62,
-    height: 62,
-    borderRadius: 14,
   },
   heroPill: {
     flexDirection: 'row',

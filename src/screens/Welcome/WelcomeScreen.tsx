@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper, Container } from '../../components/layout';
-import { Text, Button, Input } from '../../components/common';
+import { Text, Button, Input, BrandLogo } from '../../components/common';
 import { useTheme } from '../../hooks';
 import { RootStackParamList } from '../../types';
 
@@ -64,20 +64,8 @@ export default function WelcomeScreen() {
               end={{ x: 1, y: 1 }}
               style={[styles.heroCard, { borderColor: theme.colors.border }]}
             >
-              <View
-                style={[
-                  styles.brandMark,
-                  {
-                    borderColor: theme.colors.accent,
-                    backgroundColor: theme.colors.surfaceLight,
-                  },
-                ]}
-              >
-                <Image
-                  source={require('../../../assets/image.png')}
-                  resizeMode="contain"
-                  style={styles.brandLogo}
-                />
+              <View style={styles.brandLogoRow}>
+                <BrandLogo style={styles.brandLogo} />
               </View>
 
               <Text variant="body" color={theme.colors.textSecondary} style={styles.subtitle}>
@@ -192,21 +180,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     marginBottom: 14,
   },
-  brandMark: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
+  brandLogoRow: {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.02)',
     marginBottom: 14,
   },
-  brandLogo: {
-    width: 68,
-    height: 68,
-    borderRadius: 16,
-  },
+  brandLogo: {},
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -217,14 +195,20 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   subtitle: {
-    marginBottom: 0,
+    marginBottom: 6,
     lineHeight: 22,
     fontSize: 14,
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
   signInHint: {
-    marginTop: 10,
-    fontSize: 13,
+    marginTop: 6,
+    fontSize: 12,
     lineHeight: 18,
+    textAlign: 'center',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    opacity: 0.9,
   },
   formCard: {
     padding: 16,

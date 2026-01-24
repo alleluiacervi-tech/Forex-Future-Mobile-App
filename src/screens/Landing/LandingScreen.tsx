@@ -13,10 +13,10 @@ export default function LandingScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
   const { width, height } = Dimensions.get('window');
-  const logoSize = Math.min(width * 0.6, isSmallScreen ? 200 : 240);
 
   // Responsive sizing
   const isSmallScreen = height < 700;
+  const logoSize = 86;
   const handleExploreFeatures = () => {
     // Navigate to about screen
     navigation.navigate('About');
@@ -142,29 +142,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoHalo: {
-    width: 140,
-    height: 140,
-    borderRadius: 34,
+    width: 128,
+    height: 128,
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#2B5260',
     shadowColor: '#0A1216',
-    shadowOffset: { width: 0, height: 12 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.35,
     shadowRadius: 22,
-    elevation: 10,
+    elevation: 8,
   },
   logoPlate: {
-    width: 120,
-    height: 120,
-    borderRadius: 28,
+    width: 108,
+    height: 108,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
   },
   logoImage: {
-    borderRadius: 24,
+    borderRadius: 18,
   },
   logoSymbol: {
     flexDirection: 'column',
