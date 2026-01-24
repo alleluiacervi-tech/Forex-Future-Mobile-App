@@ -91,7 +91,7 @@ export default function LandingScreen() {
         </View>
 
         <View style={styles.midMessage}>
-          <Text style={[styles.midMessageText, { color: theme.colors.textSecondary }]}>
+          <Text variant="bodySmall" style={[styles.midMessageText, { color: theme.colors.textSecondary }]}>
             A refined forex platform delivering precise insights and dependable execution.
           </Text>
         </View>
@@ -327,10 +327,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   midMessageText: {
-    fontSize: 13,
-    lineHeight: 19,
     textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '400',
   },
   trustLine: {
     marginTop: 6,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -56,6 +56,8 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ icon, iconColor, title, descr
 export default function AboutScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
+  const { height } = Dimensions.get('window');
+  const isSmallScreen = height < 700;
 
   const handleContinue = () => {
     navigation.navigate('Welcome');
@@ -64,27 +66,27 @@ export default function AboutScreen() {
   const features = [
     {
       icon: 'show-chart',
-      iconColor: theme.colors.success,
+      iconColor: theme.colors.primary,
       title: 'Volatility & Momentum',
       description: 'Detect volatility shifts early and track momentum across major pairs in real time.',
     },
     {
       icon: 'insights',
-      iconColor: theme.colors.info,
+      iconColor: theme.colors.primary,
       title: 'AI Trade Signals',
       description:
         'Generate buy/sell/wait guidance that blends price action, volatility, and trend context into risk-aware setups.',
     },
     {
       icon: 'psychology',
-      iconColor: theme.colors.accent,
+      iconColor: theme.colors.primary,
       title: 'Explainable Insights',
       description:
         'Explain the rationale behind each setup so you know why the model is confident (or not).',
     },
     {
       icon: 'notifications-active',
-      iconColor: theme.colors.warning,
+      iconColor: theme.colors.primary,
       title: 'Smart Alerts',
       description:
         'Alert you when key levels and conditions are met—no need to watch charts all day.',
@@ -118,7 +120,10 @@ export default function AboutScreen() {
             colors={[theme.colors.surface, theme.colors.surfaceLight]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={[styles.heroCard, { borderColor: theme.colors.border }]}
+            style={[
+              styles.heroCard,
+              { borderColor: theme.colors.border, padding: isSmallScreen ? 16 : 18 },
+            ]}
           >
             <View style={styles.logoRow}>
               <BrandLogo style={styles.heroLogo} />
@@ -127,13 +132,12 @@ export default function AboutScreen() {
             >
               <Icon name="bolt" size={16} color={theme.colors.primary} />
               <Text variant="caption" color={theme.colors.textSecondary} style={styles.heroPillText}>
-                Built for fast decisions
+                Built for disciplined decisions
               </Text>
             </View>
 
             <Text variant="h1" style={styles.title}>
-              Professional trading tools.
-              {'\n'}Simplified.
+              Professional trading, simplified.
             </Text>
 
             <View style={styles.metricsRow}>
@@ -151,7 +155,7 @@ export default function AboutScreen() {
               </View>
             </View>
 
-            <Text variant="body" color={theme.colors.textSecondary} style={styles.description}>
+            <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.description}>
               Forex Future is an AI-powered trading copilot built for disciplined decisions. It
               monitors volatility, tracks trend context, and surfaces signal-driven opportunities.
             </Text>
@@ -159,12 +163,15 @@ export default function AboutScreen() {
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.credibilityLine}>
               Built with institutional-grade data pipelines and rigorous risk checks.
             </Text>
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.credibilityLine}>
+              Versioned signals for auditability and consistent decision-making.
+            </Text>
           </LinearGradient>
 
           {/* Feature Cards */}
           <View style={styles.featuresContainer}>
             <View style={styles.sectionHeader}>
-              <Text variant="h3">What you get</Text>
+              <Text variant="h3">Platform capabilities</Text>
               <Text variant="bodySmall" color={theme.colors.textSecondary}>
                 Core features designed for focus
               </Text>
@@ -260,8 +267,7 @@ const styles = StyleSheet.create({
   },
   description: {
     marginBottom: 10,
-    lineHeight: 24,
-    fontSize: 15,
+    lineHeight: 20,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -293,9 +299,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     shadowColor: '#0A1216',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.22,
-    shadowRadius: 18,
-    elevation: 6,
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 4,
   },
   featureHeaderRow: {
     flexDirection: 'row',

@@ -14,7 +14,8 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
-  const { width } = Dimensions.get('window');
+  const { height } = Dimensions.get('window');
+  const isSmallScreen = height < 700;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -62,17 +63,20 @@ export default function WelcomeScreen() {
               colors={[theme.colors.surface, theme.colors.surfaceLight]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[styles.heroCard, { borderColor: theme.colors.border }]}
+              style={[
+                styles.heroCard,
+                { borderColor: theme.colors.border, padding: isSmallScreen ? 16 : 18 },
+              ]}
             >
               <View style={styles.brandLogoRow}>
                 <BrandLogo style={styles.brandLogo} />
               </View>
 
-              <Text variant="h3" style={styles.headline}>
-                Pro-grade insights for smarter trading.
+              <Text variant="h4" style={styles.headline}>
+                Professional trading, simplified.
               </Text>
               <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.signInHint}>
-                Sign in to continue
+                Sign in to continue.
               </Text>
             </LinearGradient>
 
@@ -184,7 +188,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 14,
   },
-  brandLogo: {},
+  brandLogo: {
+    transform: [{ scale: 0.82 }],
+  },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -199,15 +205,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    opacity: 0.9,
+    letterSpacing: 0.2,
+    opacity: 0.8,
   },
   headline: {
     textAlign: 'center',
     marginBottom: 10,
     letterSpacing: 0.3,
-    fontWeight: '700',
   },
   formCard: {
     padding: 16,
