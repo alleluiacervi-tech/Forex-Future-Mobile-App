@@ -90,12 +90,16 @@ export default function LandingScreen() {
           </Text>
         </View>
 
+        <View style={styles.midMessage}>
+          <Text style={[styles.midMessageText, { color: theme.colors.accent }]}>
+            Discover smarter markets with Forex Future — trusted insights, elegant tools,
+            and confident execution for every trade.
+          </Text>
+        </View>
+
         <View style={styles.actions}>
           <Text style={[styles.actionsTitle, { color: theme.colors.text }]}>
             Welcome to Forex Future
-          </Text>
-          <Text style={[styles.actionsWelcome, { color: theme.colors.textSecondary }]}>
-            Your trusted gateway to smarter FX decisions with clear insights and confident execution.
           </Text>
           <Text style={[styles.actionsSubtitle, { color: theme.colors.textSecondary }]}>
             Start with a quick tour, then move on to sign in when you are ready.
@@ -313,6 +317,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 1,
   },
+  midMessage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  midMessageText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
   actions: {
     paddingHorizontal: 8,
     paddingBottom: 10,
@@ -328,12 +343,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
     marginBottom: 16,
-  },
-  actionsWelcome: {
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'center',
-    marginBottom: 10,
   },
   primaryAction: {
     width: '100%',
