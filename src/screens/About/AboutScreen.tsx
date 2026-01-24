@@ -31,23 +31,20 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ icon, iconColor, title, descr
       ]}
     >
       <View style={styles.featureHeaderRow}>
-        <View style={styles.featureTitleRow}>
-          <View
-            style={[
-              styles.iconContainer,
-              {
-                backgroundColor: `${iconColor}1F`,
-                borderColor: `${iconColor}55`,
-              },
-            ]}
-          >
-            <Icon name={icon} size={22} color={iconColor} />
-          </View>
-          <Text variant="h4" style={styles.featureTitle}>
-            {title}
-          </Text>
+        <View
+          style={[
+            styles.iconContainer,
+            {
+              backgroundColor: `${iconColor}1F`,
+              borderColor: `${iconColor}55`,
+            },
+          ]}
+        >
+          <Icon name={icon} size={22} color={iconColor} />
         </View>
-        <Icon name="chevron-right" size={22} color={theme.colors.textSecondary} />
+        <Text variant="h4" style={styles.featureTitle}>
+          {title}
+        </Text>
       </View>
       <Text variant="body" color={theme.colors.textSecondary} style={styles.featureDescription}>
         {description}
@@ -280,39 +277,45 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   featureCard: {
-    padding: 16,
-    borderRadius: 16,
+    padding: 18,
+    borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#0A1216',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 6,
   },
   featureHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 12,
     marginBottom: 10,
   },
-  featureTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 6,
   },
   featureTitle: {
     fontSize: 16,
     fontWeight: '700',
+    letterSpacing: 0.3,
     marginBottom: 0,
   },
   featureDescription: {
     lineHeight: 22,
     fontSize: 14,
+    letterSpacing: 0.15,
   },
   ctaCard: {
     padding: 16,

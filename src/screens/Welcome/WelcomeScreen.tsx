@@ -68,8 +68,8 @@ export default function WelcomeScreen() {
                 <BrandLogo style={styles.brandLogo} />
               </View>
 
-              <Text variant="body" color={theme.colors.textSecondary} style={styles.subtitle}>
-                Get AI‑driven market insights to support smarter financial decisions.
+              <Text variant="h3" style={styles.headline}>
+                Pro-grade insights for smarter trading.
               </Text>
               <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.signInHint}>
                 Sign in to continue
@@ -194,13 +194,6 @@ const styles = StyleSheet.create({
   backButtonText: {
     marginLeft: 8,
   },
-  subtitle: {
-    marginBottom: 6,
-    lineHeight: 22,
-    fontSize: 14,
-    textAlign: 'center',
-    letterSpacing: 0.2,
-  },
   signInHint: {
     marginTop: 6,
     fontSize: 12,
@@ -209,6 +202,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     opacity: 0.9,
+  },
+  headline: {
+    textAlign: 'center',
+    marginBottom: 10,
+    letterSpacing: 0.3,
+    fontWeight: '700',
   },
   formCard: {
     padding: 16,

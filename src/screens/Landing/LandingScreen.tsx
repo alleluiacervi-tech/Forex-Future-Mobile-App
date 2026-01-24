@@ -42,7 +42,7 @@ export default function LandingScreen() {
         ]}
       >
         {/* App Logo */}
-        <View style={[styles.logoWrapper, { marginBottom: height * 0.04 }]}>
+        <View style={[styles.logoWrapper, { marginBottom: height * 0.015 }]}>
           <LinearGradient
             colors={[`${theme.colors.accent}55`, `${theme.colors.primary}44`]}
             start={{ x: 0.1, y: 0.1 }}
