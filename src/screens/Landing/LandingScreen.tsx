@@ -94,6 +94,9 @@ export default function LandingScreen() {
           <Text style={[styles.actionsTitle, { color: theme.colors.text }]}>
             Welcome to Forex Future
           </Text>
+          <Text style={[styles.actionsWelcome, { color: theme.colors.textSecondary }]}>
+            Your trusted gateway to smarter FX decisions with clear insights and confident execution.
+          </Text>
           <Text style={[styles.actionsSubtitle, { color: theme.colors.textSecondary }]}>
             Start with a quick tour, then move on to sign in when you are ready.
           </Text>
@@ -325,6 +328,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: 'center',
     marginBottom: 16,
+  },
+  actionsWelcome: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 10,
   },
   primaryAction: {
     width: '100%',
