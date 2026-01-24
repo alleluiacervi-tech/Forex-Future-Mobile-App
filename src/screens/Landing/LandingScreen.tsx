@@ -92,13 +92,16 @@ export default function LandingScreen() {
 
         <View style={styles.midMessage}>
           <Text style={[styles.midMessageText, { color: theme.colors.textSecondary }]}>
-            Discover smarter markets with Forex Future — trusted insights, elegant tools,
-            and confident execution for every trade.
+            A refined forex platform delivering precise insights and dependable execution.
           </Text>
         </View>
 
+        <Text style={[styles.trustLine, { color: theme.colors.textSecondary }]}>
+          Secure, regulated access with institutional-grade reliability.
+        </Text>
+
         <View style={styles.actions}>
-          <Text style={[styles.actionsTitle, { color: theme.colors.text }]}>
+          <Text style={[styles.actionsTitle, { color: theme.colors.textSecondary }]}>
             Welcome to Forex Future
           </Text>
           <Text style={[styles.actionsSubtitle, { color: theme.colors.textSecondary }]}>
@@ -106,7 +109,7 @@ export default function LandingScreen() {
           </Text>
 
           <Button
-            title="Continue to About"
+            title="Explore the Platform"
             onPress={handleExploreFeatures}
             variant="primary"
             size="large"
@@ -320,27 +323,36 @@ const styles = StyleSheet.create({
   midMessage: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 22,
+    marginTop: 6,
   },
   midMessageText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 19,
     textAlign: 'center',
     fontWeight: '500',
+  },
+  trustLine: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
   actions: {
     paddingHorizontal: 8,
     paddingBottom: 10,
+    marginTop: 12,
   },
   actionsTitle: {
-    fontSize: 16,
+    fontSize: 19,
     fontWeight: '700',
     marginBottom: 6,
     textAlign: 'center',
   },
   actionsSubtitle: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
     textAlign: 'center',
     marginBottom: 16,
   },
