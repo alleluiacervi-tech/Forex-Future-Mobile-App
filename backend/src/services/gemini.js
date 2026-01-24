@@ -335,12 +335,45 @@ const requestRecommendation = async (payload, opts = {}) => {
     } catch (err) {
       lastError = err;
 
-      // Retry only on network/timeout/5xx-ish errors, not on validation issues
+      // Retry on network/timeout/5xx/429-ish errors (not on validation issues)
       const msg = String(err?.message || "");
       const isAbort = msg.includes("aborted") || msg.toLowerCase().includes("abort");
       const isNetwork = msg.toLowerCase().includes("network");
       const is5xx = msg.includes("Gemini API error (5");
       const is404 = msg.includes("Gemini API error (404)");
+      const is429 = msg.includes("Gemini API error (429)") || msg.toLowerCase().includes("quota");
+
+      // If rate-limited (429), try to parse RetryInfo.retryDelay from the error payload
+      if (is429 && attempt < maxRetries) {
+        try {
+          const jsonStart = msg.indexOf("{");
+          if (jsonStart >= 0) {
+            const payloadText = msg.slice(jsonStart);
+            try {
+              const payload = JSON.parse(payloadText);
+              const details = Array.isArray(payload?.error?.details) ? payload.error.details : [];
+              for (const d of details) {
+                if (d?."@type"?.includes("RetryInfo") || d?.retryDelay) {
+                  const raw = d.retryDelay || d.retryDelaySeconds || null;
+                  if (typeof raw === "string") {
+                    const m = raw.match(/(\d+)(?:\.\d+)?s/);
+                    if (m) {
+                      const ms = Number(m[1]) * 1000;
+                      await sleep(ms + 250);
+                      // continue outer retry loop
+                      continue;
+                    }
+                  }
+                }
+              }
+            } catch (_) {
+              // ignore JSON parse errors, fall through to exponential backoff below
+            }
+          }
+        } catch (e) {
+          // ignore and fallback to backoff
+        }
+      }
 
       if (is404 && attempt < maxRetries) {
         try {
@@ -393,9 +426,11 @@ const requestRecommendation = async (payload, opts = {}) => {
         }
       }
 
-      const shouldRetry = attempt < maxRetries && (isAbort || isNetwork || is5xx);
+      // Treat 429/5xx/abort/network as retryable
+      const shouldRetry = attempt < maxRetries && (isAbort || isNetwork || is5xx || is429);
       if (!shouldRetry) break;
 
+      // Exponential backoff if no RetryInfo was used above
       const backoff = retryBaseDelayMs * Math.pow(2, attempt);
       await sleep(backoff);
     }
