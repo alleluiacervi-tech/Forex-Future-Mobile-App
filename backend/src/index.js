@@ -11,6 +11,7 @@ import portfolioRoutes from "./routes/portfolio.js";
 import usersRoutes from "./routes/users.js";
 import recommendationRoutes from "./routes/recommendations.js";
 import initializeSocket from "./services/socket.js";
+import { getLiveRatesFromCache } from "./services/marketCache.js";
 
 const app = express();
 
@@ -21,6 +22,16 @@ app.use(morgan("dev"));
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Debug: expose live rates from in-memory cache
+app.get("/api/debug/live", (req, res) => {
+  try {
+    const pairs = getLiveRatesFromCache();
+    return res.json({ pairs });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 app.use("/api/auth", authRoutes);
