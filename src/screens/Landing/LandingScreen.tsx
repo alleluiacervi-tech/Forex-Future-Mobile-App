@@ -91,7 +91,7 @@ export default function LandingScreen() {
         </View>
 
         <View style={styles.midMessage}>
-          <Text style={[styles.midMessageText, { color: theme.colors.accent }]}>
+          <Text style={[styles.midMessageText, { color: theme.colors.textSecondary }]}>
             Discover smarter markets with Forex Future — trusted insights, elegant tools,
             and confident execution for every trade.
           </Text>
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   actions: {
     paddingHorizontal: 8,
