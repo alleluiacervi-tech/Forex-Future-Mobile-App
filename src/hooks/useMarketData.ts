@@ -48,6 +48,11 @@ export const useMarketData = (refreshInterval: number = 5000) => {
     setError(null);
     try {
       const data = await apiGet<{ pairs: ApiMarketPair[] }>('/api/market/pairs');
+      // Debug: log fetched pairs to RN console for troubleshooting
+      try {
+        // eslint-disable-next-line no-console
+        console.log('useMarketData: fetched pairs sample', data.pairs.slice(0,3).map(p => ({ pair: p.pair, mid: p.mid })));
+      } catch {}
       const nextPairs = data.pairs.map((apiPair) =>
         buildCurrencyPair(apiPair, previousPairsRef.current[apiPair.pair]),
       );
