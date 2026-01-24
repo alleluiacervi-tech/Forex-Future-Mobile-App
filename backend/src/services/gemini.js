@@ -353,7 +353,7 @@ const requestRecommendation = async (payload, opts = {}) => {
               const payload = JSON.parse(payloadText);
               const details = Array.isArray(payload?.error?.details) ? payload.error.details : [];
               for (const d of details) {
-                if (d?."@type"?.includes("RetryInfo") || d?.retryDelay) {
+                if ((d?.['@type'] || "").includes("RetryInfo") || d?.retryDelay) {
                   const raw = d.retryDelay || d.retryDelaySeconds || null;
                   if (typeof raw === "string") {
                     const m = raw.match(/(\d+)(?:\.\d+)?s/);
