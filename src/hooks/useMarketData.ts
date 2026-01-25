@@ -49,10 +49,9 @@ export const useMarketData = (refreshInterval: number = 5000) => {
     setError(null);
     try {
       const data = await apiGet<{ pairs: ApiMarketPair[] }>('/api/market/pairs');
-      // Debug: log fetched pairs to RN console for troubleshooting
       try {
         // eslint-disable-next-line no-console
-        console.log('useMarketData: fetched pairs sample', data.pairs.slice(0,3).map(p => ({ pair: p.pair, mid: p.mid })));
+        console.log('[REST] fetched pairs:', data.pairs.map(p => ({ pair: p.pair, mid: p.mid })));
       } catch {}
       const nextPairs = data.pairs.map((apiPair) =>
         buildCurrencyPair(apiPair, previousPairsRef.current[apiPair.pair]),
@@ -68,11 +67,13 @@ export const useMarketData = (refreshInterval: number = 5000) => {
     }
   };
 
+  // Load initial prices once from REST
   useEffect(() => {
     fetchMarketData();
-    const interval = setInterval(fetchMarketData, refreshInterval);
-    return () => clearInterval(interval);
-  }, [refreshInterval]);
+    // Do NOT poll. WS provides real-time updates instead.
+    // eslint-disable-next-line no-console
+    console.log('[INIT] Market data hook initialized. Listening to WS for real-time updates.');
+  }, []);
 
   // Real-time WebSocket updates (connect to backend WS relay)
   useEffect(() => {
@@ -94,7 +95,7 @@ export const useMarketData = (refreshInterval: number = 5000) => {
       ws = new WebSocket(wsUrl);
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.warn('useMarketData: failed to create WS', err);
+      console.warn('[WS] ❌ Failed to create WS:', err);
       return () => {};
     }
 
@@ -108,33 +109,87 @@ export const useMarketData = (refreshInterval: number = 5000) => {
     ws.onmessage = (evt) => {
       try {
         const msg = typeof evt.data === 'string' ? JSON.parse(evt.data) : null;
-        if (!msg || !Array.isArray(msg.data)) return;
+        if (!msg) {
+          try {
+            // eslint-disable-next-line no-console
+            console.log('[WS] received non-JSON message');
+          } catch {}
+          return;
+        }
+        if (!Array.isArray(msg.data)) {
+          try {
+            // eslint-disable-next-line no-console
+            console.log('[WS] received message with no data array:', msg.type);
+          } catch {}
+          return;
+        }
 
         // Handle trade and quote payloads
         if (msg.type === 'trade' || msg.type === 'quote') {
+          try {
+            // eslint-disable-next-line no-console
+            console.log(`[WS] ${msg.type} message arrived with ${msg.data.length} items:`, msg.data.slice(0, 2));
+          } catch {}
+          
           const updates: Record<string, number> = {};
           msg.data.forEach((item: any) => {
             const symbol = item?.s;
             const pair = symbolToPair[symbol];
-            if (!pair) return;
+            if (!pair) {
+              try {
+                // eslint-disable-next-line no-console
+                console.log('[WS] unmapped symbol:', symbol);
+              } catch {}
+              return;
+            }
             if (msg.type === 'trade') {
-              updates[pair] = Number(item?.p);
+              const price = Number(item?.p);
+              updates[pair] = price;
+              try {
+                // eslint-disable-next-line no-console
+                console.log(`[WS] trade: ${symbol} (${pair}) @ ${price}`);
+              } catch {}
             } else if (msg.type === 'quote') {
               const b = Number(item?.b);
               const a = Number(item?.a);
-              if (Number.isFinite(b) && Number.isFinite(a)) updates[pair] = (b + a) / 2;
+              if (Number.isFinite(b) && Number.isFinite(a)) {
+                const mid = (b + a) / 2;
+                updates[pair] = mid;
+                try {
+                  // eslint-disable-next-line no-console
+                  console.log(`[WS] quote: ${symbol} (${pair}) bid=${b} ask=${a} mid=${mid}`);
+                } catch {}
+              }
             }
           });
 
-          if (Object.keys(updates).length === 0) return;
+          if (Object.keys(updates).length === 0) {
+            try {
+              // eslint-disable-next-line no-console
+              console.log('[WS] no valid updates extracted');
+            } catch {}
+            return;
+          }
+
+          try {
+            // eslint-disable-next-line no-console
+            console.log('[WS] applying updates to state:', updates);
+          } catch {}
 
           setPairs((current) => {
             const mapped = current.map((p) => {
-              const newPrice = updates[p.pair];
+              const newPrice = updates[p.symbol];
               if (!Number.isFinite(newPrice)) return p;
+              
               const prev = p.price;
               const change = newPrice - prev;
               const changePercent = prev ? (change / prev) * 100 : 0;
+              
+              try {
+                // eslint-disable-next-line no-console
+                console.log(`[STATE] ${p.symbol}: ${prev} → ${newPrice} (Δ ${change.toFixed(5)}, ${changePercent.toFixed(2)}%)`);
+              } catch {}
+              
               const high24h = Math.max(p.high24h, newPrice);
               const low24h = Math.min(p.low24h, newPrice);
               return {
@@ -146,25 +201,34 @@ export const useMarketData = (refreshInterval: number = 5000) => {
                 low24h,
               };
             });
-            // update previousPairsRef for polling side to compute diffs
-            previousPairsRef.current = Object.fromEntries(mapped.map((pair) => [pair.symbol, pair]));
+            
+            // update previousPairsRef for next comparison
+            previousPairsRef.current = Object.fromEntries(
+              mapped.map((pair) => [pair.symbol, pair])
+            );
+            
+            try {
+              // eslint-disable-next-line no-console
+              console.log('[STATE] setPairs called, new state ready for render');
+            } catch {}
+            
             return mapped;
           });
         }
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn('useMarketData: WS message error', err);
+        console.warn('[WS] message handler error:', err);
       }
     };
 
     ws.onerror = (e) => {
       // eslint-disable-next-line no-console
-      console.warn('useMarketData: WS error', e);
+      console.warn('[WS] ❌ ERROR:', e);
     };
 
     ws.onclose = () => {
       // eslint-disable-next-line no-console
-      console.log('useMarketData: WS closed');
+      console.log('[WS] 🔌 DISCONNECTED');
     };
 
     return () => {

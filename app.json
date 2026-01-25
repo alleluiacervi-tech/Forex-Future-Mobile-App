@@ -6,6 +6,9 @@
     "orientation": "portrait",
     "icon": "./assets/image.png",
     "userInterfaceStyle": "light",
+    "updates": {
+      "enabled": false
+    },
     // "splash": {
     //   "image": "./assets/splash.png",
     //   "resizeMode": "contain",

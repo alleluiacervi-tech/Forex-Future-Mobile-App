@@ -149,22 +149,22 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       const msg = raw.toString();
       try {
         const payload = JSON.parse(msg);
-        // Debug: log incoming payload summary to help diagnose missing updates
         try {
           // eslint-disable-next-line no-console
-          console.log("Finnhub message:", payload?.type, Array.isArray(payload?.data) ? payload.data.length : 0);
+          console.log(`[Finnhub] ${payload?.type} with ${Array.isArray(payload?.data) ? payload.data.length : 0} items`);
         } catch {}
-        // Additional debug: log a sample symbol/price from the payload
         try {
           if (payload?.type === "trade" && Array.isArray(payload.data) && payload.data.length > 0) {
-            const sample = payload.data[0];
-            // eslint-disable-next-line no-console
-            console.log("Finnhub sample trade:", sample?.s, sample?.p, sample?.t);
+            payload.data.slice(0, 2).forEach((sample) => {
+              // eslint-disable-next-line no-console
+              console.log(`  [trade] ${sample?.s}: ${sample?.p} @ ${new Date(Number(sample?.t)).toISOString()}`);
+            });
           }
           if (payload?.type === "quote" && Array.isArray(payload.data) && payload.data.length > 0) {
-            const sample = payload.data[0];
-            // eslint-disable-next-line no-console
-            console.log("Finnhub sample quote:", sample?.s, sample?.b, sample?.a, sample?.t);
+            payload.data.slice(0, 2).forEach((sample) => {
+              // eslint-disable-next-line no-console
+              console.log(`  [quote] ${sample?.s}: bid=${sample?.b} ask=${sample?.a}`);
+            });
           }
         } catch {}
         if (Array.isArray(payload?.data)) {
@@ -188,6 +188,11 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
             });
           }
         }
+      } catch {}
+      const clientCount = wss.clients.size;
+      try {
+        // eslint-disable-next-line no-console
+        console.log(`[Finnhub→Relay] sending message to ${clientCount} connected clients`);
       } catch {}
       wss.clients.forEach((ws) => {
         sendRaw(ws, msg);
