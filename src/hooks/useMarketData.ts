@@ -43,6 +43,7 @@ export const useMarketData = (refreshInterval: number = 5000) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const previousPairsRef = useRef<Record<string, CurrencyPair>>({});
+  const initializedRef = useRef(false);
 
   const fetchMarketData = async () => {
     setLoading(true);
@@ -59,6 +60,7 @@ export const useMarketData = (refreshInterval: number = 5000) => {
       previousPairsRef.current = Object.fromEntries(
         nextPairs.map((pair) => [pair.symbol, pair]),
       );
+      initializedRef.current = true;
       setPairs(nextPairs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch market data');
@@ -181,13 +183,13 @@ export const useMarketData = (refreshInterval: number = 5000) => {
               const newPrice = updates[p.symbol];
               if (!Number.isFinite(newPrice)) return p;
               
-              const prev = p.price;
-              const change = newPrice - prev;
+              const prev = initializedRef.current ? previousPairsRef.current[p.symbol]?.price : p.price;
+              const change = prev ? newPrice - prev : 0;
               const changePercent = prev ? (change / prev) * 100 : 0;
               
               try {
                 // eslint-disable-next-line no-console
-                console.log(`[STATE] ${p.symbol}: ${prev} → ${newPrice} (Δ ${change.toFixed(5)}, ${changePercent.toFixed(2)}%)`);
+                console.log(`[STATE] ${p.symbol}: prev=${prev} → ${newPrice} (Δ ${change.toFixed(5)}, ${changePercent.toFixed(2)}%)`);
               } catch {}
               
               const high24h = Math.max(p.high24h, newPrice);
