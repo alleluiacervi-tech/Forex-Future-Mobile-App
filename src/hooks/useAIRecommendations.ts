@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AIRecommendation } from '../types/ai';
 import { apiPost } from '../services/api';
+import { debounce } from '../utils/helpers';
 
 interface ApiRecommendation {
   id?: string;
@@ -146,19 +147,22 @@ export const useAIRecommendation = (
     [pair, options],
   );
 
-  const fetchData = useCallback(async () => {
-    if (!pair) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchRecommendation(requestPayload);
-      setRecommendation(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch recommendation');
-    } finally {
-      setLoading(false);
-    }
-  }, [pair, requestPayload]);
+  const fetchData = useCallback(
+    debounce(async () => {
+      if (!pair) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await fetchRecommendation(requestPayload);
+        setRecommendation(result);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch recommendation');
+      } finally {
+        setLoading(false);
+      }
+    }, 1500), // 1.5s debounce
+    [pair, requestPayload],
+  );
 
   useEffect(() => {
     fetchData();
