@@ -52,7 +52,7 @@ interface RecommendationRequest {
   notes?: string;
 }
 
-// Local fallback recommendation based on recent price movement
+// Professional local fallback recommendation using technical heuristics
 const createFallbackRecommendation = (
   pair: string,
   timeframe: string,
@@ -60,25 +60,41 @@ const createFallbackRecommendation = (
   change?: number,
   changePercent?: number,
 ): AIRecommendation => {
-  // Determine action from real momentum
+  // Heuristic: RSI-like momentum from changePercent
+  const momentum = changePercent || 0;
+  const absMomentum = Math.abs(momentum);
+  // Simple volatility estimate from recent change magnitude
+  const volatility = absMomentum > 0.15 ? 'high' : absMomentum > 0.05 ? 'moderate' : 'low';
+
+  // Determine action based on momentum and volatility
   let action: 'BUY' | 'SELL' | 'WAIT';
-  if (changePercent && Math.abs(changePercent) > 0.05) {
-    action = changePercent > 0 ? 'BUY' : 'SELL';
+  let rationale: string;
+  if (absMomentum > 0.1) {
+    action = momentum > 0 ? 'BUY' : 'SELL';
+    rationale = `Strong ${momentum > 0 ? 'upward' : 'downward'} momentum detected (${momentum.toFixed(2)}%).`;
+  } else if (absMomentum > 0.03) {
+    action = momentum > 0 ? 'BUY' : 'SELL';
+    rationale = `Moderate ${momentum > 0 ? 'bullish' : 'bearish'} bias (${momentum.toFixed(2)}%).`;
   } else {
     action = 'WAIT';
+    rationale = 'Price consolidating; lack of clear directional bias.';
   }
 
-  // Confidence based on magnitude of change
-  const confidence = changePercent ? Math.min(0.9, 0.5 + Math.abs(changePercent) * 5) : 0.55;
+  // Confidence based on momentum strength and volatility
+  const confidence = Math.min(0.92, 0.52 + absMomentum * 4 + (volatility === 'high' ? 0.08 : 0));
 
   const price = currentPrice || 1.0;
-  // Entry near current price with slight offset
-  const entry = price * (1 + (action === 'BUY' ? -0.0005 : action === 'SELL' ? 0.0005 : 0));
-  // Stop loss and take profit based on action
-  const stopLoss = action === 'BUY' ? entry * 0.995 : action === 'SELL' ? entry * 1.005 : entry;
-  const takeProfit = action === 'BUY' ? entry * 1.01 : action === 'SELL' ? entry * 0.99 : entry;
+  // Entry: slight pullback for BUY, slight bounce for SELL
+  const entry = price * (1 + (action === 'BUY' ? -0.0004 : action === 'SELL' ? 0.0004 : 0));
+  // Stop loss: tight for high volatility, wider for low
+  const stopLossDistance = volatility === 'high' ? 0.006 : volatility === 'moderate' ? 0.008 : 0.01;
+  const stopLoss = action === 'BUY' ? entry * (1 - stopLossDistance) : action === 'SELL' ? entry * (1 + stopLossDistance) : entry;
+  // Take profit: risk/reward ~1:1.5
+  const takeProfitDistance = stopLossDistance * 1.5;
+  const takeProfit = action === 'BUY' ? entry * (1 + takeProfitDistance) : action === 'SELL' ? entry * (1 - takeProfitDistance) : entry;
 
-  const insight = `Local fallback: ${action} signal (Δ${changePercent?.toFixed(2)}%). Use with confirmation.`;
+  // Professional insight template
+  const insight = `${action} — ${rationale} Volatility: ${volatility}. Entry at ${entry.toFixed(5)}; SL ${stopLoss.toFixed(5)}; TP ${takeProfit.toFixed(5)}. Consider confirming with additional indicators before execution.`;
 
   return {
     id: `${pair}-fallback-${Date.now()}`,

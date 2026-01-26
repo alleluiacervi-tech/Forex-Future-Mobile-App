@@ -19,7 +19,7 @@ export default function CurrencyDetailScreen() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('1H');
   const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
 
-  const currencyPair = pairs.find((p) => p.symbol === pair) || pairs[0];
+  const currencyPair = pairs.find((p) => p.symbol === pair) || pairs[0] || null;
   const recommendationOptions = useMemo(
     () => ({
       timeframe: selectedTimeframe,
