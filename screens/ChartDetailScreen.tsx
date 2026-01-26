@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useRoute } from '@react-navigation/native';
@@ -24,6 +25,21 @@ export default function ChartDetailScreen() {
   const currencyPair = pairs.find((p) => p.symbol === pair) || pairs[0];
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
+
+  if (!currencyPair) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ScrollView style={styles.scrollView}>
+          <View style={styles.stateContainer}>
+            {loading ? <ActivityIndicator size="large" /> : null}
+            <Text style={styles.stateText}>
+              {error || 'Loading market data...'}
+            </Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -114,6 +130,15 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
+  },
+  stateContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 8,
+  },
+  stateText: {
+    textAlign: 'center',
+    color: '#9e9e9e',
   },
   header: {
     flexDirection: 'row',
