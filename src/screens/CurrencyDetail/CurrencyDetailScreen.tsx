@@ -39,14 +39,29 @@ export default function CurrencyDetailScreen() {
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
 
-  if (!currencyPair) {
+  if (!currencyPair && !loading) {
     return (
       <ScreenWrapper>
         <Container>
           <View style={styles.stateContainer}>
-            {loading ? <ActivityIndicator size="large" /> : null}
             <Text variant="bodySmall" style={styles.stateText}>
-              {error || 'Loading market data...'}
+              {error || 'Market data not available'}
+            </Text>
+          </View>
+        </Container>
+      </ScreenWrapper>
+    );
+  }
+
+  if (!currencyPair) {
+    // Still loading
+    return (
+      <ScreenWrapper>
+        <Container>
+          <View style={styles.stateContainer}>
+            <ActivityIndicator size="large" />
+            <Text variant="bodySmall" style={styles.stateText}>
+              Loading market data...
             </Text>
           </View>
         </Container>
