@@ -6,11 +6,11 @@ import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import TopNavBar from '../../components/navigation/TopNavBar';
-import { CurrencyPairCard, PriceChangeIndicator } from '../../components/market';
+import { CurrencyPairCard, PriceChangeIndicator, AIRecommendationCard } from '../../components/market';
 import { PriceChart, RSIChart } from '../../components/charts';
 import { Tabs, Text, Card } from '../../components/common';
 import { MAJOR_PAIRS } from '../../constants/forexPairs';
-import { useMarketData, useTheme } from '../../hooks';
+import { useMarketData, useTheme, useAIRecommendation } from '../../hooks';
 import { APP_CONFIG } from '../../config';
 import { formatPrice, formatPercent } from '../../utils';
 
@@ -22,6 +22,16 @@ export default function MarketScreen() {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedPair, setSelectedPair] = useState(null);
   const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
+
+  // AI recommendation for selected pair
+  const aiOptions = selectedPair
+    ? { timeframe: '1H', currentPrice: selectedPair.price, riskPercent: 1 }
+    : {};
+  const {
+    recommendation: aiRecommendation,
+    loading: aiLoading,
+    error: aiError,
+  } = useAIRecommendation(selectedPair?.symbol || '', aiOptions);
 
   const filters = ['All', 'Major', 'Minor', 'Exotic'];
 
