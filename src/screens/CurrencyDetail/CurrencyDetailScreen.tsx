@@ -19,7 +19,13 @@ export default function CurrencyDetailScreen() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('1H');
   const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
 
+  // Debug logs
+  console.log('[CurrencyDetail] route pair:', pair);
+  console.log('[CurrencyDetail] pairs length:', pairs.length);
+  console.log('[CurrencyDetail] first 3 symbols:', pairs.slice(0, 3).map(p => p.symbol));
+
   const currencyPair = pairs.find((p) => p.symbol === pair) || pairs[0] || null;
+  console.log('[CurrencyDetail] resolved currencyPair:', currencyPair?.symbol);
   const recommendationOptions = useMemo(
     () => ({
       timeframe: selectedTimeframe,
@@ -39,29 +45,14 @@ export default function CurrencyDetailScreen() {
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
 
-  if (!currencyPair && !loading) {
-    return (
-      <ScreenWrapper>
-        <Container>
-          <View style={styles.stateContainer}>
-            <Text variant="bodySmall" style={styles.stateText}>
-              {error || 'Market data not available'}
-            </Text>
-          </View>
-        </Container>
-      </ScreenWrapper>
-    );
-  }
-
   if (!currencyPair) {
-    // Still loading
     return (
       <ScreenWrapper>
         <Container>
           <View style={styles.stateContainer}>
-            <ActivityIndicator size="large" />
+            {loading ? <ActivityIndicator size="large" /> : null}
             <Text variant="bodySmall" style={styles.stateText}>
-              Loading market data...
+              {error || 'Loading market data...'}
             </Text>
           </View>
         </Container>
