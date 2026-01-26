@@ -24,9 +24,11 @@ export default function CurrencyDetailScreen() {
     () => ({
       timeframe: selectedTimeframe,
       currentPrice: currencyPair?.price,
+      change: currencyPair?.change,
+      changePercent: currencyPair?.changePercent,
       riskPercent: 1,
     }),
-    [selectedTimeframe, currencyPair?.price],
+    [selectedTimeframe, currencyPair?.price, currencyPair?.change, currencyPair?.changePercent],
   );
 
   const {

@@ -25,7 +25,13 @@ export default function MarketScreen() {
 
   // AI recommendation for selected pair
   const aiOptions = selectedPair
-    ? { timeframe: '1H', currentPrice: selectedPair.price, riskPercent: 1 }
+    ? {
+        timeframe: '1H',
+        currentPrice: selectedPair.price,
+        change: selectedPair.change,
+        changePercent: selectedPair.changePercent,
+        riskPercent: 1,
+      }
     : {};
   const {
     recommendation: aiRecommendation,

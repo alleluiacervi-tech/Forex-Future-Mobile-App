@@ -45,27 +45,47 @@ interface RecommendationRequest {
   pair: string;
   timeframe?: string;
   currentPrice?: number;
+  change?: number;
+  changePercent?: number;
   accountBalance?: number;
   riskPercent?: number;
   notes?: string;
 }
 
-// Simple local fallback recommendation based on price movement
-const createFallbackRecommendation = (pair: string, timeframe: string, currentPrice?: number): AIRecommendation => {
-  const random = Math.random();
-  const action = random > 0.66 ? 'BUY' : random > 0.33 ? 'SELL' : 'WAIT';
-  const confidence = 0.55 + Math.random() * 0.2; // 55-75%
+// Local fallback recommendation based on recent price movement
+const createFallbackRecommendation = (
+  pair: string,
+  timeframe: string,
+  currentPrice?: number,
+  change?: number,
+  changePercent?: number,
+): AIRecommendation => {
+  // Determine action from real momentum
+  let action: 'BUY' | 'SELL' | 'WAIT';
+  if (changePercent && Math.abs(changePercent) > 0.05) {
+    action = changePercent > 0 ? 'BUY' : 'SELL';
+  } else {
+    action = 'WAIT';
+  }
+
+  // Confidence based on magnitude of change
+  const confidence = changePercent ? Math.min(0.9, 0.5 + Math.abs(changePercent) * 5) : 0.55;
+
   const price = currentPrice || 1.0;
-  const entry = price * (1 + (Math.random() - 0.5) * 0.002); // ±0.2%
-  const stopLoss = action === 'BUY' ? entry * 0.995 : entry * 1.005;
-  const takeProfit = action === 'BUY' ? entry * 1.01 : entry * 0.99;
+  // Entry near current price with slight offset
+  const entry = price * (1 + (action === 'BUY' ? -0.0005 : action === 'SELL' ? 0.0005 : 0));
+  // Stop loss and take profit based on action
+  const stopLoss = action === 'BUY' ? entry * 0.995 : action === 'SELL' ? entry * 1.005 : entry;
+  const takeProfit = action === 'BUY' ? entry * 1.01 : action === 'SELL' ? entry * 0.99 : entry;
+
+  const insight = `Local fallback: ${action} signal (Δ${changePercent?.toFixed(2)}%). Use with confirmation.`;
 
   return {
     id: `${pair}-fallback-${Date.now()}`,
     pair,
     recommendation: action,
     confidence,
-    insight: `Local fallback: ${action} signal based on recent price action. Consider market context before trading.`,
+    insight,
     entryPrice: entry,
     targetPrice: takeProfit,
     stopLoss,
@@ -84,7 +104,13 @@ const fetchRecommendation = async (payload: RecommendationRequest): Promise<AIRe
   } catch (err) {
     // If API fails (e.g., quota), return a local fallback
     console.warn('[AI] API failed, using fallback recommendation:', err);
-    return createFallbackRecommendation(payload.pair, timeframe, payload.currentPrice);
+    return createFallbackRecommendation(
+      payload.pair,
+      timeframe,
+      payload.currentPrice,
+      payload.change,
+      payload.changePercent,
+    );
   }
 };
 
