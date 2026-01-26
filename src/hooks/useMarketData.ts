@@ -183,9 +183,10 @@ export const useMarketData = (refreshInterval: number = 5000) => {
               const newPrice = updates[p.symbol];
               if (!Number.isFinite(newPrice)) return p;
               
+              // Use the last stored price from previousPairsRef for accurate change calc
               const prev = initializedRef.current ? previousPairsRef.current[p.symbol]?.price : p.price;
-              const change = prev ? newPrice - prev : 0;
-              const changePercent = prev ? (change / prev) * 100 : 0;
+              const change = prev && Number.isFinite(newPrice) ? newPrice - prev : 0;
+              const changePercent = prev && Number.isFinite(newPrice) && prev !== 0 ? (change / prev) * 100 : 0;
               
               try {
                 // eslint-disable-next-line no-console
@@ -204,14 +205,14 @@ export const useMarketData = (refreshInterval: number = 5000) => {
               };
             });
             
-            // update previousPairsRef for next comparison
+            // IMPORTANT: update previousPairsRef with the NEW state for next comparison
             previousPairsRef.current = Object.fromEntries(
               mapped.map((pair) => [pair.symbol, pair])
             );
             
             try {
               // eslint-disable-next-line no-console
-              console.log('[STATE] setPairs called, new state ready for render');
+              console.log('[STATE] previousPairsRef updated with new prices for next tick');
             } catch {}
             
             return mapped;

@@ -1,21 +1,26 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import TopNavBar from '../../components/navigation/TopNavBar';
-import { CurrencyPairCard } from '../../components/market';
-import { Tabs, Text } from '../../components/common';
+import { CurrencyPairCard, PriceChangeIndicator } from '../../components/market';
+import { PriceChart, RSIChart } from '../../components/charts';
+import { Tabs, Text, Card } from '../../components/common';
 import { MAJOR_PAIRS } from '../../constants/forexPairs';
-import { useMarketData } from '../../hooks';
+import { useMarketData, useTheme } from '../../hooks';
 import { APP_CONFIG } from '../../config';
+import { formatPrice, formatPercent } from '../../utils';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function MarketScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const theme = useTheme();
   const [selectedFilter, setSelectedFilter] = useState('All');
+  const [selectedPair, setSelectedPair] = useState(null);
   const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
 
   const filters = ['All', 'Major', 'Minor', 'Exotic'];
@@ -31,6 +36,41 @@ export default function MarketScreen() {
     <ScreenWrapper>
       <TopNavBar />
       <Container>
+        {/* Live price summary with mini charts – only when a pair is selected */}
+        {selectedPair && (
+          <Card style={[styles.summaryCard, { backgroundColor: theme.colors.surface }]}>
+            <View style={styles.summaryHeader}>
+              <View>
+                <Text variant="h4">{selectedPair.symbol}</Text>
+                <Text variant="caption" color={theme.colors.textSecondary}>
+                  {selectedPair.base} / {selectedPair.quote}
+                </Text>
+              </View>
+              <View style={styles.summaryPrice}>
+                <Text variant="h3">${formatPrice(selectedPair.price)}</Text>
+                <PriceChangeIndicator
+                  change={selectedPair.change}
+                  changePercent={selectedPair.changePercent}
+                  size="small"
+                />
+              </View>
+              <TouchableOpacity onPress={() => setSelectedPair(null)} style={styles.closeBtn}>
+                <Icon name="close" size={20} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.miniCharts}>
+              <View style={styles.miniChart}>
+                <Text variant="caption" color={theme.colors.textSecondary}>EMA</Text>
+                <PriceChart pair={selectedPair} timeframe="1H" />
+              </View>
+              <View style={styles.miniChart}>
+                <Text variant="caption" color={theme.colors.textSecondary}>RSI</Text>
+                <RSIChart basePrice={selectedPair.price} timeframe="1H" />
+              </View>
+            </View>
+          </Card>
+        )}
+
         <Tabs tabs={filters} activeTab={selectedFilter} onTabChange={setSelectedFilter} />
         {loading && !pairs.length ? (
           <View style={styles.stateContainer}>
@@ -52,7 +92,10 @@ export default function MarketScreen() {
             renderItem={({ item }) => (
               <CurrencyPairCard
                 pair={item}
-                onPress={() => navigation.navigate('CurrencyDetail', { pair: item.symbol })}
+                onPress={() => {
+                  setSelectedPair(item);
+                  navigation.navigate('CurrencyDetail', { pair: item.symbol });
+                }}
               />
             )}
             contentContainerStyle={styles.listContent}
@@ -65,6 +108,31 @@ export default function MarketScreen() {
 }
 
 const styles = StyleSheet.create({
+  summaryCard: {
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  summaryPrice: {
+    alignItems: 'flex-end',
+    flex: 1,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  miniCharts: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  miniChart: {
+    flex: 1,
+    height: 120,
+  },
   listContent: {
     paddingBottom: 16,
   },

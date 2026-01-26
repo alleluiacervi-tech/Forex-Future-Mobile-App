@@ -10,6 +10,7 @@ export const formatPrice = (value: number, decimals: number = 5): string => {
 };
 
 export const formatPercent = (value: number, decimals: number = 2): string => {
+  if (!Number.isFinite(value)) return '0.00%';
   const sign = value >= 0 ? '+' : '';
   return `${sign}${value.toFixed(decimals)}%`;
 };

@@ -10,7 +10,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../types';
 import PriceChart from '../components/PriceChart';
-import { mockCurrencyPairs } from '../data/mockData';
+import { useMarketData } from '../src/hooks';
+import { APP_CONFIG } from '../src/config';
 
 type ChartDetailRouteProp = RouteProp<RootStackParamList, 'ChartDetail'>;
 
@@ -18,8 +19,9 @@ export default function ChartDetailScreen() {
   const route = useRoute<ChartDetailRouteProp>();
   const { pair } = route.params;
   const [selectedTimeframe, setSelectedTimeframe] = useState('1H');
+  const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
 
-  const currencyPair = mockCurrencyPairs.find((p) => p.symbol === pair) || mockCurrencyPairs[0];
+  const currencyPair = pairs.find((p) => p.symbol === pair) || pairs[0];
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
 
