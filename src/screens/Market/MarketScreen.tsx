@@ -78,6 +78,27 @@ export default function MarketScreen() {
                 <RSIChart basePrice={selectedPair.price} timeframe="1H" />
               </View>
             </View>
+            {/* AI Recommendation */}
+            <View style={styles.aiSection}>
+              <Text variant="caption" color={theme.colors.textSecondary} style={styles.aiTitle}>
+                AI Recommendation
+              </Text>
+              {aiLoading ? (
+                <View style={[styles.aiEmpty, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+                  <ActivityIndicator size="small" />
+                </View>
+              ) : aiRecommendation ? (
+                <AIRecommendationCard recommendation={aiRecommendation} />
+              ) : aiError ? (
+                <View style={[styles.aiEmpty, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+                  <Text variant="caption" color={theme.colors.textSecondary}>{aiError}</Text>
+                </View>
+              ) : (
+                <View style={[styles.aiEmpty, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
+                  <Text variant="caption" color={theme.colors.textSecondary}>No AI recommendation available</Text>
+                </View>
+              )}
+            </View>
           </Card>
         )}
 
@@ -142,6 +163,18 @@ const styles = StyleSheet.create({
   miniChart: {
     flex: 1,
     height: 120,
+  },
+  aiSection: {
+    marginTop: 16,
+  },
+  aiTitle: {
+    marginBottom: 8,
+  },
+  aiEmpty: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
   },
   listContent: {
     paddingBottom: 16,
