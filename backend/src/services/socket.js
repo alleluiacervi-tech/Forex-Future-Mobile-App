@@ -19,7 +19,10 @@ const DEFAULTS = {
   pingMs: 15000,              // ping frequency
   clientTimeoutMs: 30000,     // terminate if no pong within this window
   maxBufferedBytes: 1_000_000, // ~1MB backpressure threshold
-  allowNoUpstream: process.env.ALLOW_NO_FINNHUB_WS === "true",
+  // In local/dev, allow running without Finnhub to avoid startup crashes.
+  allowNoUpstream:
+    process.env.ALLOW_NO_FINNHUB_WS === "true" ||
+    (process.env.NODE_ENV && process.env.NODE_ENV !== "production"),
   finnhubUrl:
     process.env.FINNHUB_WS_URL ||
     (process.env.FINNHUB_API_KEY
