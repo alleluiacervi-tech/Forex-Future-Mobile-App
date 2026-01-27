@@ -13,14 +13,22 @@
     ],
     "moduleResolution": "bundler",
     "noEmit": true,
-    "target": "esnext"
+    "target": "esnext",
+    "noImplicitAny": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "suppressImplicitAnyIndexErrors": true
   },
   "include": [
     "**/*.ts",
     "**/*.tsx"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "backend"
   ],
-  "extends": "expo/tsconfig.base"
+  "extends": "expo/tsconfig.base",
+  "ts.nodeExcludePatterns": [
+    "node_modules/**"
+  ]
 }

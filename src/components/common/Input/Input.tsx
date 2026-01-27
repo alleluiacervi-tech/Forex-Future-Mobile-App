@@ -7,11 +7,13 @@ import { useTheme } from '../../../hooks';
 export const Input: React.FC<InputProps> = ({
   value,
   onChangeText,
+  onBlur,
   placeholder,
   label,
   error,
   keyboardType = 'default',
   secureTextEntry = false,
+  editable = true,
   leftAccessory,
   rightAccessory,
   style,
@@ -31,10 +33,12 @@ export const Input: React.FC<InputProps> = ({
           style={inputStyles.input}
           value={value}
           onChangeText={onChangeText}
+          onBlur={onBlur}
           placeholder={placeholder}
           placeholderTextColor={theme.colors.textSecondary}
           keyboardType={keyboardType}
           secureTextEntry={secureTextEntry}
+          editable={editable}
         />
         {rightAccessory ? (
           <View style={inputStyles.accessoryRight}>{rightAccessory}</View>
@@ -46,4 +50,3 @@ export const Input: React.FC<InputProps> = ({
     </View>
   );
 };
-
