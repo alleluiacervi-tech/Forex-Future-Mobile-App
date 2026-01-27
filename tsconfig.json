@@ -16,8 +16,7 @@
     "target": "esnext",
     "noImplicitAny": true,
     "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "suppressImplicitAnyIndexErrors": true
+    "noUnusedParameters": false
   },
   "include": [
     "**/*.ts",
