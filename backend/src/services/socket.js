@@ -19,6 +19,7 @@ const DEFAULTS = {
   pingMs: 15000,              // ping frequency
   clientTimeoutMs: 30000,     // terminate if no pong within this window
   maxBufferedBytes: 1_000_000, // ~1MB backpressure threshold
+  allowNoUpstream: process.env.ALLOW_NO_FINNHUB_WS === "true",
   finnhubUrl:
     process.env.FINNHUB_WS_URL ||
     (process.env.FINNHUB_API_KEY
@@ -51,7 +52,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     config.pingMs = Number(heartbeatMs);
   }
 
-  if (!config.finnhubUrl) {
+  if (!config.finnhubUrl && !config.allowNoUpstream) {
     throw new Error("initializeSocket: missing FINNHUB_API_KEY or FINNHUB_WS_URL");
   }
 
@@ -97,6 +98,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   };
 
   const sendToFinnhub = (messageObj) => {
+    if (!config.finnhubUrl) return;
     const payload = safeJson(messageObj);
     if (!finnhub || finnhub.readyState !== WebSocket.OPEN) {
       pendingFinnhubMessages.push(payload);
@@ -110,6 +112,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   };
 
   const resubscribeAllSymbols = () => {
+    if (!config.finnhubUrl) return;
     alwaysSubscribedSymbols.forEach((symbol) => {
       sendToFinnhub({ type: "subscribe", symbol });
     });
@@ -119,6 +122,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   };
 
   const scheduleFinnhubReconnect = () => {
+    if (!config.finnhubUrl) return;
     if (finnhubReconnectTimer) return;
     finnhubReconnectTimer = setTimeout(() => {
       finnhubReconnectTimer = null;
@@ -127,6 +131,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   };
 
   const connectFinnhub = () => {
+    if (!config.finnhubUrl) return;
     try {
       finnhub = new WebSocket(config.finnhubUrl);
     } catch (error) {
@@ -213,7 +218,12 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
   };
 
-  connectFinnhub();
+  if (config.finnhubUrl) {
+    connectFinnhub();
+  } else if (config.logConnections) {
+    // eslint-disable-next-line no-console
+    console.warn("Finnhub WS disabled. Set FINNHUB_API_KEY/FINNHUB_WS_URL or ALLOW_NO_FINNHUB_WS=true.");
+  }
 
   // Heartbeat ping/pong
   const pingInterval = setInterval(() => {
