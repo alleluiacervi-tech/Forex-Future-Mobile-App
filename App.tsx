@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View, Image } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import MainNavigator from './src/navigation';
 import { ThemeProvider } from './src/theme';
 import { useTheme } from './src/hooks';
@@ -67,20 +68,22 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <View style={styles.container} onLayout={onLayoutRootView}>
-          <StatusBar style="light" />
-          {showStartupSplash ? (
-            <StartupSplash />
-          ) : !acceptedTerms ? (
-            <TermsScreen onAgree={() => setAcceptedTerms(true)} />
-          ) : (
-            <MainNavigator />
-          )}
-        </View>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <View style={styles.container} onLayout={onLayoutRootView}>
+            <StatusBar style="light" />
+            {showStartupSplash ? (
+              <StartupSplash />
+            ) : !acceptedTerms ? (
+              <TermsScreen onAgree={() => setAcceptedTerms(true)} />
+            ) : (
+              <MainNavigator />
+            )}
+          </View>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -116,6 +119,9 @@ function StartupSplash() {
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   container: {
     flex: 1,
   },
