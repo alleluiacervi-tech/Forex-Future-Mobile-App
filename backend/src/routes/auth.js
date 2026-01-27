@@ -1,13 +1,13 @@
 import express from "express";
-import parseSchema from "../utils/validators.js";
-import authenticate from "../middleware/auth.js";
-import authService from "../services/auth.js";
-import Logger from "../utils/logger.js";
 import {
   loginSchema,
+  parseSchema,
   registerSchema,
   trialStartSchema
 } from "../utils/validators.js";
+import authenticate from "../middleware/auth.js";
+import authService from "../services/auth.js";
+import Logger from "../utils/logger.js";
 
 const router = express.Router();
 const logger = new Logger('AuthRoutes');
