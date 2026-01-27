@@ -561,4 +561,5 @@ For issues or questions:
 1. Check logs in `backend/logs/`
 2. Enable debug mode to see detailed output
 3. Review this documentation
-4. Test endpoints with Postman
+4. Test endpoints with Postman 
+clear

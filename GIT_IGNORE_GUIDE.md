@@ -11,11 +11,11 @@
 
 ### Logs & Sensitive Data
 - `logs/` - Application logs (may contain user data, errors, stack traces)
-- `*.log` - All log files
+- `*.log` - All log files 
 - `npm-debug.log`, `yarn-error.log` - Build tool logs
 - `tmp/`, `temp/`, `.tmp/` - Temporary files
 
-### Dependencies & Build Output
+### Dependencies & Build Output 
 - `node_modules/` - NPM/Yarn dependencies (700MB+)
 - `package-lock.json`, `yarn.lock` - Lock files (use only for monorepos)
 - `dist/`, `build/` - Compiled/bundled output
