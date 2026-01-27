@@ -26,7 +26,7 @@
     "node_modules",
     "backend"
   ],
-  "extends": "expo/tsconfig.base",
+  "extends": "expo/tsconfig.base.json",
   "ts.nodeExcludePatterns": [
     "node_modules/**"
   ]
