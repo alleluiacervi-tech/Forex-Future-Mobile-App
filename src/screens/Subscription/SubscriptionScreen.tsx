@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper } from '../../components/layout';
 import { Card, Text, Button, Input, BrandLogo } from '../../components/common';
 import { useTheme } from '../../hooks';
+import { useAuth } from '../../context/AuthContext';
 import { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -14,13 +15,15 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function SubscriptionScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
+  const { register, startTrial, isLoading } = useAuth();
 
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [touched, setTouched] = useState({ email: false, password: false, confirmPassword: false });
+  const [touched, setTouched] = useState({ name: false, email: false, password: false, confirmPassword: false });
 
   type Billing = 'monthly' | 'quarterly' | 'yearly';
 
@@ -38,6 +41,13 @@ export default function SubscriptionScreen() {
 
   const selectedPrice = pricing[selectedBilling];
   const billingLabel = selectedBilling === 'monthly' ? 'month' : selectedBilling === 'quarterly' ? '3 months' : 'year';
+
+  const nameError = useMemo(() => {
+    if (!touched.name) return undefined;
+    if (!name.trim()) return 'Name is required';
+    if (name.trim().length < 2) return 'Name must be at least 2 characters';
+    return undefined;
+  }, [name, touched.name]);
 
   const emailError = useMemo(() => {
     if (!touched.email) return undefined;
@@ -62,20 +72,40 @@ export default function SubscriptionScreen() {
     return undefined;
   }, [confirmPassword, password, touched.confirmPassword]);
 
-  const canSubmit = !emailError && !passwordError && !confirmPasswordError && email && password && confirmPassword;
+  const canSubmit =
+    !nameError &&
+    !emailError &&
+    !passwordError &&
+    !confirmPasswordError &&
+    name &&
+    email &&
+    password &&
+    confirmPassword;
 
-  const handleRedeemTrial = () => {
-    setTouched({ email: true, password: true, confirmPassword: true });
-    if (!canSubmit) return;
+  const handleRedeemTrial = async () => {
+    setTouched({ name: true, email: true, password: true, confirmPassword: true });
+    if (!canSubmit) {
+      Alert.alert('Validation error', 'Please fix the errors and try again.');
+      return;
+    }
 
-    console.log('Free trial redeemed:', {
-      email: email.trim().toLowerCase(),
-      plan: {
-        billing: selectedBilling,
-        price: selectedPrice,
-      },
-    });
-    navigation.replace('Main', { screen: 'Home' } as any);
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+      try {
+        await register(name.trim(), normalizedEmail, password);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Registration failed';
+        if (!message.toLowerCase().includes('already registered')) {
+          throw error;
+        }
+      }
+
+      await startTrial(normalizedEmail, password);
+      navigation.replace('Main', { screen: 'Home' } as any);
+    } catch (error) {
+      Alert.alert('Trial activation failed', error instanceof Error ? error.message : 'Unable to start trial');
+    }
   };
 
   return (
@@ -132,6 +162,17 @@ export default function SubscriptionScreen() {
             <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.sectionSubtitle}>
               Use your email and set a password to redeem your free trial.
             </Text>
+
+            <Input
+              label="Full Name"
+              value={name}
+              onChangeText={(t) => {
+                setName(t);
+                if (!touched.name) setTouched((p) => ({ ...p, name: true }));
+              }}
+              placeholder="John Doe"
+              error={nameError}
+            />
 
             <Input
               label="Email"
@@ -307,12 +348,12 @@ export default function SubscriptionScreen() {
 
             <View style={styles.confirmSection}>
               <Button
-                title={`Redeem Free Trial • Signals $${selectedPrice}/${billingLabel}`}
+                title={isLoading ? 'Starting trial...' : `Redeem Free Trial • Signals $${selectedPrice}/${billingLabel}`}
                 onPress={handleRedeemTrial}
                 variant="primary"
                 size="large"
                 style={styles.confirmButton}
-                disabled={!canSubmit}
+                disabled={!canSubmit || isLoading}
               />
               <Text variant="caption" color={theme.colors.textSecondary} style={styles.confirmSubtext}>
                 After the trial, you’ll be billed ${selectedPrice} per {billingLabel}. Cancel anytime.
