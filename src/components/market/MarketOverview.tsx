@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: spacing.md,
   },
-  title: {
+  title:  {
     marginBottom: spacing.md,
   },
   stats: {
