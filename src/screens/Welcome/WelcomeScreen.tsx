@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Text, Button, Input, BrandLogo } from '../../components/common';
 import { useTheme } from '../../hooks';
+import { useAuth } from '../../context/AuthContext';
 import { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -14,15 +15,43 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
+  const { login, isLoading, isAuthenticated } = useAuth();
   const { height } = Dimensions.get('window');
   const isSmallScreen = height < 700;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSignIn = () => {
-    // Navigate to main app after sign in
-    navigation.replace('Main');
+  const emailError = useMemo(() => {
+    if (!email) return undefined;
+    const normalized = email.trim().toLowerCase();
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+    return ok ? undefined : 'Enter a valid email address';
+  }, [email]);
+
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      navigation.replace('Main');
+    }
+  }, [isAuthenticated, isLoading, navigation]);
+
+  const handleSignIn = async () => {
+    if (!email.trim() || !password) {
+      Alert.alert('Missing info', 'Please enter both email and password.');
+      return;
+    }
+
+    if (emailError) {
+      Alert.alert('Invalid email', emailError);
+      return;
+    }
+
+    try {
+      await login(email.trim().toLowerCase(), password);
+      navigation.replace('Main');
+    } catch (error) {
+      Alert.alert('Sign in failed', error instanceof Error ? error.message : 'Unable to sign in');
+    }
   };
 
   const handleRequestAccess = () => {
@@ -89,6 +118,7 @@ export default function WelcomeScreen() {
                 placeholder="trader@example.com"
                 keyboardType="email-address"
                 leftAccessory={<Icon name="mail" size={20} color={theme.colors.textSecondary} />}
+                error={emailError}
               />
 
               <View style={styles.passwordLabelContainer}>
@@ -124,11 +154,12 @@ export default function WelcomeScreen() {
               />
 
               <Button
-                title="Sign in"
+                title={isLoading ? 'Signing in...' : 'Sign in'}
                 onPress={handleSignIn}
                 variant="primary"
                 size="large"
                 style={styles.signInButton}
+                disabled={isLoading}
               />
 
               <View style={[styles.dividerRow, { borderColor: theme.colors.border }]}>
