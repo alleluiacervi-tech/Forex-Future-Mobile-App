@@ -10,6 +10,7 @@ import { ThemeProvider } from './src/theme';
 import { useTheme } from './src/hooks';
 import { Text } from './src/components/common';
 import TermsScreen from './src/screens/Terms/TermsScreen';
+import { AuthProvider } from './src/context/AuthContext';
 
 const STARTUP_SPLASH_DURATION_MS = 5000;
 
@@ -71,16 +72,18 @@ export default function App() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <View style={styles.container} onLayout={onLayoutRootView}>
-            <StatusBar style="light" />
-            {showStartupSplash ? (
-              <StartupSplash />
-            ) : !acceptedTerms ? (
-              <TermsScreen onAgree={() => setAcceptedTerms(true)} />
-            ) : (
-              <MainNavigator />
-            )}
-          </View>
+          <AuthProvider>
+            <View style={styles.container} onLayout={onLayoutRootView}>
+              <StatusBar style="light" />
+              {showStartupSplash ? (
+                <StartupSplash />
+              ) : !acceptedTerms ? (
+                <TermsScreen onAgree={() => setAcceptedTerms(true)} />
+              ) : (
+                <MainNavigator />
+              )}
+            </View>
+          </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

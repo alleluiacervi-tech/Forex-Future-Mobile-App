@@ -1,15 +1,17 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_CONFIG } from '../config/app';
 
 class AuthService {
   constructor() {
-    this.apiUrl = APP_CONFIG.apiUrl;
+    const baseUrl = APP_CONFIG.apiUrl.replace(/\/$/, '');
+    this.authBaseUrl = `${baseUrl}/api/auth`;
     this.tokenKey = '@forexapp_token';
     this.userKey = '@forexapp_user';
   }
 
   async register(name, email, password) {
     try {
-      const response = await fetch(`${this.apiUrl}/auth/register`, {
+      const response = await fetch(`${this.authBaseUrl}/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -34,7 +36,7 @@ class AuthService {
 
   async login(email, password) {
     try {
-      const response = await fetch(`${this.apiUrl}/auth/login`, {
+      const response = await fetch(`${this.authBaseUrl}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,7 +64,7 @@ class AuthService {
 
   async startTrial(email, password) {
     try {
-      const response = await fetch(`${this.apiUrl}/auth/trial/start`, {
+      const response = await fetch(`${this.authBaseUrl}/trial/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,7 +97,7 @@ class AuthService {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`${this.apiUrl}/auth/password/change`, {
+      const response = await fetch(`${this.authBaseUrl}/password/change`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -126,7 +128,7 @@ class AuthService {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`${this.apiUrl}/auth/me`, {
+      const response = await fetch(`${this.authBaseUrl}/me`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -153,15 +155,8 @@ class AuthService {
 
   async storeAuth(user, token) {
     try {
-      // Store token and user in AsyncStorage for React Native
-      if (global.AsyncStorage) {
-        await global.AsyncStorage.setItem(this.tokenKey, token);
-        await global.AsyncStorage.setItem(this.userKey, JSON.stringify(user));
-      } else {
-        // Fallback for web/testing
-        localStorage.setItem(this.tokenKey, token);
-        localStorage.setItem(this.userKey, JSON.stringify(user));
-      }
+      await AsyncStorage.setItem(this.tokenKey, token);
+      await AsyncStorage.setItem(this.userKey, JSON.stringify(user));
       console.log('[AuthService] Auth data stored');
     } catch (error) {
       console.error('[AuthService] Failed to store auth data:', error.message);
@@ -170,11 +165,7 @@ class AuthService {
 
   async storeUser(user) {
     try {
-      if (global.AsyncStorage) {
-        await global.AsyncStorage.setItem(this.userKey, JSON.stringify(user));
-      } else {
-        localStorage.setItem(this.userKey, JSON.stringify(user));
-      }
+      await AsyncStorage.setItem(this.userKey, JSON.stringify(user));
     } catch (error) {
       console.error('[AuthService] Failed to store user:', error.message);
     }
@@ -182,11 +173,7 @@ class AuthService {
 
   async getToken() {
     try {
-      if (global.AsyncStorage) {
-        return await global.AsyncStorage.getItem(this.tokenKey);
-      } else {
-        return localStorage.getItem(this.tokenKey);
-      }
+      return await AsyncStorage.getItem(this.tokenKey);
     } catch (error) {
       console.error('[AuthService] Failed to get token:', error.message);
       return null;
@@ -195,13 +182,8 @@ class AuthService {
 
   async getUser() {
     try {
-      if (global.AsyncStorage) {
-        const userJson = await global.AsyncStorage.getItem(this.userKey);
-        return userJson ? JSON.parse(userJson) : null;
-      } else {
-        const userJson = localStorage.getItem(this.userKey);
-        return userJson ? JSON.parse(userJson) : null;
-      }
+      const userJson = await AsyncStorage.getItem(this.userKey);
+      return userJson ? JSON.parse(userJson) : null;
     } catch (error) {
       console.error('[AuthService] Failed to get user:', error.message);
       return null;
@@ -210,13 +192,8 @@ class AuthService {
 
   async logout() {
     try {
-      if (global.AsyncStorage) {
-        await global.AsyncStorage.removeItem(this.tokenKey);
-        await global.AsyncStorage.removeItem(this.userKey);
-      } else {
-        localStorage.removeItem(this.tokenKey);
-        localStorage.removeItem(this.userKey);
-      }
+      await AsyncStorage.removeItem(this.tokenKey);
+      await AsyncStorage.removeItem(this.userKey);
       console.log('[AuthService] User logged out');
     } catch (error) {
       console.error('[AuthService] Logout error:', error.message);
