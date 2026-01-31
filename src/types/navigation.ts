@@ -10,7 +10,16 @@ export type RootStackParamList = {
   Settings: undefined;
   SubscriptionPlan: undefined;
   Security: undefined;
-  BillingPayments: undefined;
+  BillingPayments:
+    | undefined
+    | {
+        setupTrial?: boolean;
+        email?: string;
+        password?: string;
+        selectedBilling?: 'monthly' | 'quarterly' | 'yearly';
+        selectedPrice?: number;
+        billingLabel?: string;
+      };
   TermsOfService: undefined;
   PrivacyPolicy: undefined;
   RiskDisclosure: undefined;
@@ -25,4 +34,3 @@ export type MainTabParamList = {
   Notifications: undefined;
   Profile: undefined;
 };
-

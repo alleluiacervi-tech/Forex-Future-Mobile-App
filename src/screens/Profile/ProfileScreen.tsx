@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons as Icon } from '@expo/vector-icons';
@@ -7,13 +7,16 @@ import { ScreenWrapper, Container } from '../../components/layout';
 import { Card, Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { useTheme } from '../../hooks';
+import { useAuth } from '../../context/AuthContext';
 import { RootStackParamList } from '../../types';
+import { resetToLanding } from '../../navigation/rootNavigation';
 
 type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function ProfileScreen() {
   const theme = useTheme();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
+  const { logout, isLoading } = useAuth();
   
   // Settings state
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -78,6 +81,40 @@ export default function ProfileScreen() {
       </Text>
     </View>
   );
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Log out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              if (!resetToLanding()) {
+                const rootNavigation =
+                  (navigation.getParent()?.getParent() as ProfileScreenNavigationProp | undefined) ??
+                  (navigation.getParent() as ProfileScreenNavigationProp | undefined);
+                if (rootNavigation?.reset) {
+                  rootNavigation.reset({
+                    index: 0,
+                    routes: [{ name: 'Landing' }],
+                  });
+                } else {
+                  navigation.navigate('Landing');
+                }
+              }
+            } catch (error) {
+              Alert.alert('Logout failed', error instanceof Error ? error.message : 'Please try again.');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <ScreenWrapper>
@@ -237,10 +274,11 @@ export default function ProfileScreen() {
             <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
               <MenuItem
                 icon="log-out-outline"
-                title="Logout"
+                title={isLoading ? 'Logging out...' : 'Logout'}
                 subtitle="Sign out of your account"
-                onPress={() => {}}
+                onPress={handleLogout}
                 iconColor="#f44336"
+                showChevron={false}
               />
               <MenuItem
                 icon="close-circle-outline"
@@ -386,4 +424,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

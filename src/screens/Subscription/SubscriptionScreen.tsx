@@ -15,7 +15,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function SubscriptionScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
-  const { register, startTrial, isLoading } = useAuth();
+  const { register, isLoading } = useAuth();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -101,10 +101,16 @@ export default function SubscriptionScreen() {
         }
       }
 
-      await startTrial(normalizedEmail, password);
-      navigation.replace('Main', { screen: 'Home' } as any);
+      navigation.replace('BillingPayments', {
+        setupTrial: true,
+        email: normalizedEmail,
+        password,
+        selectedBilling,
+        selectedPrice,
+        billingLabel,
+      });
     } catch (error) {
-      Alert.alert('Trial activation failed', error instanceof Error ? error.message : 'Unable to start trial');
+      Alert.alert('Registration failed', error instanceof Error ? error.message : 'Unable to continue');
     }
   };
 

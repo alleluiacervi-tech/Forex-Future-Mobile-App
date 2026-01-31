@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { NAVIGATION_CONFIG } from './config';
+import { navigationRef } from './rootNavigation';
 
 // Screens
 import LandingScreen from '../screens/Landing';
@@ -63,7 +64,7 @@ function MainTabs() {
 
 export default function MainNavigator() {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         screenOptions={{
           headerStyle: {

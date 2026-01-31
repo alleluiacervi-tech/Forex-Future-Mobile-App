@@ -1,14 +1,123 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useMemo, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { RouteProp } from '@react-navigation/native';
 import { Ionicons as Icon } from '@expo/vector-icons';
 import { ScreenWrapper, Container } from '../../components/layout';
-import { Card, Text } from '../../components/common';
+import { Card, Text, Input, Button } from '../../components/common';
 import { useTheme } from '../../hooks';
+import { useAuth } from '../../context/AuthContext';
+import { RootStackParamList } from '../../types';
 
 export default function BillingPaymentsScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<RootStackParamList, 'BillingPayments'>>();
+  const { startTrial, isLoading } = useAuth();
+
+  const setupTrial = route.params?.setupTrial ?? false;
+  const selectedPrice = route.params?.selectedPrice ?? 10;
+  const billingLabel = route.params?.billingLabel ?? 'month';
+
+  const [cardName, setCardName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [expiry, setExpiry] = useState('');
+  const [cvc, setCvc] = useState('');
+  const [postalCode, setPostalCode] = useState('');
+  const [touched, setTouched] = useState({
+    cardName: false,
+    cardNumber: false,
+    expiry: false,
+    cvc: false,
+    postalCode: false,
+  });
+
+  const formattedCardNumber = useMemo(() => {
+    const digits = cardNumber.replace(/\D/g, '').slice(0, 16);
+    return digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+  }, [cardNumber]);
+
+  const formattedExpiry = useMemo(() => {
+    const digits = expiry.replace(/\D/g, '').slice(0, 4);
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }, [expiry]);
+
+  const cardNameError = useMemo(() => {
+    if (!touched.cardName) return undefined;
+    if (!cardName.trim()) return 'Name on card is required';
+    return undefined;
+  }, [cardName, touched.cardName]);
+
+  const cardNumberError = useMemo(() => {
+    if (!touched.cardNumber) return undefined;
+    const digits = formattedCardNumber.replace(/\s/g, '');
+    if (digits.length < 13) return 'Enter a valid card number';
+    return undefined;
+  }, [formattedCardNumber, touched.cardNumber]);
+
+  const expiryError = useMemo(() => {
+    if (!touched.expiry) return undefined;
+    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(formattedExpiry)) return 'Enter a valid expiry (MM/YY)';
+    return undefined;
+  }, [formattedExpiry, touched.expiry]);
+
+  const cvcError = useMemo(() => {
+    if (!touched.cvc) return undefined;
+    const digits = cvc.replace(/\D/g, '');
+    if (digits.length < 3) return 'Enter a valid CVC';
+    return undefined;
+  }, [cvc, touched.cvc]);
+
+  const postalCodeError = useMemo(() => {
+    if (!touched.postalCode) return undefined;
+    if (!postalCode.trim()) return 'Postal code is required';
+    return undefined;
+  }, [postalCode, touched.postalCode]);
+
+  const canSubmit =
+    !cardNameError &&
+    !cardNumberError &&
+    !expiryError &&
+    !cvcError &&
+    !postalCodeError &&
+    cardName &&
+    formattedCardNumber &&
+    formattedExpiry &&
+    cvc &&
+    postalCode;
+
+  const handleStartTrial = async () => {
+    setTouched({
+      cardName: true,
+      cardNumber: true,
+      expiry: true,
+      cvc: true,
+      postalCode: true,
+    });
+
+    if (!canSubmit) {
+      Alert.alert('Payment details missing', 'Please complete your card information to continue.');
+      return;
+    }
+
+    const email = route.params?.email;
+    const password = route.params?.password;
+    if (!email || !password) {
+      Alert.alert('Unable to start trial', 'Missing account details. Please sign up again.');
+      return;
+    }
+
+    try {
+      await startTrial(email, password);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Main' as never }],
+      });
+    } catch (error) {
+      Alert.alert('Trial activation failed', error instanceof Error ? error.message : 'Unable to start trial');
+    }
+  };
 
   const paymentMethods = [
     {
@@ -78,6 +187,104 @@ export default function BillingPaymentsScreen() {
 
       <ScrollView style={styles.scrollView}>
         <Container>
+          {setupTrial && (
+            <View style={styles.section}>
+              <Text variant="h4" style={styles.sectionTitle}>
+                Add a payment method
+              </Text>
+              <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.sectionSubtitle}>
+                Your card won’t be charged today. You’ll pay $0 until the free trial ends.
+              </Text>
+
+              <Card style={[styles.trialSummaryCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                <View style={styles.trialSummaryRow}>
+                  <Text variant="body" style={styles.trialSummaryLabel}>
+                    Due today
+                  </Text>
+                  <Text variant="h3" style={styles.trialSummaryValue}>
+                    $0.00
+                  </Text>
+                </View>
+                <Text variant="caption" color={theme.colors.textSecondary}>
+                  After the trial, you’ll be billed ${selectedPrice} per {billingLabel}. Cancel anytime.
+                </Text>
+              </Card>
+
+              <Card style={[styles.paymentFormCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                <Input
+                  label="Name on Card"
+                  value={cardName}
+                  onChangeText={(value) => {
+                    setCardName(value);
+                    if (!touched.cardName) setTouched((prev) => ({ ...prev, cardName: true }));
+                  }}
+                  placeholder="Jane Trader"
+                  error={cardNameError}
+                />
+                <Input
+                  label="Card Number"
+                  value={formattedCardNumber}
+                  onChangeText={(value) => {
+                    setCardNumber(value);
+                    if (!touched.cardNumber) setTouched((prev) => ({ ...prev, cardNumber: true }));
+                  }}
+                  placeholder="4242 4242 4242 4242"
+                  keyboardType="numeric"
+                  error={cardNumberError}
+                />
+                <View style={styles.inlineRow}>
+                  <View style={styles.inlineField}>
+                    <Input
+                      label="Expiry"
+                      value={formattedExpiry}
+                      onChangeText={(value) => {
+                        setExpiry(value);
+                        if (!touched.expiry) setTouched((prev) => ({ ...prev, expiry: true }));
+                      }}
+                      placeholder="MM/YY"
+                      keyboardType="numeric"
+                      error={expiryError}
+                    />
+                  </View>
+                  <View style={styles.inlineField}>
+                    <Input
+                      label="CVC"
+                      value={cvc}
+                      onChangeText={(value) => {
+                        setCvc(value.replace(/\D/g, '').slice(0, 4));
+                        if (!touched.cvc) setTouched((prev) => ({ ...prev, cvc: true }));
+                      }}
+                      placeholder="123"
+                      keyboardType="numeric"
+                      error={cvcError}
+                    />
+                  </View>
+                </View>
+                <Input
+                  label="Postal Code"
+                  value={postalCode}
+                  onChangeText={(value) => {
+                    setPostalCode(value);
+                    if (!touched.postalCode) setTouched((prev) => ({ ...prev, postalCode: true }));
+                  }}
+                  placeholder="10001"
+                  keyboardType="numeric"
+                  error={postalCodeError}
+                />
+
+                <Button
+                  title={isLoading ? 'Starting free trial...' : 'Save Card & Start Free Trial'}
+                  onPress={handleStartTrial}
+                  variant="primary"
+                  size="large"
+                  disabled={!canSubmit || isLoading}
+                  style={styles.trialSubmitButton}
+                />
+              </Card>
+            </View>
+          )}
+
+          {!setupTrial && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text variant="h4" style={styles.sectionTitle}>
@@ -138,7 +345,9 @@ export default function BillingPaymentsScreen() {
               </Card>
             ))}
           </View>
+          )}
 
+          {!setupTrial && (
           <View style={styles.section}>
             <Text variant="h4" style={styles.sectionTitle}>
               Billing History
@@ -172,7 +381,9 @@ export default function BillingPaymentsScreen() {
               ))}
             </Card>
           </View>
+          )}
 
+          {!setupTrial && (
           <View style={styles.section}>
             <Text variant="h4" style={styles.sectionTitle}>
               Billing Information
@@ -211,7 +422,9 @@ export default function BillingPaymentsScreen() {
               </TouchableOpacity>
             </Card>
           </View>
+          )}
 
+          {!setupTrial && (
           <View style={styles.section}>
             <Text variant="h4" style={styles.sectionTitle}>
               Quick Actions
@@ -241,6 +454,7 @@ export default function BillingPaymentsScreen() {
               </TouchableOpacity>
             </Card>
           </View>
+          )}
         </Container>
       </ScrollView>
     </ScreenWrapper>
@@ -281,6 +495,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: '900',
   },
+  sectionSubtitle: {
+    marginBottom: 12,
+  },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -298,6 +515,39 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
+  },
+  paymentFormCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    padding: 16,
+  },
+  trialSummaryCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+  },
+  trialSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  trialSummaryLabel: {
+    fontWeight: '700',
+  },
+  trialSummaryValue: {
+    fontWeight: '800',
+  },
+  inlineRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  inlineField: {
+    flex: 1,
+  },
+  trialSubmitButton: {
+    marginTop: 8,
   },
   cardHeader: {
     flexDirection: 'row',
