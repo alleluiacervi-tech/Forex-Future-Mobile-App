@@ -1,5 +1,5 @@
 import prisma from "../db/prisma.js";
-import { requestRecommendation } from "../services/gemini.js";
+import { requestRecommendation } from "../services/groq.js";
 import { buildFootprintSummary } from "../services/footprints.js";
 import { getPriceForPair } from "../services/rates.js";
 

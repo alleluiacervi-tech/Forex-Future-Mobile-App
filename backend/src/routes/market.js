@@ -1,6 +1,6 @@
 import express from "express";
 import { buildFootprintSummary } from "../services/footprints.js";
-import { requestRecommendation } from "../services/gemini.js";
+import { requestRecommendation } from "../services/groq.js";
 import { getHistoricalRates, getLiveRates, getPriceForPair } from "../services/rates.js";
 import { parseSchema, recommendationSchema } from "../utils/validators.js";
 
