@@ -1,13 +1,18 @@
-import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { RouteProp, useRoute } from '@react-navigation/native';
+import React, { useState, useMemo } from 'react';
+import { View, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
-import { PriceChart, RSIChart } from '../../components/charts';
-import { Card, Text, Tabs } from '../../components/common';
+import TopNavBar from '../../components/navigation/TopNavBar';
+import LiveIndicator from '../../components/common/LiveIndicator';
+import { PriceChart, RSIChart, EMAChart } from '../../components/charts';
+import { Text, Card } from '../../components/common';
 import AIRecommendationCard from '../../components/market/AIRecommendationCard';
-import { useAIRecommendation, useMarketData, useTheme } from '../../hooks';
-import { formatPrice, formatPercent, formatNumber } from '../../utils';
+import ErrorBoundary from '../../components/common/ErrorBoundary';
+import { useMarketData, useTheme, useAIRecommendation } from '../../hooks';
+import { formatPrice, formatPercent } from '../../utils';
 import { APP_CONFIG } from '../../config';
 
 type CurrencyDetailRouteProp = RouteProp<RootStackParamList, 'CurrencyDetail'>;
@@ -67,7 +72,10 @@ export default function CurrencyDetailScreen() {
           {/* Pair Info */}
           <View style={[styles.header, { backgroundColor: theme.colors.surface }]}>
             <View>
-              <Text variant="h2">{currencyPair.symbol}</Text>
+              <View style={styles.titleRow}>
+                <Text variant="h2">{currencyPair.symbol}</Text>
+                <LiveIndicator size="medium" />
+              </View>
               <Text variant="bodySmall" color={theme.colors.textSecondary}>
                 {currencyPair.base} / {currencyPair.quote}
               </Text>
@@ -105,25 +113,21 @@ export default function CurrencyDetailScreen() {
             <Text variant="h4" style={styles.aiTitle}>
               AI Recommendation
             </Text>
-            {aiLoading ? (
-              <Card style={[styles.aiEmptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                <ActivityIndicator size="small" />
-              </Card>
-            ) : aiRecommendation ? (
-              <AIRecommendationCard recommendation={aiRecommendation} />
-            ) : aiError ? (
-              <Card style={[styles.aiEmptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                  {aiError}
-                </Text>
-              </Card>
-            ) : (
-              <Card style={[styles.aiEmptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                  No AI recommendation is available for this pair yet.
-                </Text>
-              </Card>
-            )}
+            <ErrorBoundary>
+              {aiRecommendation ? (
+                <AIRecommendationCard
+                  recommendation={aiRecommendation}
+                  onRefresh={() => refetch()}
+                  refreshing={aiLoading}
+                />
+              ) : (
+                <Card style={[styles.aiEmptyCard, { backgroundColor: theme.colors.surface }]}>
+                  <Text variant="bodySmall" color={theme.colors.textSecondary}>
+                    No AI recommendation is available for this pair yet.
+                  </Text>
+                </Card>
+              )}
+            </ErrorBoundary>
           </View>
 
           {/* Stats */}
@@ -157,6 +161,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   priceContainer: {
     alignItems: 'flex-end',

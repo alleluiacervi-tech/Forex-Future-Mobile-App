@@ -8,6 +8,9 @@ import { ScreenWrapper, Container } from '../../components/layout';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { CurrencyPairCard, PriceChangeIndicator } from '../../components/market';
 import AIRecommendationCard from '../../components/market/AIRecommendationCard';
+import LiveIndicator from '../../components/common/LiveIndicator';
+import ErrorBoundary from '../../components/common/ErrorBoundary';
+import { CurrencyPair } from '../../types/market';
 import { PriceChart, RSIChart } from '../../components/charts';
 import { Tabs, Text, Card } from '../../components/common';
 import { MAJOR_PAIRS } from '../../constants/forexPairs';
@@ -58,7 +61,10 @@ export default function MarketScreen() {
           <Card style={[styles.summaryCard, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.summaryHeader}>
               <View>
-                <Text variant="h4">{selectedPair.symbol}</Text>
+                <View style={styles.summaryTitleRow}>
+                  <Text variant="h4">{selectedPair.symbol}</Text>
+                  <LiveIndicator size="small" />
+                </View>
                 <Text variant="caption" color={theme.colors.textSecondary}>
                   {selectedPair.base} / {selectedPair.quote}
                 </Text>
@@ -124,21 +130,23 @@ export default function MarketScreen() {
             </Text>
           </View>
         ) : (
-          <FlatList
-            data={filteredPairs}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <CurrencyPairCard
-                pair={item}
-                onPress={() => {
-                  setSelectedPair(item);
-                  navigation.navigate('CurrencyDetail', { pair: item.symbol });
-                }}
-              />
-            )}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-          />
+          <ErrorBoundary>
+            <FlatList
+              data={filteredPairs}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <CurrencyPairCard
+                  pair={item}
+                  onPress={() => {
+                    setSelectedPair(item);
+                    navigation.navigate('CurrencyDetail', { pair: item.symbol });
+                  }}
+                />
+              )}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          </ErrorBoundary>
         )}
       </Container>
     </ScreenWrapper>
@@ -155,6 +163,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 12,
+  },
+  summaryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   summaryPrice: {
     alignItems: 'flex-end',

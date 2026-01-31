@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { Card } from '../common/Card';
 import { Text } from '../common';
@@ -9,9 +9,11 @@ import { AIRecommendation, RecommendationType } from '../../types/ai';
 interface AIRecommendationCardProps {
   recommendation: AIRecommendation;
   onPress?: () => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
-export default function AIRecommendationCard({ recommendation, onPress }: AIRecommendationCardProps) {
+export default function AIRecommendationCard({ recommendation, onPress, onRefresh, refreshing }: AIRecommendationCardProps) {
   const theme = useTheme();
 
   const getRecommendationColor = (rec: RecommendationType) => {
@@ -65,18 +67,25 @@ export default function AIRecommendationCard({ recommendation, onPress }: AIReco
               {recommendation.timeframe}
             </Text>
           </View>
-          <View style={[styles.recommendationBadge, { backgroundColor: getRecommendationColor(recommendation.recommendation) + '20' }]}>
-            <Icon
-              name={getRecommendationIcon(recommendation.recommendation)}
-              size={16}
-              color={getRecommendationColor(recommendation.recommendation)}
-            />
-            <Text
-              variant="caption"
-              style={[styles.recommendationText, { color: getRecommendationColor(recommendation.recommendation) }]}
-            >
-              {getRecommendationText(recommendation.recommendation)}
-            </Text>
+          <View style={styles.headerRight}>
+            <View style={[styles.recommendationBadge, { backgroundColor: getRecommendationColor(recommendation.recommendation) + '20' }]}>
+              <Icon
+                name={getRecommendationIcon(recommendation.recommendation)}
+                size={16}
+                color={getRecommendationColor(recommendation.recommendation)}
+              />
+              <Text
+                variant="caption"
+                style={[styles.recommendationText, { color: getRecommendationColor(recommendation.recommendation) }]}
+              >
+                {getRecommendationText(recommendation.recommendation)}
+              </Text>
+            </View>
+            {onRefresh && (
+              <Pressable onPress={onRefresh} disabled={refreshing} style={[styles.refreshButton, refreshing && styles.refreshDisabled]}>
+                <Icon name="refresh" size={16} color={refreshing ? theme.colors.textSecondary : theme.colors.primary} />
+              </Pressable>
+            )}
           </View>
         </View>
 
@@ -180,6 +189,11 @@ export default function AIRecommendationCard({ recommendation, onPress }: AIReco
             )}
           </View>
         )}
+        <View style={styles.footer}>
+          <Text variant="caption" color={theme.colors.textSecondary}>
+            Generated {recommendation.validityMinutes ? `valid ${recommendation.validityMinutes}m` : 'live'}
+          </Text>
+        </View>
       </View>
     </Card>
   );
@@ -205,7 +219,18 @@ const styles = StyleSheet.create({
   },
   pairText: {
     fontWeight: 'bold',
-    marginBottom: 2,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  refreshButton: {
+    padding: 4,
+    borderRadius: 4,
+  },
+  refreshDisabled: {
+    opacity: 0.4,
   },
   recommendationBadge: {
     flexDirection: 'row',
@@ -246,6 +271,12 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  footer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   levelsContainer: {
     flexDirection: 'row',
