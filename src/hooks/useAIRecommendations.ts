@@ -116,6 +116,11 @@ const createFallbackRecommendation = (
     targetPrice: takeProfit,
     stopLoss,
     timeframe,
+    rationale: `${action} based on ${absMomentum > 0.1 ? 'strong' : 'moderate'} momentum (${(momentum * 100).toFixed(2)}%) and ${volatility} volatility regime.`,
+    invalidation: `Price moves ${(action === 'BUY' ? 'below' : 'above')} ${stopLoss.toFixed(5)} or momentum reverses sharply.`,
+    assumptions: 'No major news events; normal liquidity; analysis based on recent price action.',
+    keyLevels: [entry, stopLoss, takeProfit],
+    validityMinutes: 120,
   };
 };
 
@@ -167,7 +172,7 @@ export const useAIRecommendation = (
       setError(null);
       try {
         const result = await fetchRecommendation(requestPayload);
-        setRecommendation(result);
+        setRecommendation(result.recommendation);
       } catch (err) {
         // Use fallback on any API error, but don’t spam logs
         const fallbackRec = createFallbackRecommendation(pair, '1H', options.price, options.change, options.changePercent);

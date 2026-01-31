@@ -180,22 +180,6 @@ export default function AIRecommendationCard({ recommendation, onPress }: AIReco
             )}
           </View>
         )}
-                  {recommendation.targetPrice.toFixed(4)}
-                </Text>
-              </View>
-            )}
-            {recommendation.stopLoss && (
-              <View style={styles.level}>
-                <Text variant="caption" color={theme.colors.textSecondary}>
-                  Stop Loss:
-                </Text>
-                <Text variant="bodySmall" color={theme.colors.error}>
-                  {recommendation.stopLoss.toFixed(4)}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
       </View>
     </Card>
   );
@@ -251,6 +235,17 @@ const styles = StyleSheet.create({
   insight: {
     lineHeight: 20,
     marginBottom: 12,
+  },
+  institutionalContainer: {
+    marginBottom: 12,
+  },
+  fieldBlock: {
+    marginBottom: 8,
+  },
+  fieldLabel: {
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   levelsContainer: {
     flexDirection: 'row',

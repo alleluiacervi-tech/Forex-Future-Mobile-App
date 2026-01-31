@@ -10,4 +10,9 @@ export interface AIRecommendation {
   targetPrice?: number;
   stopLoss?: number;
   timeframe: string;
+  rationale?: string;
+  invalidation?: string;
+  assumptions?: string;
+  keyLevels?: number[];
+  validityMinutes?: number;
 }
