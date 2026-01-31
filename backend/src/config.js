@@ -9,7 +9,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const backendEnvPath = path.join(__dirname, "..", ".env");
-if (!process.env.GEMINI_API_KEY) {
+if (!process.env.GROQ_API_KEY) {
   dotenv.config({ path: backendEnvPath });
 }
 
@@ -19,7 +19,7 @@ const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "2h",
   databaseUrl: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/forex",
   wsHeartbeatMs: Number(process.env.WS_HEARTBEAT_MS || 15000),
-  geminiApiKey: process.env.GEMINI_API_KEY || "",
+  groqApiKey: process.env.GROQ_API_KEY || "",
   twelveDataApiKey: process.env.TWELVEDATA_API_KEY || ""
 };
 
