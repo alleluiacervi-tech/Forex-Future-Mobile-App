@@ -53,6 +53,11 @@ interface RecommendationRequest {
   notes?: string;
 }
 
+interface RecommendationResult {
+  recommendation: AIRecommendation;
+  error?: string;
+}
+
 // Professional local fallback recommendation using technical heuristics
 const createFallbackRecommendation = (
   pair: string,
@@ -110,24 +115,28 @@ const createFallbackRecommendation = (
   };
 };
 
-const fetchRecommendation = async (payload: RecommendationRequest): Promise<AIRecommendation> => {
+const fetchRecommendation = async (payload: RecommendationRequest): Promise<RecommendationResult> => {
   const timeframe = payload.timeframe || '1H';
   try {
     const response = await apiPost<ApiRecommendationResponse>('/api/market/recommendations', {
       ...payload,
       timeframe,
     });
-    return mapRecommendation(payload.pair, timeframe, response.recommendation);
+    return { recommendation: mapRecommendation(payload.pair, timeframe, response.recommendation) };
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to fetch recommendation';
     // If API fails (e.g., quota), return a local fallback
     console.warn('[AI] API failed, using fallback recommendation:', err);
-    return createFallbackRecommendation(
-      payload.pair,
-      timeframe,
-      payload.currentPrice,
-      payload.change,
-      payload.changePercent,
-    );
+    return {
+      recommendation: createFallbackRecommendation(
+        payload.pair,
+        timeframe,
+        payload.currentPrice,
+        payload.change,
+        payload.changePercent,
+      ),
+      error: message,
+    };
   }
 };
 
@@ -154,7 +163,8 @@ export const useAIRecommendation = (
       setError(null);
       try {
         const result = await fetchRecommendation(requestPayload);
-        setRecommendation(result);
+        setRecommendation(result.recommendation);
+        if (result.error) setError(result.error);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch recommendation');
       } finally {
@@ -200,7 +210,9 @@ export const useAIRecommendations = (
     setError(null);
     try {
       const results = await Promise.all(payloads.map((payload) => fetchRecommendation(payload)));
-      setRecommendations(results);
+      setRecommendations(results.map((result) => result.recommendation));
+      const firstError = results.find((result) => result.error)?.error;
+      if (firstError) setError(firstError);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
     } finally {

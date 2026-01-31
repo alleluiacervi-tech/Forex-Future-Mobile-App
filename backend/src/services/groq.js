@@ -3,8 +3,9 @@ import config from "../config.js";
 const GROQ_BASE_URL = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
 const GROQ_CHAT_COMPLETIONS = `${GROQ_BASE_URL}/chat/completions`;
 
-const rawDefaultModel = process.env.GROQ_MODEL || "llama-3.1-70b-versatile";
-const DEFAULT_GROQ_MODEL = (rawDefaultModel || "").trim() || "llama-3.1-70b-versatile";
+// Default to a currently supported Groq model; can be overridden via GROQ_MODEL.
+const rawDefaultModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+const DEFAULT_GROQ_MODEL = (rawDefaultModel || "").trim() || "llama-3.1-8b-instant";
 
 /**
  * Small helpers
@@ -85,6 +86,15 @@ const parseStrictJson = (text) => {
 
   try {
     return JSON.parse(match[0]);
+  } catch (_) {
+    return null;
+  }
+};
+
+const parseGroqError = (errorText) => {
+  if (!errorText || typeof errorText !== "string") return null;
+  try {
+    return JSON.parse(errorText);
   } catch (_) {
     return null;
   }
@@ -258,7 +268,15 @@ const requestRecommendation = async (payload, opts = {}) => {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        const err = new Error(`Groq API error (${response.status}): ${errorText}`);
+        const parsedError = parseGroqError(errorText);
+        const decommissioned =
+          parsedError?.error?.code === "model_decommissioned" ||
+          String(parsedError?.error?.message || "").toLowerCase().includes("decommissioned");
+        const err = new Error(
+          decommissioned
+            ? "Groq model is decommissioned. Update GROQ_MODEL to a supported model."
+            : `Groq API error (${response.status}): ${errorText}`
+        );
         const retryableStatus =
           response.status === 408 ||
           response.status === 429 ||

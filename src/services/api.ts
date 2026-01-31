@@ -4,6 +4,19 @@ const baseUrl = APP_CONFIG.apiUrl.replace(/\/$/, '');
 
 const buildUrl = (path: string) => (path.startsWith('http') ? path : `${baseUrl}${path}`);
 
+const extractErrorMessage = (errorText: string, status: number) => {
+  if (!errorText) return `Request failed with ${status}`;
+  try {
+    const parsed = JSON.parse(errorText);
+    if (typeof parsed?.error === 'string') return parsed.error;
+    if (typeof parsed?.error?.message === 'string') return parsed.error.message;
+    if (typeof parsed?.message === 'string') return parsed.message;
+  } catch (_) {
+    // ignore JSON parse errors
+  }
+  return errorText || `Request failed with ${status}`;
+};
+
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(buildUrl(path), {
     headers: {
@@ -13,7 +26,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    const message = errorText || `Request failed with ${response.status}`;
+    const message = extractErrorMessage(errorText, response.status);
     throw new Error(message);
   }
 
@@ -42,7 +55,7 @@ export async function apiPost<T>(
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    const message = errorText || `Request failed with ${response.status}`;
+    const message = extractErrorMessage(errorText, response.status);
     throw new Error(message);
   }
 
