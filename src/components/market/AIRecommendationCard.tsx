@@ -101,6 +101,45 @@ export default function AIRecommendationCard({ recommendation, onPress }: AIReco
           {recommendation.insight}
         </Text>
 
+        {/* Institutional fields */}
+        {(recommendation.rationale || recommendation.invalidation || recommendation.assumptions) && (
+          <View style={styles.institutionalContainer}>
+            {recommendation.rationale && (
+              <View style={styles.fieldBlock}>
+                <Text variant="caption" color={theme.colors.textSecondary} style={styles.fieldLabel}>
+                  Rationale
+                </Text>
+                <Text variant="bodySmall">{recommendation.rationale}</Text>
+              </View>
+            )}
+            {recommendation.invalidation && (
+              <View style={styles.fieldBlock}>
+                <Text variant="caption" color={theme.colors.textSecondary} style={styles.fieldLabel}>
+                  Invalidation
+                </Text>
+                <Text variant="bodySmall" color={theme.colors.error}>{recommendation.invalidation}</Text>
+              </View>
+            )}
+            {recommendation.assumptions && (
+              <View style={styles.fieldBlock}>
+                <Text variant="caption" color={theme.colors.textSecondary} style={styles.fieldLabel}>
+                  Assumptions
+                </Text>
+                <Text variant="bodySmall">{recommendation.assumptions}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {recommendation.keyLevels && recommendation.keyLevels.length > 0 && (
+          <View style={styles.fieldBlock}>
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.fieldLabel}>
+              Key Levels
+            </Text>
+            <Text variant="bodySmall">{recommendation.keyLevels.map(l => l.toFixed(4)).join(', ')}</Text>
+          </View>
+        )}
+
         {(recommendation.entryPrice || recommendation.targetPrice || recommendation.stopLoss) && (
           <View style={styles.levelsContainer}>
             {recommendation.entryPrice && (
@@ -117,6 +156,30 @@ export default function AIRecommendationCard({ recommendation, onPress }: AIReco
                   Take Profit:
                 </Text>
                 <Text variant="bodySmall" color={theme.colors.success}>
+                  {recommendation.targetPrice.toFixed(4)}
+                </Text>
+              </View>
+            )}
+            {recommendation.stopLoss && (
+              <View style={styles.level}>
+                <Text variant="caption" color={theme.colors.textSecondary}>
+                  Stop Loss:
+                </Text>
+                <Text variant="bodySmall" color={theme.colors.error}>
+                  {recommendation.stopLoss.toFixed(4)}
+                </Text>
+              </View>
+            )}
+            {recommendation.validityMinutes && (
+              <View style={styles.level}>
+                <Text variant="caption" color={theme.colors.textSecondary}>
+                  Valid:
+                </Text>
+                <Text variant="bodySmall">{recommendation.validityMinutes}m</Text>
+              </View>
+            )}
+          </View>
+        )}
                   {recommendation.targetPrice.toFixed(4)}
                 </Text>
               </View>
