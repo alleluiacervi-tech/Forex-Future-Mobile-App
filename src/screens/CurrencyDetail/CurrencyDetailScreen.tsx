@@ -8,7 +8,7 @@ import { ScreenWrapper, Container } from '../../components/layout';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import LiveIndicator from '../../components/common/LiveIndicator';
 import { PriceChart, RSIChart, EMAChart } from '../../components/charts';
-import { Text, Card } from '../../components/common';
+import { Text, Card, Tabs } from '../../components/common';
 import AIRecommendationCard from '../../components/market/AIRecommendationCard';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import { useMarketData, useTheme, useAIRecommendation } from '../../hooks';
