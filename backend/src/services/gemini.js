@@ -1,47 +1,10 @@
 import config from "../config.js";
 
-const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_ENDPOINT = (model) => `${GEMINI_BASE_URL}/models/${model}:generateContent`;
-const GEMINI_LIST_MODELS = `${GEMINI_BASE_URL}/models`;
+const GROQ_BASE_URL = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
+const GROQ_CHAT_COMPLETIONS = `${GROQ_BASE_URL}/chat/completions`;
 
-const normalizeModelName = (name) => (name || "").replace(/^models\//, "");
-const rawDefaultModel = process.env.GEMINI_MODEL || "gemini-1.5-flash";
-const DEFAULT_GEMINI_MODEL = normalizeModelName(rawDefaultModel).startsWith("gemini")
-  ? normalizeModelName(rawDefaultModel)
-  : "gemini-1.5-flash";
-
-const selectFallbackModel = (models = []) => {
-  const eligible = models.filter((m) =>
-    Array.isArray(m?.supportedGenerationMethods)
-      ? m.supportedGenerationMethods.includes("generateContent")
-      : false
-  );
-  const normalized = eligible
-    .map((m) => normalizeModelName(m.name || m))
-    .filter((name) => name.startsWith("gemini"));
-  const preferred = [
-    "gemini-1.5-flash-latest",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro-002",
-    "gemini-1.5-pro-001",
-    "gemini-1.5-pro",
-    "gemini-1.0-pro"
-  ];
-  for (const candidate of preferred) {
-    if (normalized.includes(candidate)) return candidate;
-  }
-  return normalized[0] || DEFAULT_GEMINI_MODEL;
-};
-
-const listModels = async (apiKey) => {
-  const res = await fetch(`${GEMINI_LIST_MODELS}?key=${apiKey}`);
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Gemini listModels error (${res.status}): ${body}`);
-  }
-  const data = await res.json();
-  return Array.isArray(data?.models) ? data.models : [];
-};
+const rawDefaultModel = process.env.GROQ_MODEL || "llama-3.1-70b-versatile";
+const DEFAULT_GROQ_MODEL = (rawDefaultModel || "").trim() || "llama-3.1-70b-versatile";
 
 /**
  * Small helpers
@@ -106,7 +69,7 @@ const validateRecommendation = (obj) => {
 };
 
 /**
- * Try parsing strict JSON. If Gemini returns extra text (rare), extract last JSON object.
+ * Try parsing strict JSON. If the model returns extra text (rare), extract last JSON object.
  */
 const parseStrictJson = (text) => {
   if (!text || typeof text !== "string") return null;
@@ -260,28 +223,20 @@ const requestRecommendation = async (payload, opts = {}) => {
     retryBaseDelayMs = 600
   } = opts;
 
-  if (!config.geminiApiKey) {
-    throw new Error("Missing GEMINI_API_KEY configuration.");
+  if (!config.groqApiKey) {
+    throw new Error("Missing GROQ_API_KEY configuration.");
   }
 
-  const model = normalizeModelName(DEFAULT_GEMINI_MODEL);
-  const url = `${GEMINI_ENDPOINT(model)}?key=${config.geminiApiKey}`;
+  const model = DEFAULT_GROQ_MODEL;
+  const url = GROQ_CHAT_COMPLETIONS;
   const prompt = buildPrompt(payload);
 
   const requestBody = {
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: prompt }]
-      }
-    ],
-    generationConfig: {
-      temperature: 0.2,
-      topP: 0.9,
-      maxOutputTokens: 800
-      // Some environments support forcing JSON:
-      // responseMimeType: "application/json"
-    }
+    model,
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.2,
+    top_p: 0.9,
+    max_tokens: 800
   };
 
   let lastError = null;
@@ -292,23 +247,38 @@ const requestRecommendation = async (payload, opts = {}) => {
         url,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${config.groqApiKey}`
+          },
           body: JSON.stringify(requestBody)
         },
         timeoutMs
       );
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Gemini API error (${response.status}): ${errorText}`);
+        const errorText = await response.text().catch(() => "");
+        const err = new Error(`Groq API error (${response.status}): ${errorText}`);
+        const retryableStatus =
+          response.status === 408 ||
+          response.status === 429 ||
+          (response.status >= 500 && response.status <= 599);
+
+        if (retryableStatus && attempt < maxRetries) {
+          const backoff = retryBaseDelayMs * Math.pow(2, attempt);
+          await sleep(backoff);
+          continue;
+        }
+
+        throw err;
       }
 
       const data = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      const text = data?.choices?.[0]?.message?.content ?? "";
       const parsed = parseStrictJson(text);
 
       if (!parsed) {
-        throw new Error("Unable to parse Gemini response as JSON.");
+        throw new Error("Unable to parse Groq response as JSON.");
       }
 
       // Ensure all numeric fields are numbers or null
@@ -335,104 +305,18 @@ const requestRecommendation = async (payload, opts = {}) => {
     } catch (err) {
       lastError = err;
 
-      // Retry on network/timeout/5xx/429-ish errors (not on validation issues)
+      // Retry on network/timeout errors (not on validation issues)
       const msg = String(err?.message || "");
       const isAbort = msg.includes("aborted") || msg.toLowerCase().includes("abort");
       const isNetwork = msg.toLowerCase().includes("network");
-      const is5xx = msg.includes("Gemini API error (5");
-      const is404 = msg.includes("Gemini API error (404)");
-      const is429 = msg.includes("Gemini API error (429)") || msg.toLowerCase().includes("quota");
 
-      // If rate-limited (429), try to parse RetryInfo.retryDelay from the error payload
-      if (is429 && attempt < maxRetries) {
-        try {
-          const jsonStart = msg.indexOf("{");
-          if (jsonStart >= 0) {
-            const payloadText = msg.slice(jsonStart);
-            try {
-              const payload = JSON.parse(payloadText);
-              const details = Array.isArray(payload?.error?.details) ? payload.error.details : [];
-              for (const d of details) {
-                if ((d?.['@type'] || "").includes("RetryInfo") || d?.retryDelay) {
-                  const raw = d.retryDelay || d.retryDelaySeconds || null;
-                  if (typeof raw === "string") {
-                    const m = raw.match(/(\d+)(?:\.\d+)?s/);
-                    if (m) {
-                      const ms = Number(m[1]) * 1000;
-                      await sleep(ms + 250);
-                      // continue outer retry loop
-                      continue;
-                    }
-                  }
-                }
-              }
-            } catch (_) {
-              // ignore JSON parse errors, fall through to exponential backoff below
-            }
-          }
-        } catch (e) {
-          // ignore and fallback to backoff
-        }
+      if (attempt < maxRetries && (isAbort || isNetwork)) {
+        const backoff = retryBaseDelayMs * Math.pow(2, attempt);
+        await sleep(backoff);
+        continue;
       }
 
-      if (is404 && attempt < maxRetries) {
-        try {
-          const models = await listModels(config.geminiApiKey);
-          const fallback = selectFallbackModel(models);
-          const fallbackUrl = `${GEMINI_ENDPOINT(fallback)}?key=${config.geminiApiKey}`;
-          const retryResponse = await fetchWithTimeout(
-            fallbackUrl,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(requestBody)
-            },
-            timeoutMs
-          );
-          if (!retryResponse.ok) {
-            const retryText = await retryResponse.text();
-            throw new Error(`Gemini API error (${retryResponse.status}): ${retryText}`);
-          }
-          const retryData = await retryResponse.json();
-          const retryText = retryData?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-          const retryParsed = parseStrictJson(retryText);
-          if (!retryParsed) {
-            throw new Error("Unable to parse Gemini response as JSON.");
-          }
-
-          const normalized = {
-            ...retryParsed,
-            confidence: toNumberOrNull(retryParsed.confidence) ?? 0,
-            entry: retryParsed.entry === null ? null : toNumberOrNull(retryParsed.entry),
-            stopLoss: retryParsed.stopLoss === null ? null : toNumberOrNull(retryParsed.stopLoss),
-            takeProfit1: retryParsed.takeProfit1 === null ? null : toNumberOrNull(retryParsed.takeProfit1),
-            takeProfit2: retryParsed.takeProfit2 === null ? null : toNumberOrNull(retryParsed.takeProfit2),
-            positionSizeLots:
-              retryParsed.positionSizeLots === null ? null : toNumberOrNull(retryParsed.positionSizeLots),
-            validityMinutes:
-              retryParsed.validityMinutes === null ? null : toNumberOrNull(retryParsed.validityMinutes),
-            keyLevels: Array.isArray(retryParsed.keyLevels) ? retryParsed.keyLevels.map(Number) : []
-          };
-
-          const validation = validateRecommendation(normalized);
-          if (!validation.ok) {
-            throw new Error(`Invalid model output schema: ${validation.reason}`);
-          }
-
-          return normalized;
-        } catch (fallbackErr) {
-          lastError = fallbackErr;
-          break;
-        }
-      }
-
-      // Treat 429/5xx/abort/network as retryable
-      const shouldRetry = attempt < maxRetries && (isAbort || isNetwork || is5xx || is429);
-      if (!shouldRetry) break;
-
-      // Exponential backoff if no RetryInfo was used above
-      const backoff = retryBaseDelayMs * Math.pow(2, attempt);
-      await sleep(backoff);
+      break;
     }
   }
 

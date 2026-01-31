@@ -2,7 +2,7 @@ import { getHistoricalRates } from "./rates.js";
 
 /**
  * Professional Footprints / Market Structure Signal Engine (SMC-style)
- * - Designed to act separately from your Gemini recommender.
+ * - Designed to act separately from your AI recommender.
  * - Outputs interpretable, structured signals with confidence + evidence.
  *
  * IMPORTANT:

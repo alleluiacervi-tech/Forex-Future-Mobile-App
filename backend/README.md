@@ -34,7 +34,8 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/forex
 JWT_SECRET=change-me
 JWT_EXPIRES_IN=2h
 WS_HEARTBEAT_MS=15000
-GEMINI_API_KEY=your-gemini-api-key
+GROQ_API_KEY=your-groq-api-key
+GROQ_MODEL=llama-3.1-70b-versatile
 ```
 
 ### Database Setup
@@ -94,6 +95,6 @@ The backend emits live FX prices to all clients every heartbeat interval.
 
 The footprint endpoints provide heuristic signals (supply/demand zones, accumulation/distribution, mean-reversion stretch, and multi-timeframe bias). They are designed to help professional decision-making but are not guarantees. Replace the mock pricing service with a real market data feed in production and secure secrets with a proper vault or managed secret store.
 
-## Gemini AI Recommendations
+## Groq AI Recommendations
 
-The recommendations endpoint uses the Gemini API to return BUY/SELL/WAIT guidance with professional reasoning based on supply/demand, smart money concepts, and market psychology. It also calculates suggested position size based on user risk settings. Ensure `GEMINI_API_KEY` is configured before calling `POST /api/recommendations`.
+The recommendations endpoint uses the Groq API to return BUY/SELL/WAIT guidance with professional reasoning based on supply/demand, smart money concepts, and market psychology. It also calculates suggested position size based on user risk settings. Ensure `GROQ_API_KEY` is configured before calling `POST /api/recommendations`.
