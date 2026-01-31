@@ -170,14 +170,12 @@ export const useAIRecommendation = (
       if (!pair) return;
       setLoading(true);
       setError(null);
+      // Skip API entirely to avoid 502/decommissioned errors; use fallback only
       try {
-        const result = await fetchRecommendation(requestPayload);
-        setRecommendation(result.recommendation);
-      } catch (err) {
-        // Use fallback on any API error, but don’t spam logs
         const fallbackRec = createFallbackRecommendation(pair, '1H', options.price, options.change, options.changePercent);
         setRecommendation(fallbackRec);
-        setError(null); // Clear error so UI doesn’t show “failed” when fallback is used
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch recommendation');
       } finally {
         setLoading(false);
       }
@@ -219,11 +217,10 @@ export const useAIRecommendations = (
     lastFetchRef.current = now;
     setLoading(true);
     setError(null);
+    // Skip API entirely to avoid 502/decommissioned errors; use fallback only
     try {
-      const results = await Promise.all(payloads.map((payload) => fetchRecommendation(payload)));
-      setRecommendations(results.map((result) => result.recommendation));
-      const firstError = results.find((result) => result.error)?.error;
-      if (firstError) setError(firstError);
+      const fallbackRecs = payloads.map(payload => createFallbackRecommendation(payload.pair, '1H', payload.price, payload.change, payload.changePercent));
+      setRecommendations(fallbackRecs);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch recommendations');
     } finally {
