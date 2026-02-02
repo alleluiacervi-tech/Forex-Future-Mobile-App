@@ -7,12 +7,12 @@ import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import LiveIndicator from '../../components/common/LiveIndicator';
-import { PriceChart, RSIChart, EMAChart } from '../../components/charts';
+import { PriceChart, RSIChart } from '../../components/charts';
 import { Text, Card, Tabs } from '../../components/common';
 import AIRecommendationCard from '../../components/market/AIRecommendationCard';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import { useMarketData, useTheme, useAIRecommendation } from '../../hooks';
-import { formatPrice, formatPercent } from '../../utils';
+import { formatPrice, formatPercent, formatNumber } from '../../utils';
 import { APP_CONFIG } from '../../config';
 
 type CurrencyDetailRouteProp = RouteProp<RootStackParamList, 'CurrencyDetail'>;
@@ -46,6 +46,7 @@ export default function CurrencyDetailScreen() {
     recommendation: aiRecommendation,
     loading: aiLoading,
     error: aiError,
+    refetch,
   } = useAIRecommendation(pair, recommendationOptions);
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
