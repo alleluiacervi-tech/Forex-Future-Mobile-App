@@ -80,4 +80,31 @@ router.post("/recommendations", async (req, res) => {
   }
 });
 
+// Mock quote endpoint for fallback when WebSocket is unavailable
+router.post("/quote", async (req, res) => {
+  try {
+    const { symbol } = req.body;
+    
+    // Mock realistic forex quotes
+    const mockQuotes = {
+      'OANDA:EUR_USD': 1.0850 + (Math.random() - 0.5) * 0.002,
+      'OANDA:GBP_USD': 1.2650 + (Math.random() - 0.5) * 0.002,
+      'OANDA:USD_JPY': 157.50 + (Math.random() - 0.5) * 0.5,
+      'OANDA:USD_CHF': 0.8950 + (Math.random() - 0.5) * 0.002,
+      'OANDA:AUD_USD': 0.6550 + (Math.random() - 0.5) * 0.002,
+      'OANDA:NZD_USD': 0.6150 + (Math.random() - 0.5) * 0.002,
+    };
+    
+    const currentPrice = mockQuotes[symbol] || 1.0;
+    
+    res.json({
+      currentPrice,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Quote API error:', error);
+    res.status(500).json({ error: 'Failed to fetch quote' });
+  }
+});
+
 export default router;
