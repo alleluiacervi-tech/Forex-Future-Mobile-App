@@ -1,8 +1,11 @@
+import { EventEmitter } from "events";
 import { basePrices, pairToSymbol, supportedPairs, symbolToPair } from "./marketSymbols.js";
 
 const liveBySymbol = new Map();
 const historyBySymbol = new Map();
 const MAX_HISTORY_POINTS = 2000;
+
+const marketEvents = new EventEmitter();
 
 const isJpyPair = (pair) => pair.includes("JPY");
 const decimalsForPair = (pair) => (isJpyPair(pair) ? 3 : 5);
@@ -23,7 +26,7 @@ const parseIntervalMs = (interval) => {
   return 60 * 60 * 1000;
 };
 
-const recordTrade = ({ symbol, price, timestampMs }) => {
+const recordTrade = ({ symbol, price, timestampMs, volume }) => {
   if (!symbolToPair[symbol]) return;
   if (!Number.isFinite(price)) return;
   const ts = Number.isFinite(timestampMs) ? timestampMs : Date.now();
@@ -37,6 +40,17 @@ const recordTrade = ({ symbol, price, timestampMs }) => {
   } catch {}
 
   liveBySymbol.set(symbol, { price, timestampMs: ts });
+
+  try {
+    const pair = symbolToPair[symbol];
+    marketEvents.emit("trade", {
+      symbol,
+      pair,
+      price,
+      timestampMs: ts,
+      volume: Number.isFinite(Number(volume)) ? Number(volume) : 0
+    });
+  } catch {}
 
   const history = historyBySymbol.get(symbol) || [];
   history.push({ price, timestampMs: ts });
@@ -123,4 +137,4 @@ const getHistoricalFromCache = ({ pair, points, interval }) => {
   return data;
 };
 
-export { recordTrade, recordQuote, getLiveRatesFromCache, getHistoricalFromCache };
+export { marketEvents, recordTrade, recordQuote, getLiveRatesFromCache, getHistoricalFromCache };

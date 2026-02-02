@@ -140,3 +140,34 @@ model PaymentMethod {
 
   @@index([userId])
 }
+
+model MarketCandle {
+  id          String   @id @default(uuid())
+  pair        String
+  interval    String
+  bucketStart DateTime
+  open        Float
+  high        Float
+  low         Float
+  close       Float
+  volume      Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([pair, interval, bucketStart])
+  @@index([pair, interval, bucketStart])
+}
+
+model MarketAlert {
+  id            String   @id @default(uuid())
+  pair          String
+  windowMinutes Int
+  fromPrice     Float
+  toPrice       Float
+  changePercent Float
+  severity      String
+  triggeredAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([pair, triggeredAt])
+}
