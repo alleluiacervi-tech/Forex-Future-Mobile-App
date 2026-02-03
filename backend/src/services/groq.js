@@ -19,11 +19,15 @@ const toNumberOrNull = (v) => {
 
 const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
+const isJpyPair = (pair) => typeof pair === "string" && pair.includes("JPY");
+const decimalsForPair = (pair) => (isJpyPair(pair) ? 3 : 5);
+const pipSizeForPair = (pair) => (isJpyPair(pair) ? 0.01 : 0.0001);
+
 /**
  * Minimal schema validation (no external libs).
  * Ensures required keys exist and types are sane.
  */
-const validateRecommendation = (obj) => {
+const validateRecommendationShape = (obj) => {
   if (!obj || typeof obj !== "object") return { ok: false, reason: "Response is not an object." };
 
   const allowedActions = new Set(["BUY", "SELL", "WAIT"]);
@@ -67,6 +71,71 @@ const validateRecommendation = (obj) => {
   }
 
   return { ok: true };
+};
+
+const validateRecommendationSemantics = (obj, ctx = {}) => {
+  const errors = [];
+  const pair = ctx?.pair;
+  const pipSize = pipSizeForPair(pair);
+
+  const isNum = (v) => Number.isFinite(Number(v));
+  const asNum = (v) => (v === null ? null : Number(v));
+
+  const entry = asNum(obj.entry);
+  const stopLoss = asNum(obj.stopLoss);
+  const takeProfit1 = asNum(obj.takeProfit1);
+  const takeProfit2 = asNum(obj.takeProfit2);
+
+  if (obj.action === "WAIT") {
+    const shouldBeNull = ["entry", "stopLoss", "takeProfit1", "takeProfit2", "positionSizeLots"];
+    for (const k of shouldBeNull) {
+      if (obj[k] !== null) errors.push(`For WAIT, ${k} must be null.`);
+    }
+    return { ok: errors.length === 0, errors };
+  }
+
+  // BUY/SELL require entry/SL/TP1
+  if (!isNum(entry)) errors.push("entry must be a number for BUY/SELL.");
+  if (!isNum(stopLoss)) errors.push("stopLoss must be a number for BUY/SELL.");
+  if (!isNum(takeProfit1)) errors.push("takeProfit1 must be a number for BUY/SELL.");
+  if (errors.length > 0) return { ok: false, errors };
+
+  const risk = Math.abs(entry - stopLoss);
+  const reward1 = Math.abs(takeProfit1 - entry);
+  if (risk <= 0) errors.push("Invalid stopLoss: risk distance is zero.");
+
+  const rr1 = risk > 0 ? reward1 / risk : 0;
+  if (rr1 < 2) errors.push(`Risk/Reward must be >= 1:2 (got ~1:${rr1.toFixed(2)}).`);
+
+  const stopDistancePips = risk / pipSize;
+  if (stopDistancePips < 2) errors.push(`Stop distance too tight (~${stopDistancePips.toFixed(1)} pips).`);
+
+  if (obj.action === "BUY") {
+    if (!(stopLoss < entry)) errors.push("For BUY, stopLoss must be below entry.");
+    if (!(takeProfit1 > entry)) errors.push("For BUY, takeProfit1 must be above entry.");
+    if (takeProfit2 !== null) {
+      if (!isNum(takeProfit2)) errors.push("takeProfit2 must be a number or null.");
+      else if (!(takeProfit2 > takeProfit1)) errors.push("For BUY, takeProfit2 must be above takeProfit1.");
+    }
+  }
+
+  if (obj.action === "SELL") {
+    if (!(stopLoss > entry)) errors.push("For SELL, stopLoss must be above entry.");
+    if (!(takeProfit1 < entry)) errors.push("For SELL, takeProfit1 must be below entry.");
+    if (takeProfit2 !== null) {
+      if (!isNum(takeProfit2)) errors.push("takeProfit2 must be a number or null.");
+      else if (!(takeProfit2 < takeProfit1)) errors.push("For SELL, takeProfit2 must be below takeProfit1.");
+    }
+  }
+
+  // If pipValuePerLot was provided, expect a position size for BUY/SELL.
+  if (Number.isFinite(Number(ctx?.pipValuePerLot))) {
+    if (!Number.isFinite(Number(obj.positionSizeLots))) {
+      errors.push("positionSizeLots must be a number when pipValuePerLot is provided.");
+    }
+  }
+
+  return { ok: errors.length === 0, errors };
 };
 
 /**
@@ -114,6 +183,7 @@ const buildPrompt = ({
   accountBalance,
   riskPercent,
   notes,
+  accountCurrency = null,
 
   // Optional execution realism
   spreadPips = null,
@@ -121,6 +191,9 @@ const buildPrompt = ({
 
   // Optional for accurate sizing
   pipValuePerLot = null,
+
+  // Optional: key levels precomputed by the signal engine (zones/FVG/etc)
+  keyLevelsHint = null,
 
   // Optional market context (your LSTM outputs)
   lstmContext = null,
@@ -134,6 +207,8 @@ const buildPrompt = ({
   const riskPct = clamp(Number(riskPercent ?? 0), 0, 5); // cap at 5% by default (pro risk mgmt)
   const acct = Number(accountBalance ?? 0);
   const price = Number(currentPrice ?? 0);
+  const priceDecimals = decimalsForPair(pair);
+  const pipSize = pipSizeForPair(pair);
 
   const schema = `{
   "action": "BUY" | "SELL" | "WAIT",
@@ -177,6 +252,10 @@ If pipValuePerLot provided:
 positionSizeLots = riskAmount / (stopDistancePips * pipValuePerLot)
 Else positionSizeLots = null.
 
+PRICE CONVENTIONS:
+- 1 pip for this pair = ${pipSize}.
+- Format all price levels (entry/stop/take profits/keyLevels) to ${priceDecimals} decimals.
+
 RISK FILTERS:
 - If newsRisk is HIGH -> default WAIT unless setup is exceptionally clean with defined invalidation.
 - If spread/slippage is abnormal -> reduce confidence or WAIT.
@@ -187,6 +266,7 @@ Pair: ${pair}
 Timeframe focus: ${timeframe}
 Current price: ${price}
 Account balance: ${acct}
+Account currency: ${accountCurrency ?? "Unknown"}
 Risk percent per trade: ${riskPct}
 Session: ${session ?? "Unknown"}
 News risk: ${newsRisk ?? "Unknown"}
@@ -194,6 +274,9 @@ Spread (pips): ${spreadPips ?? "Unknown"}
 Slippage (pips): ${slippagePips ?? "Unknown"}
 Pip value per 1.00 lot: ${pipValuePerLot ?? "Unknown"}
 Notes: ${notes || "None"}
+
+KEY LEVELS HINT (from our signal engine; use as anchors, you may include additional levels if justified):
+${Array.isArray(keyLevelsHint) && keyLevelsHint.length ? JSON.stringify(keyLevelsHint) : "None"}
 
 OPTIONAL LSTM MARKET REGIME CONTEXT (use if provided; do not contradict it without reason):
 ${lstmContext ? JSON.stringify(lstmContext, null, 2) : "None"}
@@ -204,7 +287,28 @@ RESPONSE QUALITY:
 - Provide invalidation (what would make the idea wrong).
 - validityMinutes should be realistic (e.g., 60-360) or null if WAIT.
 
+IF action is WAIT:
+- Set entry/stopLoss/takeProfit1/takeProfit2/positionSizeLots to null.
+
 Return JSON now.
+`.trim();
+};
+
+const buildRepairPrompt = ({ originalPrompt, previousJson, errors }) => {
+  const problems = Array.isArray(errors) && errors.length ? errors.map((e) => `- ${e}`).join("\n") : "- Unknown issue";
+  return `
+You MUST repair your previous JSON so it strictly matches the schema and obeys the rules.
+
+Original prompt:
+${originalPrompt}
+
+Your previous JSON:
+${JSON.stringify(previousJson, null, 2)}
+
+Problems to fix:
+${problems}
+
+Return ONLY corrected JSON (no markdown, no extra text).
 `.trim();
 };
 
@@ -244,8 +348,8 @@ const requestRecommendation = async (payload, opts = {}) => {
   const requestBody = {
     model,
     messages: [{ role: "user", content: prompt }],
-    temperature: 0.2,
-    top_p: 0.9,
+    temperature: 0.15,
+    top_p: 0.85,
     max_tokens: 800
   };
 
@@ -292,15 +396,9 @@ const requestRecommendation = async (payload, opts = {}) => {
       }
 
       const data = await response.json();
-      const text = data?.choices?.[0]?.message?.content ?? "";
-      const parsed = parseStrictJson(text);
+      const choices = Array.isArray(data?.choices) ? data.choices : [];
 
-      if (!parsed) {
-        throw new Error("Unable to parse Groq response as JSON.");
-      }
-
-      // Ensure all numeric fields are numbers or null
-      const normalized = {
+      const normalize = (parsed) => ({
         ...parsed,
         confidence: toNumberOrNull(parsed.confidence) ?? 0,
         entry: parsed.entry === null ? null : toNumberOrNull(parsed.entry),
@@ -312,14 +410,72 @@ const requestRecommendation = async (payload, opts = {}) => {
         validityMinutes:
           parsed.validityMinutes === null ? null : toNumberOrNull(parsed.validityMinutes),
         keyLevels: Array.isArray(parsed.keyLevels) ? parsed.keyLevels.map(Number) : []
+      });
+
+      const validateAll = (candidate) => {
+        const shape = validateRecommendationShape(candidate);
+        if (!shape.ok) return { ok: false, errors: [shape.reason] };
+        const semantics = validateRecommendationSemantics(candidate, {
+          pair: payload?.pair,
+          pipValuePerLot: payload?.pipValuePerLot
+        });
+        if (!semantics.ok) return { ok: false, errors: semantics.errors };
+        return { ok: true, errors: [] };
       };
 
-      const validation = validateRecommendation(normalized);
-      if (!validation.ok) {
-        throw new Error(`Invalid model output schema: ${validation.reason}`);
+      // 1) Try the first response as-is
+      const primaryText = choices?.[0]?.message?.content ?? "";
+      const primaryParsed = parseStrictJson(primaryText);
+      if (primaryParsed) {
+        const normalized = normalize(primaryParsed);
+        const ok = validateAll(normalized);
+        if (ok.ok) return normalized;
+
+        // 2) One repair round: feed back errors + previous JSON and force correction
+        const repairPrompt = buildRepairPrompt({
+          originalPrompt: prompt,
+          previousJson: normalized,
+          errors: ok.errors
+        });
+
+        const repairBody = {
+          ...requestBody,
+          messages: [{ role: "user", content: repairPrompt }],
+          temperature: 0,
+          top_p: 1
+        };
+
+        const repairRes = await fetchWithTimeout(
+          url,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${config.groqApiKey}`
+            },
+            body: JSON.stringify(repairBody)
+          },
+          timeoutMs
+        );
+
+        if (repairRes.ok) {
+          const repairData = await repairRes.json();
+          const repairText = repairData?.choices?.[0]?.message?.content ?? "";
+          const repairParsed = parseStrictJson(repairText);
+          if (repairParsed) {
+            const repaired = normalize(repairParsed);
+            const repairedOk = validateAll(repaired);
+            if (repairedOk.ok) return repaired;
+            throw new Error(`Invalid model output after repair: ${repairedOk.errors.join("; ")}`);
+          }
+          throw new Error("Unable to parse repaired Groq response as JSON.");
+        }
+
+        const errText = await repairRes.text().catch(() => "");
+        throw new Error(`Groq repair call failed (${repairRes.status}): ${errText}`);
       }
 
-      return normalized;
+      throw new Error("Unable to parse Groq response as JSON.");
     } catch (err) {
       lastError = err;
 
