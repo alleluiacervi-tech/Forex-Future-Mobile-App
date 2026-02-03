@@ -5,15 +5,27 @@ import { symbolToPair } from "./marketSymbols.js";
 
 const alertEvents = new EventEmitter();
 
+const parseIntervalMs = (interval) => {
+  if (typeof interval !== "string") return 60 * 1000;
+  const match = interval.match(/^(\d+)(min|m|h|d)$/i);
+  if (!match) return 60 * 1000;
+  const qty = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  if (!Number.isFinite(qty) || qty <= 0) return 60 * 1000;
+  if (unit === "min" || unit === "m") return qty * 60 * 1000;
+  if (unit === "h") return qty * 60 * 60 * 1000;
+  if (unit === "d") return qty * 24 * 60 * 60 * 1000;
+  return 60 * 1000;
+};
+
 const toBucketStartMs = (timestampMs, interval) => {
   const ts = Number.isFinite(Number(timestampMs)) ? Number(timestampMs) : Date.now();
-  if (interval === "1m") return Math.floor(ts / 60000) * 60000;
-  if (interval === "1h") return Math.floor(ts / 3600000) * 3600000;
+  const intervalMs = parseIntervalMs(interval);
   if (interval === "1d") {
     const d = new Date(ts);
     return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0);
   }
-  return Math.floor(ts / 60000) * 60000;
+  return Math.floor(ts / intervalMs) * intervalMs;
 };
 
 const candleKey = (pair, interval, bucketStartMs) => `${pair}|${interval}|${bucketStartMs}`;
@@ -29,7 +41,7 @@ const state = {
   disabledReason: null,
   ticksByPair: new Map(),
   lastAlertKeyAt: new Map(),
-  maxTickWindowMs: Number(process.env.MARKET_ALERT_TICK_WINDOW_MS || 30 * 60 * 1000)
+  maxTickWindowMs: Number(process.env.MARKET_ALERT_TICK_WINDOW_MS || 26 * 60 * 60 * 1000)
 };
 
 const ensureTicks = (pair) => {
@@ -56,15 +68,18 @@ const findPriceAtOrBefore = (ticks, targetMs) => {
 
 const alertThresholds = {
   1: Number(process.env.MARKET_ALERT_THRESHOLD_1M || 0.12),
-  5: Number(process.env.MARKET_ALERT_THRESHOLD_5M || 0.25),
-  15: Number(process.env.MARKET_ALERT_THRESHOLD_15M || 0.45)
+  15: Number(process.env.MARKET_ALERT_THRESHOLD_15M || 0.45),
+  60: Number(process.env.MARKET_ALERT_THRESHOLD_1H || 0.9),
+  240: Number(process.env.MARKET_ALERT_THRESHOLD_4H || 1.4),
+  1440: Number(process.env.MARKET_ALERT_THRESHOLD_1D || 2.2)
 };
 
 const alertCooldownMs = Number(process.env.MARKET_ALERT_COOLDOWN_MS || 10 * 60 * 1000);
 
 const severityFor = (absChangePercent, windowMinutes) => {
+  if (windowMinutes >= 240 && absChangePercent >= 1.2) return "high";
+  if (windowMinutes >= 60 && absChangePercent >= 0.9) return "high";
   if (windowMinutes >= 15 && absChangePercent >= 0.5) return "high";
-  if (windowMinutes >= 5 && absChangePercent >= 0.35) return "high";
   if (absChangePercent >= 0.6) return "high";
   return "medium";
 };
@@ -72,7 +87,7 @@ const severityFor = (absChangePercent, windowMinutes) => {
 const maybeCreateAlerts = async ({ pair, tsMs, price, ticks }) => {
   if (!prisma.marketAlert) return;
 
-  const windows = [1, 5, 15];
+  const windows = [1, 15, 60, 240, 1440];
   for (const windowMinutes of windows) {
     const threshold = alertThresholds[windowMinutes];
     if (!Number.isFinite(threshold)) continue;
@@ -214,7 +229,9 @@ const startMarketRecorder = () => {
       pruneTicks(ticks, tsMs);
 
       recordIntoCandle({ pair, interval: "1m", tsMs, price, volume });
+      recordIntoCandle({ pair, interval: "15m", tsMs, price, volume });
       recordIntoCandle({ pair, interval: "1h", tsMs, price, volume });
+      recordIntoCandle({ pair, interval: "4h", tsMs, price, volume });
       recordIntoCandle({ pair, interval: "1d", tsMs, price, volume });
 
       void maybeCreateAlerts({ pair, tsMs, price, ticks });
