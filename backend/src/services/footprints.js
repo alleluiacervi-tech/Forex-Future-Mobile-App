@@ -77,12 +77,13 @@ const percentile = (values, p) => {
  */
 const buildCandles = async (pair, points = 120, opts = {}) => {
   const {
+    interval = "1h",
     syntheticSpreadFactor = 0.002, // only used if point.volatility missing
     ensureVolume = true,
     defaultVolume = 1
   } = opts;
 
-  const history = await getHistoricalRates(pair, points);
+  const history = await getHistoricalRates(pair, points, { interval });
   if (!Array.isArray(history) || history.length === 0) return [];
 
   return history.map((point) => {
@@ -444,15 +445,17 @@ const detectRubberBand = (candles, opts = {}) => {
 const detectMultiTimeframeBias = async (pair, opts = {}) => {
   const {
     frames = [
-      { label: "M15", points: 60, maPeriod: 20 },
-      { label: "H1", points: 120, maPeriod: 40 },
-      { label: "H4", points: 240, maPeriod: 60 }
+      { label: "D1", interval: "1d", points: 180, maPeriod: 50 },
+      { label: "H4", interval: "4h", points: 240, maPeriod: 60 },
+      { label: "H1", interval: "1h", points: 240, maPeriod: 60 },
+      { label: "M15", interval: "15m", points: 240, maPeriod: 60 },
+      { label: "M1", interval: "1m", points: 300, maPeriod: 100 }
     ],
     candleOpts = {}
   } = opts;
 
   const results = await Promise.all(frames.map(async (f) => {
-    const candles = await buildCandles(pair, f.points, candleOpts);
+    const candles = await buildCandles(pair, f.points, { ...candleOpts, interval: f.interval || "1h" });
     if (candles.length < f.maPeriod + 5) {
       return {
         timeframe: f.label,
