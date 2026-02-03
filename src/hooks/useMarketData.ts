@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CurrencyPair } from '../types/market';
 import { MAJOR_PAIRS } from '../constants/forexPairs';
 import { apiPost } from '../services/api';
+import { APP_CONFIG } from '../config';
 
 // Map Finnhub symbols to our format
 const FINNHUB_SYMBOL_MAP: Record<string, string> = {
@@ -55,22 +56,18 @@ export const useMarketData = (refreshInterval: number = 5000) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
-      // Get Finnhub WebSocket token from environment or use fallback
-      const wsToken = process.env.EXPO_PUBLIC_FINNHUB_WS_KEY || 'demo';
-      const wsUrl = `wss://ws.finnhub.io?token=${wsToken}`;
-      
-      console.log('[MarketData] Connecting to Finnhub WebSocket:', wsUrl);
+      const wsBaseOverride = process.env.EXPO_PUBLIC_MARKET_WS_URL;
+      const base = (wsBaseOverride || APP_CONFIG.apiUrl).replace(/\/$/, '');
+      const wsBase = base.startsWith('ws') ? base : base.replace(/^http/, 'ws');
+      const wsUrl = `${wsBase}/ws/market`;
+
+      console.log('[MarketData] Connecting to market WebSocket:', wsUrl);
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
         console.log('[MarketData] WebSocket connected');
         setError(null);
         reconnectAttemptsRef.current = 0;
-        
-        // Subscribe to forex pairs
-        Object.values(FINNHUB_SYMBOL_MAP).forEach(symbol => {
-          wsRef.current?.send(JSON.stringify({ type: 'subscribe', symbol }));
-        });
       };
 
       wsRef.current.onmessage = (event) => {
