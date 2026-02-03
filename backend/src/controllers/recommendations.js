@@ -2,6 +2,13 @@ import prisma from "../db/prisma.js";
 import { requestRecommendation } from "../services/groq.js";
 import { buildFootprintSummary } from "../services/footprints.js";
 import { getPriceForPair } from "../services/rates.js";
+import {
+  computePipValuePerLot,
+  defaultFootprintPointsForInterval,
+  extractKeyLevelsHint,
+  getSessionUtc,
+  normalizeTimeframeToInterval
+} from "../services/recommendationContext.js";
 
 const createRecommendation = async (req, res) => {
   const {
@@ -20,19 +27,28 @@ const createRecommendation = async (req, res) => {
     const resolvedBalance = accountBalance ?? account?.balance;
     const resolvedTimeframe = timeframe || "1H";
     const resolvedRisk = riskPercent ?? 1;
+    const accountCurrency = account?.currency || "USD";
 
     if (!resolvedPrice || !resolvedBalance) {
       return res.status(400).json({ error: "Missing pricing or account balance for recommendation." });
     }
 
-    const footprint = await buildFootprintSummary(pair);
+    const interval = normalizeTimeframeToInterval(resolvedTimeframe) || "1h";
+    const points = defaultFootprintPointsForInterval(interval);
+    const footprint = await buildFootprintSummary(pair, { points, candleOpts: { interval } });
+    const keyLevelsHint = extractKeyLevelsHint({ footprint, pair });
+    const pipValuePerLot = computePipValuePerLot({ pair, price: resolvedPrice, accountCurrency });
     const recommendation = await requestRecommendation({
       pair,
       timeframe: resolvedTimeframe,
       currentPrice: resolvedPrice,
       accountBalance: resolvedBalance,
+      accountCurrency,
       riskPercent: resolvedRisk,
       notes,
+      pipValuePerLot,
+      session: getSessionUtc(),
+      keyLevelsHint,
       lstmContext: footprint
     });
 

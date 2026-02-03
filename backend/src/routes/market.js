@@ -4,6 +4,13 @@ import { buildFootprintSummary } from "../services/footprints.js";
 import { requestRecommendation } from "../services/groq.js";
 import { getHistoricalRates, getLiveRates, getPriceForPair } from "../services/rates.js";
 import { symbolToPair } from "../services/marketSymbols.js";
+import {
+  computePipValuePerLot,
+  defaultFootprintPointsForInterval,
+  extractKeyLevelsHint,
+  getSessionUtc,
+  normalizeTimeframeToInterval
+} from "../services/recommendationContext.js";
 import { parseSchema, recommendationSchema } from "../utils/validators.js";
 
 const router = express.Router();
@@ -94,14 +101,23 @@ router.post("/recommendations", async (req, res) => {
       return res.status(400).json({ error: "Missing pricing for recommendation." });
     }
 
-    const footprint = await buildFootprintSummary(pair);
+    const interval = normalizeTimeframeToInterval(resolvedTimeframe) || "1h";
+    const points = defaultFootprintPointsForInterval(interval);
+    const footprint = await buildFootprintSummary(pair, { points, candleOpts: { interval } });
+    const accountCurrency = "USD";
+    const keyLevelsHint = extractKeyLevelsHint({ footprint, pair });
+    const pipValuePerLot = computePipValuePerLot({ pair, price: resolvedPrice, accountCurrency });
     const recommendation = await requestRecommendation({
       pair,
       timeframe: resolvedTimeframe,
       currentPrice: resolvedPrice,
       accountBalance: resolvedBalance,
+      accountCurrency,
       riskPercent: resolvedRisk,
       notes,
+      pipValuePerLot,
+      session: getSessionUtc(),
+      keyLevelsHint,
       lstmContext: footprint
     });
 
