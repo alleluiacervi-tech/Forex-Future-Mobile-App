@@ -1,6 +1,7 @@
 import prisma from "../db/prisma.js";
 import { requestRecommendation } from "../services/groq.js";
 import { buildFootprintSummary } from "../services/footprints.js";
+import { getMarketWindowSnapshot } from "../services/marketRecorder.js";
 import { getPriceForPair } from "../services/rates.js";
 import {
   computePipValuePerLot,
@@ -38,6 +39,7 @@ const createRecommendation = async (req, res) => {
     const footprint = await buildFootprintSummary(pair, { points, candleOpts: { interval } });
     const keyLevelsHint = extractKeyLevelsHint({ footprint, pair });
     const pipValuePerLot = computePipValuePerLot({ pair, price: resolvedPrice, accountCurrency });
+    const windowSnapshot = getMarketWindowSnapshot(pair);
     const recommendation = await requestRecommendation({
       pair,
       timeframe: resolvedTimeframe,
@@ -49,6 +51,7 @@ const createRecommendation = async (req, res) => {
       pipValuePerLot,
       session: getSessionUtc(),
       keyLevelsHint,
+      windowSnapshot,
       lstmContext: footprint
     });
 

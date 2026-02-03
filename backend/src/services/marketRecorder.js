@@ -66,6 +66,39 @@ const findPriceAtOrBefore = (ticks, targetMs) => {
   return null;
 };
 
+const getMarketWindowSnapshot = (pair, windowsMinutes = [1, 15, 60, 240, 1440]) => {
+  const ticks = state.ticksByPair.get(pair) || [];
+  const last = ticks.length ? ticks[ticks.length - 1] : null;
+  const asOfMs = Number.isFinite(Number(last?.tsMs)) ? Number(last.tsMs) : Date.now();
+  const lastPrice = Number.isFinite(Number(last?.price)) ? Number(last.price) : null;
+
+  const windows = (Array.isArray(windowsMinutes) ? windowsMinutes : [])
+    .map((m) => Number(m))
+    .filter((m) => Number.isFinite(m) && m > 0)
+    .map((windowMinutes) => {
+      const windowMs = windowMinutes * 60 * 1000;
+      const fromPrice = findPriceAtOrBefore(ticks, asOfMs - windowMs);
+      const toPrice = lastPrice;
+      const changePercent =
+        Number.isFinite(fromPrice) && Number.isFinite(toPrice) && fromPrice !== 0
+          ? ((toPrice - fromPrice) / fromPrice) * 100
+          : null;
+      return {
+        windowMinutes,
+        fromPrice: Number.isFinite(fromPrice) ? fromPrice : null,
+        toPrice: Number.isFinite(toPrice) ? toPrice : null,
+        changePercent: Number.isFinite(changePercent) ? changePercent : null
+      };
+    });
+
+  return {
+    pair,
+    asOf: new Date(asOfMs).toISOString(),
+    lastPrice,
+    windows
+  };
+};
+
 const alertThresholds = {
   1: Number(process.env.MARKET_ALERT_THRESHOLD_1M || 0.12),
   15: Number(process.env.MARKET_ALERT_THRESHOLD_15M || 0.45),
@@ -260,4 +293,4 @@ const startMarketRecorder = () => {
   };
 };
 
-export { startMarketRecorder, alertEvents };
+export { startMarketRecorder, alertEvents, getMarketWindowSnapshot };

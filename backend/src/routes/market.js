@@ -2,6 +2,7 @@ import express from "express";
 import prisma from "../db/prisma.js";
 import { buildFootprintSummary } from "../services/footprints.js";
 import { requestRecommendation } from "../services/groq.js";
+import { getMarketWindowSnapshot } from "../services/marketRecorder.js";
 import { getHistoricalRates, getLiveRates, getPriceForPair } from "../services/rates.js";
 import { symbolToPair } from "../services/marketSymbols.js";
 import {
@@ -107,6 +108,7 @@ router.post("/recommendations", async (req, res) => {
     const accountCurrency = "USD";
     const keyLevelsHint = extractKeyLevelsHint({ footprint, pair });
     const pipValuePerLot = computePipValuePerLot({ pair, price: resolvedPrice, accountCurrency });
+    const windowSnapshot = getMarketWindowSnapshot(pair);
     const recommendation = await requestRecommendation({
       pair,
       timeframe: resolvedTimeframe,
@@ -118,6 +120,7 @@ router.post("/recommendations", async (req, res) => {
       pipValuePerLot,
       session: getSessionUtc(),
       keyLevelsHint,
+      windowSnapshot,
       lstmContext: footprint
     });
 

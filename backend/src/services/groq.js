@@ -195,6 +195,9 @@ const buildPrompt = ({
   // Optional: key levels precomputed by the signal engine (zones/FVG/etc)
   keyLevelsHint = null,
 
+  // Optional: recent multi-window change from live ticks (fast multi-timeframe proxy)
+  windowSnapshot = null,
+
   // Optional market context (your LSTM outputs)
   lstmContext = null,
   // { trendBias, volatilityRegime, meanReversionPressure, rangeProbability, confidence, notes }
@@ -277,6 +280,9 @@ Notes: ${notes || "None"}
 
 KEY LEVELS HINT (from our signal engine; use as anchors, you may include additional levels if justified):
 ${Array.isArray(keyLevelsHint) && keyLevelsHint.length ? JSON.stringify(keyLevelsHint) : "None"}
+
+RECENT MULTI-WINDOW PRICE CHANGE (computed from live ticks; treat as a multi-timeframe momentum/volatility proxy):
+${windowSnapshot ? JSON.stringify(windowSnapshot, null, 2) : "None"}
 
 OPTIONAL LSTM MARKET REGIME CONTEXT (use if provided; do not contradict it without reason):
 ${lstmContext ? JSON.stringify(lstmContext, null, 2) : "None"}
