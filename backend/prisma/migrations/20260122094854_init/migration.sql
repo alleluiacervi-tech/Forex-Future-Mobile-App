@@ -134,3 +134,39 @@ ALTER TABLE "Watchlist" ADD CONSTRAINT "Watchlist_userId_fkey" FOREIGN KEY ("use
 
 -- AddForeignKey
 ALTER TABLE "Recommendation" ADD CONSTRAINT "Recommendation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OrderSide') THEN
+    CREATE TYPE "OrderSide" AS ENUM ('buy', 'sell');
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OrderStatus') THEN
+    CREATE TYPE "OrderStatus" AS ENUM ('filled', 'pending', 'canceled');
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "Order" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "pair" TEXT NOT NULL,
+    "side" "OrderSide" NOT NULL,
+    "units" DOUBLE PRECISION NOT NULL,
+    "price" DOUBLE PRECISION NOT NULL,
+    "status" "OrderStatus" NOT NULL DEFAULT 'filled',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Order_pkey" PRIMARY KEY ("id")
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'Order_userId_fkey'
+  ) THEN
+    ALTER TABLE "Order"
+      ADD CONSTRAINT "Order_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "User"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
