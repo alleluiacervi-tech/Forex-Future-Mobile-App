@@ -181,7 +181,8 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
               recordTrade({
                 symbol: item?.s,
                 price: Number(item?.p),
-                timestampMs: Number(item?.t)
+                timestampMs: Number(item?.t),
+                volume: Number(item?.v)
               });
             });
           }

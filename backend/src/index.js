@@ -12,6 +12,7 @@ import usersRoutes from "./routes/users.js";
 import recommendationRoutes from "./routes/recommendations.js";
 import initializeSocket from "./services/socket.js";
 import { getLiveRatesFromCache } from "./services/marketCache.js";
+import { startMarketRecorder } from "./services/marketRecorder.js";
 
 const app = express();
 
@@ -48,6 +49,8 @@ app.use((req, res) => {
 const server = http.createServer(app);
 
 initializeSocket({ server, heartbeatMs: config.wsHeartbeatMs });
+
+startMarketRecorder();
 
 server.listen(config.port, "0.0.0.0", () => {
   // eslint-disable-next-line no-console
