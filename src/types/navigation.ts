@@ -10,6 +10,7 @@ export type RootStackParamList = {
     | undefined
     | {
         email?: string;
+        code?: string;
         debugCode?: string;
         debugExpiresAt?: string;
         nextScreen?: keyof RootStackParamList;

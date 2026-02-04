@@ -50,6 +50,14 @@ export default function WelcomeScreen() {
       await login(email.trim().toLowerCase(), password);
       navigation.replace('Main');
     } catch (error) {
+      const verificationRequired =
+        typeof error === 'object' &&
+        error !== null &&
+        (error as { verificationRequired?: boolean }).verificationRequired;
+      if (verificationRequired) {
+        navigation.navigate('VerifyEmail', { email: email.trim().toLowerCase() });
+        return;
+      }
       Alert.alert('Sign in failed', error instanceof Error ? error.message : 'Unable to sign in');
     }
   };

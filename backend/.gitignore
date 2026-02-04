@@ -57,14 +57,4 @@ coverage/
 
 # Misc
 .DS_Store
-.env.example (this should be committed)
-
-# Internal docs (keep local, do not track)
-AUTHENTICATION.md
-AUTH_ARCHITECTURE.md
-AUTH_INDEX.md
-AUTH_QUICK_REFERENCE.sh
-GIT_IGNORE_GUIDE.md
-GIT_SAFETY_CHECKLIST.md
-IMPLEMENTATION_CHECKLIST.md
-IMPLEMENTATION_SUMMARY.md
+# Note: `.env.example` should be committed (do not ignore it).

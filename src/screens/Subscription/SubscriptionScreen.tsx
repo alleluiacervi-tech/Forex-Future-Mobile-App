@@ -90,10 +90,35 @@ export default function SubscriptionScreen() {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const billingParams = {
+      setupTrial: true,
+      email: normalizedEmail,
+      password,
+      selectedBilling,
+      selectedPrice,
+      billingLabel,
+    } as const;
 
     try {
       try {
-        await register(name.trim(), normalizedEmail, password);
+        const verification = await register(name.trim(), normalizedEmail, password);
+        if (verification?.verificationUnavailable) {
+          Alert.alert(
+            'Verification unavailable',
+            'Email verification is temporarily unavailable. Please try again later.',
+          );
+          return;
+        }
+        if (verification?.verificationRequired) {
+          navigation.replace('VerifyEmail', {
+            email: normalizedEmail,
+            debugCode: verification?.debugCode,
+            debugExpiresAt: verification?.debugExpiresAt,
+            nextScreen: 'BillingPayments',
+            nextParams: billingParams,
+          });
+          return;
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Registration failed';
         if (!message.toLowerCase().includes('already registered')) {
@@ -101,14 +126,7 @@ export default function SubscriptionScreen() {
         }
       }
 
-      navigation.replace('BillingPayments', {
-        setupTrial: true,
-        email: normalizedEmail,
-        password,
-        selectedBilling,
-        selectedPrice,
-        billingLabel,
-      });
+      navigation.replace('BillingPayments', billingParams);
     } catch (error) {
       Alert.alert('Registration failed', error instanceof Error ? error.message : 'Unable to continue');
     }

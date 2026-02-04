@@ -59,8 +59,17 @@ router.post("/email/verify", async (req, res) => {
     return res.status(400).json({ error });
   }
 
+  const normalizedEmail = data.email.trim().toLowerCase();
+  const key = `verify:${req.ip}|${normalizedEmail}`;
+  const lastAt = verifyThrottle.get(key) || 0;
+  const now = Date.now();
+  if (now - lastAt < verifyThrottleMs) {
+    return res.status(429).json({ error: "Too many attempts. Please wait a moment and try again." });
+  }
+  verifyThrottle.set(key, now);
+
   try {
-    const result = await authService.verifyEmailCode(data.email, data.code);
+    const result = await authService.verifyEmailCode(normalizedEmail, data.code);
     return res.json({ ok: true, ...result });
   } catch (err) {
     return res.status(400).json({ error: err instanceof Error ? err.message : "Email verification failed." });
@@ -74,7 +83,7 @@ router.post("/email/resend", async (req, res) => {
   }
 
   const normalizedEmail = data.email.trim().toLowerCase();
-  const key = `${req.ip}|${normalizedEmail}`;
+  const key = `resend:${req.ip}|${normalizedEmail}`;
   const lastAt = verifyThrottle.get(key) || 0;
   const now = Date.now();
   if (now - lastAt < verifyThrottleMs) {

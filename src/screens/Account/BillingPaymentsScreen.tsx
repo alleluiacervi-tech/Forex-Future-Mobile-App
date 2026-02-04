@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons as Icon } from '@expo/vector-icons';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Card, Text, Input, Button } from '../../components/common';
@@ -11,7 +12,7 @@ import { RootStackParamList } from '../../types';
 
 export default function BillingPaymentsScreen() {
   const theme = useTheme();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, 'BillingPayments'>>();
   const { startTrial, isLoading } = useAuth();
 
@@ -115,6 +116,18 @@ export default function BillingPaymentsScreen() {
         routes: [{ name: 'Main' as never }],
       });
     } catch (error) {
+      const verificationRequired =
+        typeof error === 'object' &&
+        error !== null &&
+        (error as { verificationRequired?: boolean }).verificationRequired;
+      if (verificationRequired) {
+        navigation.replace('VerifyEmail', {
+          email,
+          nextScreen: 'BillingPayments',
+          nextParams: route.params,
+        });
+        return;
+      }
       Alert.alert('Trial activation failed', error instanceof Error ? error.message : 'Unable to start trial');
     }
   };

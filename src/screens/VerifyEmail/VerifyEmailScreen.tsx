@@ -21,7 +21,7 @@ export default function VerifyEmailScreen() {
   const { verifyEmail, resendEmailVerification, isLoading } = useAuth();
 
   const [email, setEmail] = useState(route.params?.email ?? '');
-  const [code, setCode] = useState(route.params?.debugCode ?? '');
+  const [code, setCode] = useState(route.params?.code ?? route.params?.debugCode ?? '');
   const [touched, setTouched] = useState({ email: false, code: false });
 
   const emailError = useMemo(() => {
@@ -141,7 +141,7 @@ export default function VerifyEmailScreen() {
                 if (!touched.code) setTouched((p) => ({ ...p, code: true }));
               }}
               placeholder="123456"
-              keyboardType="number-pad"
+              keyboardType="numeric"
               error={codeError}
             />
 
@@ -212,4 +212,3 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
 });
-

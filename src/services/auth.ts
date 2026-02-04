@@ -42,6 +42,7 @@ type ResendVerificationResponse = {
 
 type ErrorResponse = {
   error?: string;
+  verificationRequired?: boolean;
 };
 
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -51,6 +52,19 @@ const pickError = (data: unknown, fallback: string) => {
   const errorValue = (data as ErrorResponse).error;
   return typeof errorValue === 'string' && errorValue ? errorValue : fallback;
 };
+
+class AuthApiError extends Error {
+  verificationRequired?: boolean;
+
+  constructor(message: string, options: { verificationRequired?: boolean } = {}) {
+    super(message);
+    this.name = 'AuthApiError';
+    this.verificationRequired = options.verificationRequired;
+  }
+}
+
+const isVerificationRequired = (data: unknown) =>
+  Boolean(data && typeof data === 'object' && (data as ErrorResponse).verificationRequired);
 
 class AuthService {
   private authBaseUrl: string;
@@ -152,7 +166,11 @@ class AuthService {
       const data = (await response.json().catch(() => ({}))) as Partial<AuthLoginResponse> & ErrorResponse;
 
       if (!response.ok) {
-        throw new Error(pickError(data, 'Login failed'));
+        const message = pickError(data, 'Login failed');
+        if (isVerificationRequired(data)) {
+          throw new AuthApiError(message, { verificationRequired: true });
+        }
+        throw new Error(message);
       }
 
       if (!data.user || !data.token) {
@@ -184,7 +202,11 @@ class AuthService {
       const data = (await response.json().catch(() => ({}))) as Partial<AuthLoginResponse> & ErrorResponse;
 
       if (!response.ok) {
-        throw new Error(pickError(data, 'Trial activation failed'));
+        const message = pickError(data, 'Trial activation failed');
+        if (isVerificationRequired(data)) {
+          throw new AuthApiError(message, { verificationRequired: true });
+        }
+        throw new Error(message);
       }
 
       if (!data.user || !data.token) {

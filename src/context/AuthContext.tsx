@@ -145,6 +145,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const verifyEmail = useCallback(async (email: string, code: string) => {
+    try {
+      setIsLoading(true);
+      const data = await authService.verifyEmail(email, code);
+      setUser((current) =>
+        current?.email?.toLowerCase() === email.trim().toLowerCase()
+          ? { ...current, emailVerified: true, emailVerifiedAt: new Date().toISOString() }
+          : current,
+      );
+      return data;
+    } catch (error) {
+      console.error('[AuthProvider] Verify email failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const resendEmailVerification = useCallback(async (email: string) => {
+    try {
+      setIsLoading(true);
+      const data = await authService.resendEmailVerification(email);
+      return data;
+    } catch (error) {
+      console.error('[AuthProvider] Resend verification failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const requestPasswordReset = useCallback(async (email: string) => {
     try {
       setIsLoading(true);
@@ -192,6 +223,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     startTrial,
     logout,
     changePassword,
+    verifyEmail,
+    resendEmailVerification,
     requestPasswordReset,
     resetPassword,
     refreshUser,
