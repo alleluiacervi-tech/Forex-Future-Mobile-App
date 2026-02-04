@@ -142,6 +142,9 @@ class AuthService {
 
     const emailValidation = validateEmailConfig();
     const emailAvailable = emailValidation.ok;
+    const allowDebugReturn =
+      process.env.NODE_ENV !== "production" &&
+      process.env.PASSWORD_RESET_DEBUG_RETURN_TOKEN !== "false";
     const requireEmail =
       process.env.PASSWORD_RESET_REQUIRE_EMAIL === "true" ||
       process.env.NODE_ENV === "production";
@@ -169,7 +172,7 @@ class AuthService {
     const link = this.buildPasswordResetLink(token);
 
     if (!emailAvailable) {
-      if (process.env.PASSWORD_RESET_DEBUG_RETURN_TOKEN === "true" && process.env.NODE_ENV !== "production") {
+      if (allowDebugReturn) {
         return { ok: true, debugToken: token, debugLink: link };
       }
       return { ok: true };
@@ -200,7 +203,7 @@ class AuthService {
       });
     } catch (error) {
       logger.error("Password reset email failed", { email: normalizedEmail, error: error.message });
-      if (process.env.PASSWORD_RESET_DEBUG_RETURN_TOKEN === "true" && process.env.NODE_ENV !== "production") {
+      if (allowDebugReturn) {
         return { ok: true, debugToken: token, debugLink: link };
       }
     }
