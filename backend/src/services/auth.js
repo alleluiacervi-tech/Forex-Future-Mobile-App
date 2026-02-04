@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import config from '../config.js';
 import prisma from '../db/prisma.js';
 import Logger from '../utils/logger.js';
+import { sendEmail, validateEmailConfig } from "./email.js";
 
 const logger = new Logger('AuthService');
 
@@ -66,6 +67,164 @@ class AuthService {
       logger.error('Token issuance failed', { userId, error: error.message });
       throw new Error('Failed to issue token');
     }
+  }
+
+  passwordResetSecretFor(passwordHash) {
+    return `${config.jwtSecret}|password-reset|${passwordHash}`;
+  }
+
+  issuePasswordResetToken(user) {
+    const expiresIn = process.env.PASSWORD_RESET_EXPIRES_IN || "15m";
+    const secret = this.passwordResetSecretFor(user.passwordHash);
+    return jwt.sign(
+      { sub: user.id, purpose: "password_reset" },
+      secret,
+      { expiresIn }
+    );
+  }
+
+  async verifyPasswordResetToken(token) {
+    if (!token || typeof token !== "string") {
+      throw new Error("Missing reset token.");
+    }
+
+    const decoded = jwt.decode(token);
+    const userId = decoded && typeof decoded === "object" ? decoded.sub : null;
+    if (typeof userId !== "string" || !userId) {
+      throw new Error("Invalid or expired reset token.");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, passwordHash: true }
+    });
+    if (!user?.passwordHash) {
+      throw new Error("Invalid or expired reset token.");
+    }
+
+    try {
+      const secret = this.passwordResetSecretFor(user.passwordHash);
+      const payload = jwt.verify(token, secret);
+      if (!payload || typeof payload !== "object" || payload.purpose !== "password_reset") {
+        throw new Error("Invalid or expired reset token.");
+      }
+      return { userId: user.id, email: user.email };
+    } catch {
+      throw new Error("Invalid or expired reset token.");
+    }
+  }
+
+  buildPasswordResetLink(token) {
+    const base =
+      process.env.PASSWORD_RESET_URL ||
+      process.env.PASSWORD_RESET_LINK_BASE ||
+      "";
+
+    if (!base) return null;
+
+    if (base.includes("{token}")) {
+      return base.replace("{token}", encodeURIComponent(token));
+    }
+
+    const joiner = base.includes("?") ? "&" : "?";
+    const needsJoiner = !(base.endsWith("?") || base.endsWith("&"));
+    return `${base}${needsJoiner ? joiner : ""}token=${encodeURIComponent(token)}`;
+  }
+
+  async requestPasswordReset(email, { ip } = {}) {
+    logger.info("Password reset requested", { email, ip });
+
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    if (!normalizedEmail || !this.validateEmail(normalizedEmail)) {
+      // Keep message generic to avoid enumeration.
+      return { ok: true };
+    }
+
+    const emailValidation = validateEmailConfig();
+    const emailAvailable = emailValidation.ok;
+    const requireEmail =
+      process.env.PASSWORD_RESET_REQUIRE_EMAIL === "true" ||
+      process.env.NODE_ENV === "production";
+
+    if (!emailAvailable && requireEmail) {
+      logger.warn("Password reset unavailable (email not configured)", { errors: emailValidation.errors });
+      return { ok: false, unavailable: true };
+    }
+
+    let user = null;
+    try {
+      user = await prisma.user.findFirst({
+        where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+        select: { id: true, email: true, name: true, passwordHash: true }
+      });
+    } catch (error) {
+      logger.error("Password reset lookup failed", { email: normalizedEmail, error: error.message });
+    }
+
+    if (!user?.passwordHash) {
+      return { ok: true };
+    }
+
+    const token = this.issuePasswordResetToken(user);
+    const link = this.buildPasswordResetLink(token);
+
+    if (!emailAvailable) {
+      if (process.env.PASSWORD_RESET_DEBUG_RETURN_TOKEN === "true" && process.env.NODE_ENV !== "production") {
+        return { ok: true, debugToken: token, debugLink: link };
+      }
+      return { ok: true };
+    }
+
+    try {
+      const greeting = user.name ? `Hi ${user.name},` : "Hi,";
+      const lines = [
+        greeting,
+        "",
+        "We received a request to reset your Forex Trading App password.",
+        "",
+        link ? `Reset link: ${link}` : `Reset token: ${token}`,
+        "",
+        "If you didn't request this, you can safely ignore this email."
+      ];
+
+      await sendEmail({
+        to: user.email,
+        subject: "Reset your password",
+        text: lines.join("\n"),
+        html: `
+          <p>${greeting}</p>
+          <p>We received a request to reset your Forex Trading App password.</p>
+          ${link ? `<p><a href="${link}">Reset your password</a></p>` : `<p><strong>Reset token:</strong> ${token}</p>`}
+          <p>If you didn't request this, you can safely ignore this email.</p>
+        `
+      });
+    } catch (error) {
+      logger.error("Password reset email failed", { email: normalizedEmail, error: error.message });
+      if (process.env.PASSWORD_RESET_DEBUG_RETURN_TOKEN === "true" && process.env.NODE_ENV !== "production") {
+        return { ok: true, debugToken: token, debugLink: link };
+      }
+    }
+
+    return { ok: true };
+  }
+
+  async resetPasswordWithToken(token, newPassword) {
+    const { userId } = await this.verifyPasswordResetToken(token);
+
+    const passwordValidation = this.validatePassword(newPassword);
+    if (!passwordValidation.valid) {
+      throw new Error(passwordValidation.error);
+    }
+
+    const newPasswordHash = await this.hashPassword(newPassword);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash }
+    });
+
+    logger.info("Password reset completed", { userId });
+    return true;
   }
 
   // Verify JWT token
