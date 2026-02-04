@@ -43,6 +43,12 @@ FINNHUB_API_KEY=your-finnhub-api-key
 # FINNHUB_WS_URL=wss://ws.finnhub.io?token=...
 # Optional (dev): start backend without upstream WS
 # ALLOW_NO_FINNHUB_WS=true
+
+# Email (SMTP) - optional
+# EMAIL_USER=your_email@example.com
+# EMAIL_APP_PASSWORD=your_app_password_here
+# Optional: enable protected validation endpoints
+# EMAIL_VALIDATION_TOKEN=change-me-to-a-long-random-string
 ```
 
 ### Database Setup
@@ -98,6 +104,17 @@ The server relays Finnhub WebSocket messages (JSON). You’ll typically receive 
   ]
 }
 ```
+
+## Email Validation (Optional)
+
+If you configure SMTP credentials, you can validate them via protected endpoints:
+
+- `POST /api/email/validate` – Verifies SMTP connectivity/auth.
+- `POST /api/email/send-test` – Sends a test email (defaults to `EMAIL_TEST_RECIPIENT` or `EMAIL_USER`).
+
+These endpoints are **disabled** unless `EMAIL_VALIDATION_TOKEN` is set. Provide the header:
+
+- `x-email-validation-token: <EMAIL_VALIDATION_TOKEN>`
 
 ## Notes
 
