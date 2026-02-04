@@ -1,8 +1,10 @@
 import express from "express";
 import {
+  forgotPasswordSchema,
   loginSchema,
   parseSchema,
   registerSchema,
+  resetPasswordSchema,
   trialStartSchema
 } from "../utils/validators.js";
 import authenticate from "../middleware/auth.js";
@@ -11,6 +13,9 @@ import Logger from "../utils/logger.js";
 
 const router = express.Router();
 const logger = new Logger('AuthRoutes');
+
+const resetThrottle = new Map();
+const resetThrottleMs = Number(process.env.PASSWORD_RESET_THROTTLE_MS || 60_000);
 
 router.post("/register", async (req, res) => {
   const { data, error } = parseSchema(registerSchema, req.body);
@@ -90,6 +95,61 @@ router.get("/me", authenticate, async (req, res) => {
   } catch (error) {
     logger.error('Get user endpoint error', { userId: req.user.id, error: error.message });
     return res.status(404).json({ error: error.message });
+  }
+});
+
+router.post("/password/forgot", async (req, res) => {
+  const { data, error } = parseSchema(forgotPasswordSchema, req.body);
+  if (error) {
+    return res.status(400).json({ error });
+  }
+
+  const normalizedEmail = data.email.trim().toLowerCase();
+  const key = `${req.ip}|${normalizedEmail}`;
+  const lastAt = resetThrottle.get(key) || 0;
+  const now = Date.now();
+  if (now - lastAt < resetThrottleMs) {
+    return res.json({
+      message: "If an account exists for that email, you'll receive password reset instructions shortly."
+    });
+  }
+  resetThrottle.set(key, now);
+
+  try {
+    const result = await authService.requestPasswordReset(normalizedEmail, { ip: req.ip });
+    if (result?.unavailable) {
+      return res.status(503).json({ error: "Password reset is temporarily unavailable." });
+    }
+
+    const response = {
+      message: "If an account exists for that email, you'll receive password reset instructions shortly."
+    };
+
+    if (result?.debugToken || result?.debugLink) {
+      return res.json({ ...response, debugToken: result.debugToken, debugLink: result.debugLink });
+    }
+
+    return res.json(response);
+  } catch (err) {
+    logger.error("Forgot-password endpoint error", { email: normalizedEmail, error: err?.message });
+    return res.json({
+      message: "If an account exists for that email, you'll receive password reset instructions shortly."
+    });
+  }
+});
+
+router.post("/password/reset", async (req, res) => {
+  const { data, error } = parseSchema(resetPasswordSchema, req.body);
+  if (error) {
+    return res.status(400).json({ error });
+  }
+
+  try {
+    await authService.resetPasswordWithToken(data.token, data.newPassword);
+    return res.json({ message: "Password reset successfully. Please log in with your new password." });
+  } catch (err) {
+    logger.warn("Password reset failed", { error: err?.message, ip: req.ip });
+    return res.status(400).json({ error: err instanceof Error ? err.message : "Password reset failed." });
   }
 });
 

@@ -72,6 +72,8 @@ The API will run on `http://localhost:4000` and the WebSocket server will be ava
 - `POST /api/auth/register` – Register a new user.
 - `POST /api/auth/login` – Login and receive a JWT.
 - `GET /api/auth/me` – Get the current user profile.
+- `POST /api/auth/password/forgot` – Request a password reset email.
+- `POST /api/auth/password/reset` – Reset password using a token.
 - `GET /api/market/pairs` – List supported FX pairs with live pricing.
 - `GET /api/market/history/:pair` – Get mock historical prices.
 - `GET /api/market/footprints/:pair` – Institutional footprint signals (zones, smart money, rubber band, timeframe bias).
@@ -115,6 +117,17 @@ If you configure SMTP credentials, you can validate them via protected endpoints
 These endpoints are **disabled** unless `EMAIL_VALIDATION_TOKEN` is set. Provide the header:
 
 - `x-email-validation-token: <EMAIL_VALIDATION_TOKEN>`
+
+## Forgot Password (Password Reset)
+
+Configure SMTP (`EMAIL_USER`, `EMAIL_APP_PASSWORD`) and optionally a deep link / URL to include in reset emails:
+
+- `PASSWORD_RESET_URL=forexapp://reset-password?token={token}`
+
+Endpoints:
+
+- `POST /api/auth/password/forgot` with `{ "email": "user@example.com" }`
+- `POST /api/auth/password/reset` with `{ "token": "...", "newPassword": "NewPass123" }`
 
 ## Notes
 
