@@ -33,10 +33,10 @@ const recordTrade = ({ symbol, price, timestampMs, volume }) => {
   if (!Number.isFinite(price)) return;
   const ts = Number.isFinite(timestampMs) ? timestampMs : Date.now();
 
-  const previous = liveBySymbol.get(symbol);
-  const prevPrice = previous?.price;
   // Log cache update when price changes (or first write)
   if (logCacheWrites) {
+    const previous = liveBySymbol.get(symbol);
+    const prevPrice = previous?.price;
     try {
       // eslint-disable-next-line no-console
       console.log(
