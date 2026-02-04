@@ -36,6 +36,13 @@ JWT_EXPIRES_IN=2h
 WS_HEARTBEAT_MS=15000
 GROQ_API_KEY=your-groq-api-key
 GROQ_MODEL=llama-3.1-70b-versatile
+
+# Market data (Finnhub)
+FINNHUB_API_KEY=your-finnhub-api-key
+# Optional: override full WS URL (otherwise built from FINNHUB_API_KEY)
+# FINNHUB_WS_URL=wss://ws.finnhub.io?token=...
+# Optional (dev): start backend without upstream WS
+# ALLOW_NO_FINNHUB_WS=true
 ```
 
 ### Database Setup
@@ -74,18 +81,19 @@ The API will run on `http://localhost:4000` and the WebSocket server will be ava
 
 ## WebSocket Events
 
-The backend emits live FX prices to all clients every heartbeat interval.
+Connect to the market WebSocket at `ws://localhost:4000/ws/market`.
+
+The server relays Finnhub WebSocket messages (JSON). You’ll typically receive `trade` updates in Finnhub’s format:
 
 ```json
 {
-  "type": "rates",
+  "type": "trade",
   "data": [
     {
-      "pair": "EUR/USD",
-      "bid": 1.0841,
-      "ask": 1.0845,
-      "mid": 1.0843,
-      "timestamp": "2024-01-01T12:00:00.000Z"
+      "s": "OANDA:EUR_USD",
+      "p": 1.0843,
+      "t": 1704110400000,
+      "v": 100000
     }
   ]
 }

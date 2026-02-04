@@ -11,7 +11,7 @@ import { supportedSymbols } from "./marketSymbols.js";
  * - Server-side ping/pong heartbeat (detect dead clients)
  * - Backpressure protection (skip sends if buffer is high)
  * - Clean interval lifecycle
- * - Subscribe/unsubscribe handling with symbol ref-counting
+ * - Baseline + ref-counted upstream subscriptions
  */
 
 const DEFAULTS = {
@@ -19,6 +19,7 @@ const DEFAULTS = {
   pingMs: 15000,              // ping frequency
   clientTimeoutMs: 30000,     // terminate if no pong within this window
   maxBufferedBytes: 1_000_000, // ~1MB backpressure threshold
+  maxPendingUpstreamMessages: Number(process.env.WS_MAX_PENDING_UPSTREAM_MESSAGES || 1000),
   // In local/dev, allow running without Finnhub to avoid startup crashes.
   allowNoUpstream:
     process.env.ALLOW_NO_FINNHUB_WS === "true" ||
@@ -29,7 +30,11 @@ const DEFAULTS = {
       ? `wss://ws.finnhub.io?token=${process.env.FINNHUB_API_KEY}`
       : ""),
   finnhubReconnectMs: 5000,
-  logConnections: true
+  logConnections: true,
+  logUpstreamMessages:
+    process.env.MARKET_WS_DEBUG === "true" || process.env.WS_LOG_UPSTREAM_MESSAGES === "true",
+  logUpstreamSamples:
+    process.env.MARKET_WS_DEBUG === "true" || process.env.WS_LOG_UPSTREAM_SAMPLES === "true"
 };
 
 const safeJson = (obj) => {
@@ -87,6 +92,26 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   let finnhub = null;
   let finnhubReconnectTimer = null;
   const pendingFinnhubMessages = [];
+  const maxPendingUpstreamMessages =
+    Number.isFinite(Number(config.maxPendingUpstreamMessages)) && Number(config.maxPendingUpstreamMessages) > 0
+      ? Number(config.maxPendingUpstreamMessages)
+      : 1000;
+  let warnedPendingQueueOverflow = false;
+
+  const enqueueFinnhubPayload = (payload) => {
+    pendingFinnhubMessages.push(payload);
+    if (pendingFinnhubMessages.length > maxPendingUpstreamMessages) {
+      // Drop oldest to prevent unbounded memory growth during upstream outages.
+      pendingFinnhubMessages.splice(0, pendingFinnhubMessages.length - maxPendingUpstreamMessages);
+      if (!warnedPendingQueueOverflow && config.logUpstreamMessages) {
+        warnedPendingQueueOverflow = true;
+        // eslint-disable-next-line no-console
+        console.warn(
+          `Finnhub WS: pending message queue overflow (capped at ${maxPendingUpstreamMessages}). Dropping oldest messages.`
+        );
+      }
+    }
+  };
 
   const flushFinnhubQueue = () => {
     if (!finnhub || finnhub.readyState !== WebSocket.OPEN) return;
@@ -104,13 +129,13 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     if (!config.finnhubUrl) return;
     const payload = safeJson(messageObj);
     if (!finnhub || finnhub.readyState !== WebSocket.OPEN) {
-      pendingFinnhubMessages.push(payload);
+      enqueueFinnhubPayload(payload);
       return;
     }
     try {
       finnhub.send(payload);
     } catch {
-      pendingFinnhubMessages.push(payload);
+      enqueueFinnhubPayload(payload);
     }
   };
 
@@ -120,7 +145,9 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       sendToFinnhub({ type: "subscribe", symbol });
     });
     symbolCounts.forEach((count, symbol) => {
-      if (count > 0) sendToFinnhub({ type: "subscribe", symbol });
+      if (count > 0 && !alwaysSubscribedSymbols.has(symbol)) {
+        sendToFinnhub({ type: "subscribe", symbol });
+      }
     });
   };
 
@@ -157,24 +184,30 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       const msg = raw.toString();
       try {
         const payload = JSON.parse(msg);
-        try {
-          // eslint-disable-next-line no-console
-          console.log(`[Finnhub] ${payload?.type} with ${Array.isArray(payload?.data) ? payload.data.length : 0} items`);
-        } catch {}
-        try {
-          if (payload?.type === "trade" && Array.isArray(payload.data) && payload.data.length > 0) {
-            payload.data.slice(0, 2).forEach((sample) => {
-              // eslint-disable-next-line no-console
-              console.log(`  [trade] ${sample?.s}: ${sample?.p} @ ${new Date(Number(sample?.t)).toISOString()}`);
-            });
-          }
-          if (payload?.type === "quote" && Array.isArray(payload.data) && payload.data.length > 0) {
-            payload.data.slice(0, 2).forEach((sample) => {
-              // eslint-disable-next-line no-console
-              console.log(`  [quote] ${sample?.s}: bid=${sample?.b} ask=${sample?.a}`);
-            });
-          }
-        } catch {}
+        if (config.logUpstreamMessages) {
+          try {
+            // eslint-disable-next-line no-console
+            console.log(
+              `[Finnhub] ${payload?.type} with ${Array.isArray(payload?.data) ? payload.data.length : 0} items`
+            );
+          } catch {}
+        }
+        if (config.logUpstreamSamples) {
+          try {
+            if (payload?.type === "trade" && Array.isArray(payload.data) && payload.data.length > 0) {
+              payload.data.slice(0, 2).forEach((sample) => {
+                // eslint-disable-next-line no-console
+                console.log(`  [trade] ${sample?.s}: ${sample?.p} @ ${new Date(Number(sample?.t)).toISOString()}`);
+              });
+            }
+            if (payload?.type === "quote" && Array.isArray(payload.data) && payload.data.length > 0) {
+              payload.data.slice(0, 2).forEach((sample) => {
+                // eslint-disable-next-line no-console
+                console.log(`  [quote] ${sample?.s}: bid=${sample?.b} ask=${sample?.a}`);
+              });
+            }
+          } catch {}
+        }
         if (Array.isArray(payload?.data)) {
           if (payload.type === "trade") {
             payload.data.forEach((item) => {
@@ -199,10 +232,12 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
         }
       } catch {}
       const clientCount = wss.clients.size;
-      try {
-        // eslint-disable-next-line no-console
-        console.log(`[Finnhub→Relay] sending message to ${clientCount} connected clients`);
-      } catch {}
+      if (config.logUpstreamMessages) {
+        try {
+          // eslint-disable-next-line no-console
+          console.log(`[Finnhub→Relay] sending message to ${clientCount} connected clients`);
+        } catch {}
+      }
       wss.clients.forEach((ws) => {
         sendRaw(ws, msg);
       });
@@ -309,7 +344,9 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     defaultSymbols.forEach((symbol) => {
       const current = symbolCounts.get(symbol) || 0;
       symbolCounts.set(symbol, current + 1);
-      if (current === 0) sendToFinnhub({ type: "subscribe", symbol });
+      if (current === 0 && !alwaysSubscribedSymbols.has(symbol)) {
+        sendToFinnhub({ type: "subscribe", symbol });
+      }
     });
 
     sendJson(ws, {

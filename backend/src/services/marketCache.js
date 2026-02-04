@@ -6,6 +6,8 @@ const historyBySymbol = new Map();
 const MAX_HISTORY_POINTS = 2000;
 
 const marketEvents = new EventEmitter();
+const logCacheWrites =
+  process.env.MARKET_CACHE_DEBUG === "true" || process.env.MARKET_DEBUG_LOGS === "true";
 
 const isJpyPair = (pair) => pair.includes("JPY");
 const decimalsForPair = (pair) => (isJpyPair(pair) ? 3 : 5);
@@ -34,10 +36,21 @@ const recordTrade = ({ symbol, price, timestampMs, volume }) => {
   const previous = liveBySymbol.get(symbol);
   const prevPrice = previous?.price;
   // Log cache update when price changes (or first write)
-  try {
-    // eslint-disable-next-line no-console
-    console.log('recordTrade: symbol=', symbol, 'price=', price, 'prev=', prevPrice, 'ts=', new Date(ts).toISOString());
-  } catch {}
+  if (logCacheWrites) {
+    try {
+      // eslint-disable-next-line no-console
+      console.log(
+        "recordTrade: symbol=",
+        symbol,
+        "price=",
+        price,
+        "prev=",
+        prevPrice,
+        "ts=",
+        new Date(ts).toISOString()
+      );
+    } catch {}
+  }
 
   liveBySymbol.set(symbol, { price, timestampMs: ts });
 
@@ -66,10 +79,23 @@ const recordQuote = ({ symbol, bid, ask, timestampMs }) => {
   const a = Number(ask);
   if (!Number.isFinite(b) || !Number.isFinite(a)) return;
   const mid = (b + a) / 2;
-  try {
-    // eslint-disable-next-line no-console
-    console.log('recordQuote: symbol=', symbol, 'bid=', b, 'ask=', a, 'mid=', mid, 'ts=', new Date(timestampMs ?? Date.now()).toISOString());
-  } catch {}
+  if (logCacheWrites) {
+    try {
+      // eslint-disable-next-line no-console
+      console.log(
+        "recordQuote: symbol=",
+        symbol,
+        "bid=",
+        b,
+        "ask=",
+        a,
+        "mid=",
+        mid,
+        "ts=",
+        new Date(timestampMs ?? Date.now()).toISOString()
+      );
+    } catch {}
+  }
 
   recordTrade({ symbol, price: mid, timestampMs });
 };
