@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
-    "start": "EXPO_NO_DOCTOR=1 npx expo start",
+    "patch:expo-ngrok": "node scripts/patch-expo-ngrok.js",
+    "postinstall": "npm run patch:expo-ngrok",
+    "start": "npm run patch:expo-ngrok && EXPO_NO_DOCTOR=1 npx expo start",
     "android": "npx expo start --android",
     "ios": "npx expo start --ios",
-    "web": "npx expo start --web"
+    "web": "npx expo start --web",
+    "tunnel": "npm run patch:expo-ngrok && EXPO_NO_DOCTOR=1 npx expo start --tunnel"
   },
   "dependencies": {
     "@alpacahq/alpaca-trade-api": "^3.1.3",
@@ -19,7 +22,7 @@
     "@react-navigation/native-stack": "^6.11.0",
     "axios": "^1.13.5",
     "dayjs": "^1.11.19",
-    "expo": "~54.0.30",
+    "expo": "^54.0.33",
     "expo-constants": "~18.0.12",
     "expo-font": "~14.0.10",
     "expo-linear-gradient": "~15.0.8",
