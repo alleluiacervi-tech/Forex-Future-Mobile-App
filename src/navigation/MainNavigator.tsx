@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -16,6 +17,8 @@ import ProfileScreen from '../screens/Profile';
 import CurrencyDetailScreen from '../screens/CurrencyDetail';
 import AboutScreen from '../screens/About';
 import WelcomeScreen from '../screens/Welcome';
+import ForgotPasswordScreen from '../screens/ForgotPassword';
+import ResetPasswordScreen from '../screens/ResetPassword';
 import SubscriptionScreen from '../screens/Subscription';
 import SettingsScreen from '../screens/Settings';
 import SubscriptionPlanScreen from '../screens/Account/SubscriptionPlanScreen';
@@ -36,7 +39,7 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName: string;
+          let iconName: ComponentProps<typeof Icon>['name'];
 
           if (route.name === 'Home') {
             iconName = 'home';
@@ -97,6 +100,16 @@ export default function MainNavigator() {
         <Stack.Screen
           name="Welcome"
           component={WelcomeScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ResetPassword"
+          component={ResetPasswordScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

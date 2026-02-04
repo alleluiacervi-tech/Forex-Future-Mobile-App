@@ -6,6 +6,17 @@ export type RootStackParamList = {
   TradeDetail: { pair: string };
   About: undefined;
   Welcome: undefined;
+  ForgotPassword:
+    | undefined
+    | {
+        email?: string;
+      };
+  ResetPassword:
+    | undefined
+    | {
+        email?: string;
+        token?: string;
+      };
   Subscription: undefined;
   Settings: undefined;
   SubscriptionPlan: undefined;

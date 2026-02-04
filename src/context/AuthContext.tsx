@@ -27,6 +27,8 @@ interface AuthContextType {
   startTrial: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<{ message?: string; debugToken?: string; debugLink?: string }>;
+  resetPassword: (token: string, newPassword: string) => Promise<{ message?: string }>;
   refreshUser: () => Promise<void>;
 }
 
@@ -133,6 +135,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    try {
+      setIsLoading(true);
+      const data = await authService.requestPasswordReset(email);
+      return data;
+    } catch (error) {
+      console.error('[AuthProvider] Password reset request failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const resetPassword = useCallback(async (token: string, newPassword: string) => {
+    try {
+      setIsLoading(true);
+      const data = await authService.resetPassword(token, newPassword);
+      return data;
+    } catch (error) {
+      console.error('[AuthProvider] Password reset failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const refreshUser = useCallback(async () => {
     try {
       const { user: userData } = await authService.getMe();
@@ -154,6 +182,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     startTrial,
     logout,
     changePassword,
+    requestPasswordReset,
+    resetPassword,
     refreshUser,
   };
 

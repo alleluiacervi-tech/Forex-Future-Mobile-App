@@ -1,7 +1,46 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_CONFIG } from '../config/app';
+import type { User } from '../context/AuthContext';
+
+type AuthRegisterResponse = {
+  user: User;
+  account?: User['account'];
+  trialRequired?: boolean;
+};
+
+type AuthLoginResponse = {
+  user: User;
+  account?: User['account'];
+  token: string;
+};
+
+type AuthForgotPasswordResponse = {
+  message?: string;
+  debugToken?: string;
+  debugLink?: string;
+};
+
+type AuthMessageResponse = {
+  message?: string;
+};
+
+type ErrorResponse = {
+  error?: string;
+};
+
+const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+const pickError = (data: unknown, fallback: string) => {
+  if (!data || typeof data !== 'object') return fallback;
+  const errorValue = (data as ErrorResponse).error;
+  return typeof errorValue === 'string' && errorValue ? errorValue : fallback;
+};
 
 class AuthService {
+  private authBaseUrl: string;
+  private tokenKey: string;
+  private userKey: string;
+
   constructor() {
     const baseUrl = APP_CONFIG.apiUrl.replace(/\/$/, '');
     this.authBaseUrl = `${baseUrl}/api/auth`;
@@ -9,7 +48,7 @@ class AuthService {
     this.userKey = '@forexapp_user';
   }
 
-  async register(name, email, password) {
+  async register(name: string, email: string, password: string): Promise<AuthRegisterResponse> {
     try {
       const response = await fetch(`${this.authBaseUrl}/register`, {
         method: 'POST',
@@ -19,22 +58,26 @@ class AuthService {
         body: JSON.stringify({ name, email, password }),
       });
 
+      const data = (await response.json().catch(() => ({}))) as Partial<AuthRegisterResponse> & ErrorResponse;
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Registration failed');
+        throw new Error(pickError(data, 'Registration failed'));
       }
 
-      const data = await response.json();
+      if (!data.user) {
+        throw new Error('Registration failed');
+      }
+
       console.log('[AuthService] Registration successful:', data.user.email);
-      
-      return data;
+
+      return data as AuthRegisterResponse;
     } catch (error) {
-      console.error('[AuthService] Registration error:', error.message);
+      console.error('[AuthService] Registration error:', getErrorMessage(error));
       throw error;
     }
   }
 
-  async login(email, password) {
+  async login(email: string, password: string): Promise<AuthLoginResponse> {
     try {
       const response = await fetch(`${this.authBaseUrl}/login`, {
         method: 'POST',
@@ -44,25 +87,29 @@ class AuthService {
         body: JSON.stringify({ email, password }),
       });
 
+      const data = (await response.json().catch(() => ({}))) as Partial<AuthLoginResponse> & ErrorResponse;
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Login failed');
+        throw new Error(pickError(data, 'Login failed'));
       }
 
-      const data = await response.json();
+      if (!data.user || !data.token) {
+        throw new Error('Login failed');
+      }
+
       console.log('[AuthService] Login successful:', data.user.email);
-      
+
       // Store token and user data
       await this.storeAuth(data.user, data.token);
-      
-      return data;
+
+      return data as AuthLoginResponse;
     } catch (error) {
-      console.error('[AuthService] Login error:', error.message);
+      console.error('[AuthService] Login error:', getErrorMessage(error));
       throw error;
     }
   }
 
-  async startTrial(email, password) {
+  async startTrial(email: string, password: string): Promise<AuthLoginResponse> {
     try {
       const response = await fetch(`${this.authBaseUrl}/trial/start`, {
         method: 'POST',
@@ -72,25 +119,29 @@ class AuthService {
         body: JSON.stringify({ email, password }),
       });
 
+      const data = (await response.json().catch(() => ({}))) as Partial<AuthLoginResponse> & ErrorResponse;
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Trial activation failed');
+        throw new Error(pickError(data, 'Trial activation failed'));
       }
 
-      const data = await response.json();
+      if (!data.user || !data.token) {
+        throw new Error('Trial activation failed');
+      }
+
       console.log('[AuthService] Trial started:', data.user.email);
-      
+
       // Store token and user data
       await this.storeAuth(data.user, data.token);
-      
-      return data;
+
+      return data as AuthLoginResponse;
     } catch (error) {
-      console.error('[AuthService] Trial start error:', error.message);
+      console.error('[AuthService] Trial start error:', getErrorMessage(error));
       throw error;
     }
   }
 
-  async changePassword(currentPassword, newPassword) {
+  async changePassword(currentPassword: string, newPassword: string): Promise<AuthMessageResponse> {
     try {
       const token = await this.getToken();
       if (!token) {
@@ -106,22 +157,68 @@ class AuthService {
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
+      const data = (await response.json().catch(() => ({}))) as Partial<AuthMessageResponse> & ErrorResponse;
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Password change failed');
+        throw new Error(pickError(data, 'Password change failed'));
       }
 
-      const data = await response.json();
       console.log('[AuthService] Password changed successfully');
-      
-      return data;
+
+      return data as AuthMessageResponse;
     } catch (error) {
-      console.error('[AuthService] Password change error:', error.message);
+      console.error('[AuthService] Password change error:', getErrorMessage(error));
       throw error;
     }
   }
 
-  async getMe() {
+  async requestPasswordReset(email: string): Promise<AuthForgotPasswordResponse> {
+    try {
+      const response = await fetch(`${this.authBaseUrl}/password/forgot`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as Partial<AuthForgotPasswordResponse> & ErrorResponse;
+
+      if (!response.ok) {
+        throw new Error(pickError(data, 'Password reset request failed'));
+      }
+
+      return data as AuthForgotPasswordResponse;
+    } catch (error) {
+      console.error('[AuthService] Password reset request error:', getErrorMessage(error));
+      throw error;
+    }
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<AuthMessageResponse> {
+    try {
+      const response = await fetch(`${this.authBaseUrl}/password/reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, newPassword }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as Partial<AuthMessageResponse> & ErrorResponse;
+
+      if (!response.ok) {
+        throw new Error(pickError(data, 'Password reset failed'));
+      }
+
+      return data as AuthMessageResponse;
+    } catch (error) {
+      console.error('[AuthService] Password reset error:', getErrorMessage(error));
+      throw error;
+    }
+  }
+
+  async getMe(): Promise<{ user: User; account?: User['account'] }> {
     try {
       const token = await this.getToken();
       if (!token) {
@@ -135,72 +232,77 @@ class AuthService {
         },
       });
 
+      const data = (await response.json().catch(() => ({}))) as Partial<{ user: User; account?: User['account'] }> &
+        ErrorResponse;
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch user');
+        throw new Error(pickError(data, 'Failed to fetch user'));
       }
 
-      const data = await response.json();
+      if (!data.user) {
+        throw new Error('Failed to fetch user');
+      }
+
       console.log('[AuthService] User data retrieved:', data.user.email);
-      
+
       // Update stored user data
       await this.storeUser(data.user);
-      
-      return data;
+
+      return data as { user: User; account?: User['account'] };
     } catch (error) {
-      console.error('[AuthService] Get user error:', error.message);
+      console.error('[AuthService] Get user error:', getErrorMessage(error));
       throw error;
     }
   }
 
-  async storeAuth(user, token) {
+  async storeAuth(user: User, token: string): Promise<void> {
     try {
       await AsyncStorage.setItem(this.tokenKey, token);
       await AsyncStorage.setItem(this.userKey, JSON.stringify(user));
       console.log('[AuthService] Auth data stored');
     } catch (error) {
-      console.error('[AuthService] Failed to store auth data:', error.message);
+      console.error('[AuthService] Failed to store auth data:', getErrorMessage(error));
     }
   }
 
-  async storeUser(user) {
+  async storeUser(user: User): Promise<void> {
     try {
       await AsyncStorage.setItem(this.userKey, JSON.stringify(user));
     } catch (error) {
-      console.error('[AuthService] Failed to store user:', error.message);
+      console.error('[AuthService] Failed to store user:', getErrorMessage(error));
     }
   }
 
-  async getToken() {
+  async getToken(): Promise<string | null> {
     try {
       return await AsyncStorage.getItem(this.tokenKey);
     } catch (error) {
-      console.error('[AuthService] Failed to get token:', error.message);
+      console.error('[AuthService] Failed to get token:', getErrorMessage(error));
       return null;
     }
   }
 
-  async getUser() {
+  async getUser(): Promise<User | null> {
     try {
       const userJson = await AsyncStorage.getItem(this.userKey);
-      return userJson ? JSON.parse(userJson) : null;
+      return userJson ? (JSON.parse(userJson) as User) : null;
     } catch (error) {
-      console.error('[AuthService] Failed to get user:', error.message);
+      console.error('[AuthService] Failed to get user:', getErrorMessage(error));
       return null;
     }
   }
 
-  async logout() {
+  async logout(): Promise<void> {
     try {
       await AsyncStorage.removeItem(this.tokenKey);
       await AsyncStorage.removeItem(this.userKey);
       console.log('[AuthService] User logged out');
     } catch (error) {
-      console.error('[AuthService] Logout error:', error.message);
+      console.error('[AuthService] Logout error:', getErrorMessage(error));
     }
   }
 
-  async isAuthenticated() {
+  async isAuthenticated(): Promise<boolean> {
     const token = await this.getToken();
     return !!token;
   }

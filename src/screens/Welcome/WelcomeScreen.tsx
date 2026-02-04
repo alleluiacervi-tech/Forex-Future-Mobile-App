@@ -60,8 +60,12 @@ export default function WelcomeScreen() {
   };
 
   const handleForgotPassword = () => {
-    // Navigate to forgot password screen (if you have one)
-    console.log('Forgot Password');
+    const normalized = email.trim().toLowerCase();
+    if (normalized) {
+      navigation.navigate('ForgotPassword', { email: normalized });
+      return;
+    }
+    navigation.navigate('ForgotPassword');
   };
 
   return (
