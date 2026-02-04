@@ -1,9 +1,11 @@
 import React from 'react';
 import type { ComponentProps } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import type { LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { NAVIGATION_CONFIG } from './config';
 import { navigationRef } from './rootNavigation';
@@ -33,6 +35,21 @@ import TermsOfServiceScreen from '../screens/Terms/TermsOfServiceScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: [Linking.createURL('/'), 'forexapp://'],
+  config: {
+    screens: {
+      Landing: '',
+      Welcome: 'welcome',
+      ForgotPassword: 'forgot-password',
+      ResetPassword: 'reset-password',
+      Main: 'main',
+      Subscription: 'subscription',
+      Settings: 'settings',
+    },
+  },
+};
 
 function MainTabs() {
   return (
@@ -67,7 +84,7 @@ function MainTabs() {
 
 export default function MainNavigator() {
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} linking={linking}>
       <Stack.Navigator
         screenOptions={{
           headerStyle: {

@@ -51,6 +51,8 @@ FINNHUB_API_KEY=your-finnhub-api-key
 # EMAIL_VALIDATION_TOKEN=change-me-to-a-long-random-string
 ```
 
+You can also start from `backend/.env.example` and fill in values.
+
 ### Database Setup
 
 ```bash
@@ -128,6 +130,18 @@ Endpoints:
 
 - `POST /api/auth/password/forgot` with `{ "email": "user@example.com" }`
 - `POST /api/auth/password/reset` with `{ "token": "...", "newPassword": "NewPass123" }`
+
+Quick test (local):
+
+```bash
+# 1) Start backend
+cd backend && npm run dev
+
+# 2) Request reset (check your inbox)
+curl -sS -X POST http://localhost:4000/api/auth/password/forgot \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@example.com"}'
+```
 
 ## Notes
 
