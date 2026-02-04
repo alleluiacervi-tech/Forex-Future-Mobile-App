@@ -56,3 +56,5 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+README_AUTH.md
+SAFE_COMMIT_LIST.md
