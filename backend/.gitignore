@@ -57,4 +57,4 @@ coverage/
 
 # Misc
 .DS_Store
-.env.example (this should be committed)
+# Note: `.env.example` should be committed (do not ignore it).

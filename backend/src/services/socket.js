@@ -1,6 +1,6 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { recordQuote, recordTrade } from "./marketCache.js";
-import { supportedSymbols } from "./marketSymbols.js";
+import { basePrices, supportedSymbols, symbolToPair } from "./marketSymbols.js";
 
 /**
  * Professional WS Market Stream
@@ -20,6 +20,13 @@ const DEFAULTS = {
   clientTimeoutMs: 30000,     // terminate if no pong within this window
   maxBufferedBytes: 1_000_000, // ~1MB backpressure threshold
   maxPendingUpstreamMessages: Number(process.env.WS_MAX_PENDING_UPSTREAM_MESSAGES || 1000),
+  // If Finnhub is connected but not sending data, optionally generate synthetic ticks in dev.
+  enableSyntheticTicks:
+    process.env.MARKET_WS_SYNTHETIC_TICKS === "true" ||
+    (!process.env.NODE_ENV || process.env.NODE_ENV !== "production"),
+  forceSyntheticTicks: process.env.MARKET_WS_FORCE_SYNTHETIC_TICKS === "true",
+  syntheticTickMs: Number(process.env.MARKET_WS_SYNTHETIC_MS || 1000),
+  upstreamSilentMs: Number(process.env.MARKET_WS_UPSTREAM_SILENT_MS || 15000),
   // In local/dev, allow running without Finnhub to avoid startup crashes.
   allowNoUpstream:
     process.env.ALLOW_NO_FINNHUB_WS === "true" ||
@@ -88,9 +95,82 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     ws.send(rawMessage);
   };
 
+  // Synthetic ticks (dev fallback)
+  let syntheticTimer = null;
+  const syntheticPriceBySymbol = new Map();
+
+  const isJpyPair = (pair) => String(pair || "").includes("JPY");
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+  const nextSyntheticPrice = (symbol) => {
+    const pair = symbolToPair[symbol];
+    if (!pair) return null;
+
+    const base = basePrices[pair];
+    const current = Number.isFinite(syntheticPriceBySymbol.get(symbol))
+      ? syntheticPriceBySymbol.get(symbol)
+      : base;
+
+    const jitter = isJpyPair(pair) ? 0.005 : 0.00005;
+    const pull = isJpyPair(pair) ? 0.0005 : 0.000005;
+    const drift = (Math.random() - 0.5) * jitter;
+    const meanRevert = Number.isFinite(base) ? (base - current) * pull : 0;
+    const next = Number.isFinite(current) ? current + drift + meanRevert : base;
+
+    // keep within a sane range in case basePrices are stale
+    const min = Number.isFinite(base) ? base * 0.7 : -Infinity;
+    const max = Number.isFinite(base) ? base * 1.3 : Infinity;
+    const clamped = clamp(next, min, max);
+
+    syntheticPriceBySymbol.set(symbol, clamped);
+    return clamped;
+  };
+
+  const startSyntheticTicks = (reason) => {
+    if (!config.enableSyntheticTicks) return;
+    if (syntheticTimer) return;
+    const tickMs = Number.isFinite(Number(config.syntheticTickMs)) && Number(config.syntheticTickMs) > 0
+      ? Number(config.syntheticTickMs)
+      : 1000;
+
+    if (config.logConnections) {
+      // eslint-disable-next-line no-console
+      console.warn(`Market WS: starting synthetic ticks (${reason || "fallback"}) every ${tickMs}ms`);
+    }
+
+    syntheticTimer = setInterval(() => {
+      const ts = Date.now();
+      supportedSymbols.forEach((symbol) => {
+        const price = nextSyntheticPrice(symbol);
+        if (!Number.isFinite(price)) return;
+        recordTrade({ symbol, price, timestampMs: ts, volume: 0 });
+
+        const payload = safeJson({
+          type: "trade",
+          data: [{ s: symbol, p: price, t: ts, v: 0 }]
+        });
+        wss.clients.forEach((ws) => {
+          sendRaw(ws, payload);
+        });
+      });
+    }, tickMs);
+  };
+
+  const stopSyntheticTicks = () => {
+    if (!syntheticTimer) return;
+    clearInterval(syntheticTimer);
+    syntheticTimer = null;
+    if (config.logConnections) {
+      // eslint-disable-next-line no-console
+      console.warn("Market WS: stopped synthetic ticks (upstream resumed).");
+    }
+  };
+
   // Upstream Finnhub connection
   let finnhub = null;
   let finnhubReconnectTimer = null;
+  let finnhubOpenedAt = 0;
+  let lastUpstreamDataAt = 0;
   const pendingFinnhubMessages = [];
   const maxPendingUpstreamMessages =
     Number.isFinite(Number(config.maxPendingUpstreamMessages)) && Number(config.maxPendingUpstreamMessages) > 0
@@ -172,18 +252,47 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     }
 
     finnhub.on("open", () => {
+      finnhubOpenedAt = Date.now();
+      lastUpstreamDataAt = 0;
       if (config.logConnections) {
         // eslint-disable-next-line no-console
         console.log("Finnhub WS connected.");
       }
       flushFinnhubQueue();
       resubscribeAllSymbols();
+
+      if (config.forceSyntheticTicks) {
+        startSyntheticTicks("forceSyntheticTicks=true");
+      } else if (config.enableSyntheticTicks) {
+        const silentMs =
+          Number.isFinite(Number(config.upstreamSilentMs)) && Number(config.upstreamSilentMs) > 0
+            ? Number(config.upstreamSilentMs)
+            : 15000;
+        setTimeout(() => {
+          // If upstream never emitted a trade/quote soon after connect, it often means
+          // invalid symbols, plan limitations, or an invalid token. Provide a dev fallback.
+          if (!finnhub || finnhub.readyState !== WebSocket.OPEN) return;
+          if (lastUpstreamDataAt) return;
+          if (config.logConnections) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              `Finnhub WS: connected but no trade/quote received after ${silentMs}ms. ` +
+                `Set WS_LOG_UPSTREAM_MESSAGES=true to inspect upstream payloads.`
+            );
+          }
+          startSyntheticTicks("upstream silent");
+        }, silentMs).unref?.();
+      }
     });
 
     finnhub.on("message", (raw) => {
       const msg = raw.toString();
       try {
         const payload = JSON.parse(msg);
+        if (payload?.type === "error") {
+          // eslint-disable-next-line no-console
+          console.error("Finnhub WS upstream error:", payload);
+        }
         if (config.logUpstreamMessages) {
           try {
             // eslint-disable-next-line no-console
@@ -210,6 +319,8 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
         }
         if (Array.isArray(payload?.data)) {
           if (payload.type === "trade") {
+            lastUpstreamDataAt = Date.now();
+            stopSyntheticTicks();
             payload.data.forEach((item) => {
               recordTrade({
                 symbol: item?.s,
@@ -220,6 +331,8 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
             });
           }
           if (payload.type === "quote") {
+            lastUpstreamDataAt = Date.now();
+            stopSyntheticTicks();
             payload.data.forEach((item) => {
               recordQuote({
                 symbol: item?.s,
@@ -247,6 +360,9 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       if (config.logConnections) {
         // eslint-disable-next-line no-console
         console.log("Finnhub WS disconnected. Reconnecting...");
+      }
+      if (config.enableSyntheticTicks && wss.clients.size > 0) {
+        startSyntheticTicks("upstream disconnected");
       }
       scheduleFinnhubReconnect();
     });
@@ -369,6 +485,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   wss.on("close", () => {
     clearInterval(pingInterval);
     if (finnhubReconnectTimer) clearTimeout(finnhubReconnectTimer);
+    stopSyntheticTicks();
     try {
       finnhub?.close();
     } catch {}
@@ -378,6 +495,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   wss.closeGracefully = () => {
     clearInterval(pingInterval);
     if (finnhubReconnectTimer) clearTimeout(finnhubReconnectTimer);
+    stopSyntheticTicks();
     try {
       finnhub?.close();
     } catch {}
