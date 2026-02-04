@@ -6,6 +6,10 @@ type AuthRegisterResponse = {
   user: User;
   account?: User['account'];
   trialRequired?: boolean;
+  verificationRequired?: boolean;
+  verificationUnavailable?: boolean;
+  debugCode?: string;
+  debugExpiresAt?: string;
 };
 
 type AuthLoginResponse = {
@@ -22,6 +26,18 @@ type AuthForgotPasswordResponse = {
 
 type AuthMessageResponse = {
   message?: string;
+};
+
+type VerifyEmailResponse = {
+  ok?: boolean;
+  alreadyVerified?: boolean;
+  message?: string;
+};
+
+type ResendVerificationResponse = {
+  message?: string;
+  debugCode?: string;
+  debugExpiresAt?: string;
 };
 
 type ErrorResponse = {
@@ -73,6 +89,52 @@ class AuthService {
       return data as AuthRegisterResponse;
     } catch (error) {
       console.error('[AuthService] Registration error:', getErrorMessage(error));
+      throw error;
+    }
+  }
+
+  async verifyEmail(email: string, code: string): Promise<VerifyEmailResponse> {
+    try {
+      const response = await fetch(`${this.authBaseUrl}/email/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, code }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as Partial<VerifyEmailResponse> & ErrorResponse;
+
+      if (!response.ok) {
+        throw new Error(pickError(data, 'Email verification failed'));
+      }
+
+      return data as VerifyEmailResponse;
+    } catch (error) {
+      console.error('[AuthService] Verify email error:', getErrorMessage(error));
+      throw error;
+    }
+  }
+
+  async resendEmailVerification(email: string): Promise<ResendVerificationResponse> {
+    try {
+      const response = await fetch(`${this.authBaseUrl}/email/resend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as Partial<ResendVerificationResponse> & ErrorResponse;
+
+      if (!response.ok) {
+        throw new Error(pickError(data, 'Unable to resend verification code'));
+      }
+
+      return data as ResendVerificationResponse;
+    } catch (error) {
+      console.error('[AuthService] Resend verification error:', getErrorMessage(error));
       throw error;
     }
   }

@@ -25,6 +25,15 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(8)
 });
 
+const verifyEmailSchema = z.object({
+  email: z.string().email(),
+  code: z.string().min(4)
+});
+
+const resendVerificationSchema = z.object({
+  email: z.string().email()
+});
+
 const orderSchema = z.object({
   pair: z.string().regex(/^[A-Z]{3}\/[A-Z]{3}$/),
   side: z.enum(["buy", "sell"]),
@@ -68,7 +77,9 @@ export {
   parseSchema,
   recommendationSchema,
   registerSchema,
+  resendVerificationSchema,
   resetPasswordSchema,
   trialStartSchema,
-  updateUserSchema
+  updateUserSchema,
+  verifyEmailSchema
 };

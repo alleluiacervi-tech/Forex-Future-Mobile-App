@@ -4,8 +4,10 @@ import {
   loginSchema,
   parseSchema,
   registerSchema,
+  resendVerificationSchema,
   resetPasswordSchema,
-  trialStartSchema
+  trialStartSchema,
+  verifyEmailSchema
 } from "../utils/validators.js";
 import authenticate from "../middleware/auth.js";
 import authService from "../services/auth.js";
@@ -16,6 +18,8 @@ const logger = new Logger('AuthRoutes');
 
 const resetThrottle = new Map();
 const resetThrottleMs = Number(process.env.PASSWORD_RESET_THROTTLE_MS || 60_000);
+const verifyThrottle = new Map();
+const verifyThrottleMs = Number(process.env.EMAIL_VERIFICATION_THROTTLE_MS || 60_000);
 
 router.post("/register", async (req, res) => {
   const { data, error } = parseSchema(registerSchema, req.body);
@@ -24,11 +28,16 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    const user = await authService.registerUser(data.name, data.email, data.password);
+    const result = await authService.registerUser(data.name, data.email, data.password);
+    const user = result?.user || result;
     return res.status(201).json({
       user,
       account: user.account,
-      trialRequired: true
+      trialRequired: true,
+      verificationRequired: Boolean(result?.verificationRequired),
+      verificationUnavailable: Boolean(result?.verificationUnavailable),
+      debugCode: result?.debugCode,
+      debugExpiresAt: result?.debugExpiresAt
     });
   } catch (error) {
     logger.error('Registration endpoint error', { error: error.message });
@@ -41,6 +50,51 @@ router.post("/register", async (req, res) => {
     }
     
     return res.status(500).json({ error: "Registration failed." });
+  }
+});
+
+router.post("/email/verify", async (req, res) => {
+  const { data, error } = parseSchema(verifyEmailSchema, req.body);
+  if (error) {
+    return res.status(400).json({ error });
+  }
+
+  try {
+    const result = await authService.verifyEmailCode(data.email, data.code);
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    return res.status(400).json({ error: err instanceof Error ? err.message : "Email verification failed." });
+  }
+});
+
+router.post("/email/resend", async (req, res) => {
+  const { data, error } = parseSchema(resendVerificationSchema, req.body);
+  if (error) {
+    return res.status(400).json({ error });
+  }
+
+  const normalizedEmail = data.email.trim().toLowerCase();
+  const key = `${req.ip}|${normalizedEmail}`;
+  const lastAt = verifyThrottle.get(key) || 0;
+  const now = Date.now();
+  if (now - lastAt < verifyThrottleMs) {
+    return res.json({ message: "If the account exists, a new verification code will be sent shortly." });
+  }
+  verifyThrottle.set(key, now);
+
+  try {
+    const result = await authService.requestEmailVerification(normalizedEmail, { ip: req.ip });
+    if (result?.unavailable) {
+      return res.status(503).json({ error: "Email verification is temporarily unavailable." });
+    }
+    return res.json({
+      message: "If the account exists, a new verification code will be sent shortly.",
+      debugCode: result?.debugCode,
+      debugExpiresAt: result?.debugExpiresAt
+    });
+  } catch (err) {
+    logger.error("Resend verification endpoint error", { email: normalizedEmail, error: err?.message });
+    return res.json({ message: "If the account exists, a new verification code will be sent shortly." });
   }
 });
 
@@ -63,6 +117,9 @@ router.post("/login", async (req, res) => {
     if (error.message.includes('trial must be activated')) {
       return res.status(403).json({ error: error.message });
     }
+    if (error.message.toLowerCase().includes('email verification required')) {
+      return res.status(403).json({ error: error.message, verificationRequired: true });
+    }
     
     return res.status(401).json({ error: error.message });
   }
@@ -82,6 +139,9 @@ router.post("/trial/start", async (req, res) => {
     
     if (error.message.includes('already active')) {
       return res.status(400).json({ error: error.message });
+    }
+    if (error.message.toLowerCase().includes('email verification required')) {
+      return res.status(403).json({ error: error.message, verificationRequired: true });
     }
     
     return res.status(401).json({ error: error.message });

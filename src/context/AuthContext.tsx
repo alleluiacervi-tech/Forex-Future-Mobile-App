@@ -5,6 +5,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  emailVerified?: boolean;
+  emailVerifiedAt?: string | null;
   trialActive: boolean;
   trialStartedAt?: string;
   baseCurrency?: string;
@@ -23,10 +25,16 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+  ) => Promise<{ verificationRequired?: boolean; verificationUnavailable?: boolean; debugCode?: string; debugExpiresAt?: string }>;
   startTrial: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<{ ok?: boolean; alreadyVerified?: boolean }>;
+  resendEmailVerification: (email: string) => Promise<{ message?: string; debugCode?: string; debugExpiresAt?: string }>;
   requestPasswordReset: (email: string) => Promise<{ message?: string; debugToken?: string; debugLink?: string }>;
   resetPassword: (token: string, newPassword: string) => Promise<{ message?: string }>;
   refreshUser: () => Promise<void>;
@@ -81,9 +89,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = useCallback(async (name: string, email: string, password: string) => {
     try {
       setIsLoading(true);
-      const { user: userData } = await authService.register(name, email, password);
+      const { user: userData, verificationRequired, verificationUnavailable, debugCode, debugExpiresAt } =
+        await authService.register(name, email, password);
       setUser(userData);
       console.log('[AuthProvider] User registered:', userData.email);
+      return { verificationRequired, verificationUnavailable, debugCode, debugExpiresAt };
     } catch (error) {
       console.error('[AuthProvider] Registration failed:', error);
       throw error;

@@ -1,11 +1,20 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from "crypto";
 import config from '../config.js';
 import prisma from '../db/prisma.js';
 import Logger from '../utils/logger.js';
 import { sendEmail, validateEmailConfig } from "./email.js";
 
 const logger = new Logger('AuthService');
+
+const hashToken = (value) =>
+  crypto
+    .createHash("sha256")
+    .update(String(value || ""))
+    .digest("hex");
+
+const randomSixDigitCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
 class AuthService {
   // Validate email format
@@ -129,6 +138,180 @@ class AuthService {
     const joiner = base.includes("?") ? "&" : "?";
     const needsJoiner = !(base.endsWith("?") || base.endsWith("&"));
     return `${base}${needsJoiner ? joiner : ""}token=${encodeURIComponent(token)}`;
+  }
+
+  buildEmailVerificationLink({ email, code }) {
+    const base = process.env.EMAIL_VERIFY_URL || "";
+    if (!base) return null;
+
+    const encodedEmail = encodeURIComponent(String(email || ""));
+    const encodedCode = encodeURIComponent(String(code || ""));
+
+    // Supports templates: ...?email={email}&code={code}
+    if (base.includes("{email}") || base.includes("{code}")) {
+      return base.replace("{email}", encodedEmail).replace("{code}", encodedCode);
+    }
+
+    // Fallback: append as query params.
+    const joiner = base.includes("?") ? "&" : "?";
+    const needsJoiner = !(base.endsWith("?") || base.endsWith("&"));
+    return `${base}${needsJoiner ? joiner : ""}email=${encodedEmail}&code=${encodedCode}`;
+  }
+
+  emailVerificationPolicy() {
+    const emailValidation = validateEmailConfig();
+    const emailAvailable = emailValidation.ok;
+    const allowDebugReturn =
+      process.env.NODE_ENV !== "production" &&
+      process.env.EMAIL_VERIFICATION_DEBUG_RETURN_CODE !== "false";
+    const requireEmail =
+      process.env.EMAIL_VERIFICATION_REQUIRE_EMAIL === "true" ||
+      process.env.NODE_ENV === "production";
+
+    return { emailAvailable, allowDebugReturn, requireEmail, emailValidation };
+  }
+
+  async issueAndStoreEmailVerificationCode(userId) {
+    const code = randomSixDigitCode();
+    const expiresMinutes = Number(process.env.EMAIL_VERIFICATION_EXPIRES_MIN || 10);
+    const expiresAt = new Date(Date.now() + (Number.isFinite(expiresMinutes) ? expiresMinutes : 10) * 60 * 1000);
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        emailVerificationCodeHash: hashToken(code),
+        emailVerificationExpiresAt: expiresAt,
+        emailVerificationSentAt: new Date(),
+        emailVerified: false,
+        emailVerifiedAt: null
+      },
+      select: { id: true }
+    });
+
+    return { code, expiresAt };
+  }
+
+  async sendVerificationEmail({ to, name, code }) {
+    const link = this.buildEmailVerificationLink({ email: to, code });
+    const greeting = name ? `Hi ${name},` : "Hi,";
+    const lines = [
+      greeting,
+      "",
+      "Your Forex Trading App verification code is:",
+      "",
+      code,
+      "",
+      link ? `Or verify via link: ${link}` : "",
+      "",
+      "If you didn't create this account, you can ignore this email."
+    ].filter(Boolean);
+
+    await sendEmail({
+      to,
+      subject: "Verify your email",
+      text: lines.join("\n"),
+      html: `
+        <p>${greeting}</p>
+        <p>Your Forex Trading App verification code is:</p>
+        <p style="font-size: 22px; font-weight: bold; letter-spacing: 2px;">${code}</p>
+        ${link ? `<p><a href="${link}">Verify email</a></p>` : ""}
+        <p>If you didn't create this account, you can ignore this email.</p>
+      `
+    });
+  }
+
+  async requestEmailVerification(email, { ip } = {}) {
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    if (!normalizedEmail || !this.validateEmail(normalizedEmail)) {
+      return { ok: true };
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: "insensitive" } },
+      select: { id: true, email: true, name: true, emailVerified: true }
+    });
+
+    if (!user || user.emailVerified) {
+      // Keep response generic.
+      return { ok: true };
+    }
+
+    const policy = this.emailVerificationPolicy();
+    if (!policy.emailAvailable && policy.requireEmail) {
+      logger.warn("Email verification unavailable (email not configured)", { errors: policy.emailValidation.errors });
+      return { ok: false, unavailable: true };
+    }
+
+    const { code, expiresAt } = await this.issueAndStoreEmailVerificationCode(user.id);
+
+    if (!policy.emailAvailable) {
+      if (policy.allowDebugReturn) {
+        return { ok: true, debugCode: code, debugExpiresAt: expiresAt.toISOString() };
+      }
+      return { ok: true };
+    }
+
+    try {
+      await this.sendVerificationEmail({ to: user.email, name: user.name, code });
+      return { ok: true };
+    } catch (error) {
+      logger.error("Verification email send failed", { email: normalizedEmail, ip, error: error.message });
+      if (policy.allowDebugReturn) {
+        return { ok: true, debugCode: code, debugExpiresAt: expiresAt.toISOString() };
+      }
+      return { ok: true };
+    }
+  }
+
+  async verifyEmailCode(email, code) {
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const submitted = String(code || "").trim();
+    if (!normalizedEmail || !this.validateEmail(normalizedEmail)) {
+      throw new Error("Invalid email.");
+    }
+    if (!submitted || submitted.length < 4) {
+      throw new Error("Invalid verification code.");
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: "insensitive" } },
+      select: {
+        id: true,
+        emailVerified: true,
+        emailVerificationCodeHash: true,
+        emailVerificationExpiresAt: true
+      }
+    });
+
+    if (!user) {
+      throw new Error("Invalid verification code.");
+    }
+    if (user.emailVerified) {
+      return { ok: true, alreadyVerified: true };
+    }
+
+    const expiresAtMs = user.emailVerificationExpiresAt ? user.emailVerificationExpiresAt.getTime() : 0;
+    if (!expiresAtMs || Date.now() > expiresAtMs) {
+      throw new Error("Verification code expired. Please request a new code.");
+    }
+
+    const expected = String(user.emailVerificationCodeHash || "");
+    if (!expected || hashToken(submitted) !== expected) {
+      throw new Error("Invalid verification code.");
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        emailVerificationCodeHash: null,
+        emailVerificationExpiresAt: null
+      },
+      select: { id: true }
+    });
+
+    return { ok: true };
   }
 
   async requestPasswordReset(email, { ip } = {}) {
@@ -301,6 +484,8 @@ class AuthService {
           id: true,
           name: true,
           email: true,
+          emailVerified: true,
+          emailVerifiedAt: true,
           createdAt: true,
           updatedAt: true,
           baseCurrency: true,
@@ -314,7 +499,24 @@ class AuthService {
       });
 
       logger.info('User registered successfully', { userId: user.id, email });
-      return user;
+
+      const policy = this.emailVerificationPolicy();
+      if (!policy.emailAvailable && policy.requireEmail) {
+        return { user, verificationRequired: true, verificationUnavailable: true };
+      }
+
+      try {
+        const result = await this.requestEmailVerification(normalizedEmail);
+        return {
+          user,
+          verificationRequired: true,
+          debugCode: result?.debugCode,
+          debugExpiresAt: result?.debugExpiresAt
+        };
+      } catch (error) {
+        logger.error("Failed to start email verification", { email: normalizedEmail, error: error.message });
+        return { user, verificationRequired: true };
+      }
     } catch (error) {
       logger.error('User registration failed', { email, error: error.message });
       throw error;
@@ -340,6 +542,8 @@ class AuthService {
           id: true,
           name: true,
           email: true,
+          emailVerified: true,
+          emailVerifiedAt: true,
           passwordHash: true,
           createdAt: true,
           updatedAt: true,
@@ -363,6 +567,11 @@ class AuthService {
       if (!passwordMatch) {
         logger.warn('Authentication failed - incorrect password', { email });
         throw new Error('Invalid email or password.');
+      }
+
+      if (normalizedEmail !== "demo@forex.app" && !user.emailVerified) {
+        logger.warn("Authentication blocked - email not verified", { userId: user.id, email: normalizedEmail });
+        throw new Error("Email verification required.");
       }
 
       // Check trial status
@@ -398,6 +607,8 @@ class AuthService {
           id: true,
           name: true,
           email: true,
+          emailVerified: true,
+          emailVerifiedAt: true,
           passwordHash: true,
           trialActive: true,
           createdAt: true,
@@ -423,6 +634,11 @@ class AuthService {
         throw new Error('Invalid email or password.');
       }
 
+      if (normalizedEmail !== "demo@forex.app" && !user.emailVerified) {
+        logger.warn("Trial start blocked - email not verified", { userId: user.id, email: normalizedEmail });
+        throw new Error("Email verification required.");
+      }
+
       // Check if trial already active
       if (user.trialActive) {
         logger.warn('Trial already active', { userId: user.id, email });
@@ -440,6 +656,8 @@ class AuthService {
           id: true,
           name: true,
           email: true,
+          emailVerified: true,
+          emailVerifiedAt: true,
           createdAt: true,
           updatedAt: true,
           baseCurrency: true,
@@ -472,6 +690,8 @@ class AuthService {
           id: true,
           name: true,
           email: true,
+          emailVerified: true,
+          emailVerifiedAt: true,
           createdAt: true,
           updatedAt: true,
           baseCurrency: true,
