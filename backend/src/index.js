@@ -10,7 +10,9 @@ import tradesRoutes from "./routes/trades.js";
 import portfolioRoutes from "./routes/portfolio.js";
 import usersRoutes from "./routes/users.js";
 import recommendationRoutes from "./routes/recommendations.js";
+import emailRoutes from "./routes/email.js";
 import initializeSocket from "./services/socket.js";
+import { logEmailConfigStatus } from "./services/email.js";
 import { getLiveRatesFromCache } from "./services/marketCache.js";
 import { startMarketRecorder } from "./services/marketRecorder.js";
 
@@ -41,6 +43,7 @@ app.use("/api/trades", tradesRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/recommendations", recommendationRoutes);
+app.use("/api/email", emailRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found." });
@@ -51,6 +54,8 @@ const server = http.createServer(app);
 initializeSocket({ server, heartbeatMs: config.wsHeartbeatMs });
 
 startMarketRecorder();
+
+logEmailConfigStatus();
 
 server.listen(config.port, "0.0.0.0", () => {
   // eslint-disable-next-line no-console
