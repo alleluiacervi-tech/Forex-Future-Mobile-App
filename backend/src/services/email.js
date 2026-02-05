@@ -5,6 +5,13 @@ const logger = new Logger("EmailService");
 
 const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ""));
 
+const extractEmailAddress = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const match = raw.match(/<([^<>]+)>/);
+  return match ? String(match[1] || "").trim() : raw;
+};
+
 const normalizeAppPassword = (value) => String(value || "").replace(/\s+/g, "");
 
 const parseBoolean = (value, defaultValue) => {
@@ -15,7 +22,7 @@ const parseBoolean = (value, defaultValue) => {
 };
 
 const readEmailEnv = () => {
-  const user = String(process.env.EMAIL_USER || "").trim();
+  const user = extractEmailAddress(process.env.EMAIL_USER);
   const appPassword = normalizeAppPassword(process.env.EMAIL_APP_PASSWORD);
   const from = String(process.env.EMAIL_FROM || user).trim();
 
@@ -55,7 +62,9 @@ const validateEmailConfig = () => {
   if (!cfg.user) errors.push("Missing EMAIL_USER.");
   if (!cfg.appPassword) errors.push("Missing EMAIL_APP_PASSWORD.");
   if (cfg.user && !isEmail(cfg.user)) errors.push("EMAIL_USER must be a valid email address.");
-  if (cfg.from && !isEmail(cfg.from)) errors.push("EMAIL_FROM must be a valid email address.");
+  if (cfg.from && !isEmail(extractEmailAddress(cfg.from))) {
+    errors.push("EMAIL_FROM must contain a valid email address.");
+  }
   if (!cfg.host) errors.push("Missing EMAIL_SMTP_HOST.");
   if (!Number.isFinite(cfg.port) || cfg.port <= 0) errors.push("EMAIL_SMTP_PORT must be a positive number.");
 
@@ -104,7 +113,7 @@ const verifyEmailTransport = async () => {
   return true;
 };
 
-const sendEmail = async ({ to, subject, text, html }) => {
+const sendEmail = async ({ to, subject, text, html, attachments }) => {
   const cfg = readEmailEnv();
   const transport = getTransporter();
 
@@ -113,7 +122,8 @@ const sendEmail = async ({ to, subject, text, html }) => {
     to,
     subject,
     text,
-    html
+    html,
+    attachments: Array.isArray(attachments) ? attachments : undefined
   });
 
   return {
@@ -152,4 +162,3 @@ export {
   validateEmailConfig,
   verifyEmailTransport
 };
-

@@ -1,12 +1,159 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import config from '../config.js';
 import prisma from '../db/prisma.js';
 import Logger from '../utils/logger.js';
 import { sendEmail, validateEmailConfig } from "./email.js";
 
 const logger = new Logger('AuthService');
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const EMAIL_LOGO_CID = "forex-future-logo";
+
+const resolveEmailLogoPath = () => {
+  const envPath = String(process.env.EMAIL_LOGO_PATH || "").trim();
+
+  const candidates = [
+    envPath,
+    envPath ? path.resolve(process.cwd(), envPath) : "",
+    path.resolve(process.cwd(), "assets", "logo.png"),
+    path.resolve(process.cwd(), "assets", "image.png"),
+    path.resolve(process.cwd(), "../assets", "logo.png"),
+    path.resolve(process.cwd(), "../assets", "image.png"),
+    path.join(__dirname, "..", "..", "..", "assets", "logo.png"),
+    path.join(__dirname, "..", "..", "..", "assets", "image.png")
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+};
+
+const buildVerificationEmailHtml = ({ brandName, greeting, codeDisplay, codeRaw, link, expiresMinutes, hasLogo }) => {
+  const safeBrand = escapeHtml(brandName);
+  const safeGreeting = escapeHtml(greeting);
+  const safeCodeDisplay = escapeHtml(codeDisplay);
+  const safeCodeRaw = escapeHtml(codeRaw);
+  const safeLink = link ? escapeHtml(link) : "";
+
+  const preheader = `Your ${safeBrand} verification code is ${safeCodeRaw}.`;
+
+  const buttonHtml = link
+    ? `
+      <tr>
+        <td align="center" style="padding: 8px 0 0 0;">
+          <a href="${safeLink}"
+             style="display: inline-block; background: #00D1FF; color: #041018; text-decoration: none; font-weight: 700; padding: 12px 18px; border-radius: 12px;">
+            Verify Email
+          </a>
+        </td>
+      </tr>
+    `
+    : "";
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="x-apple-disable-message-reformatting" />
+    <title>${safeBrand} – Verify Email</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#070E17;">
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0; color:transparent;">
+      ${preheader}
+    </div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#070E17; padding: 24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="width:560px; max-width:560px;">
+            <tr>
+              <td style="padding: 0 14px 14px 14px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #0B1B2B; border: 1px solid #13314A; border-radius: 18px; overflow: hidden;">
+                  <tr>
+                    <td style="padding: 18px 18px 10px 18px; background: linear-gradient(135deg, #0B1B2B 0%, #071A2A 60%, #0B1B2B 100%);">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                        <tr>
+                          <td align="center" style="padding: 0 0 8px 0;">
+                            ${
+                              hasLogo
+                                ? `<img src="cid:${EMAIL_LOGO_CID}" width="72" height="72" alt="${safeBrand} logo" style="display:block; width:72px; height:72px; border-radius: 16px;" />`
+                                : `<div style="font-weight:800; font-size:20px; letter-spacing:0.5px; color:#E6F0FF;">${safeBrand}</div>`
+                            }
+                          </td>
+                        </tr>
+                        <tr>
+                          <td align="center" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color:#E6F0FF; font-weight:800; font-size: 20px; letter-spacing: 0.2px;">
+                            Verify your email
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 18px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                        <tr>
+                          <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color:#E6F0FF; font-size: 14px; line-height: 20px;">
+                            ${safeGreeting}<br />
+                            Use the one‑time code below to verify your email address.
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 14px 0 6px 0;">
+                            <div style="background:#071A2A; border: 1px solid #13314A; border-radius: 14px; padding: 16px 18px; text-align: center;">
+                              <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 32px; font-weight: 800; letter-spacing: 6px; color:#00D1FF;">
+                                ${safeCodeDisplay}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color:#9FB2C8; font-size: 12px; line-height: 18px;">
+                            This code expires in <strong style="color:#E6F0FF;">${escapeHtml(expiresMinutes)}</strong> minutes. Do not share it with anyone.
+                          </td>
+                        </tr>
+                        ${buttonHtml}
+                        <tr>
+                          <td style="padding-top: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color:#9FB2C8; font-size: 12px; line-height: 18px;">
+                            If you didn’t request this, you can safely ignore this email.
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color:#5E7894; font-size: 11px; line-height: 16px; text-align:center; padding: 14px 0 0 0;">
+                  © ${new Date().getFullYear()} ${safeBrand}. All rights reserved.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+};
 
 const hashToken = (value) =>
   crypto
@@ -191,32 +338,59 @@ class AuthService {
     return { code, expiresAt };
   }
 
-  async sendVerificationEmail({ to, name, code }) {
+  async sendVerificationEmail({ to, name, code, expiresAt }) {
+    const brandName = String(process.env.EMAIL_BRAND_NAME || "Forex Future").trim() || "Forex Future";
     const link = this.buildEmailVerificationLink({ email: to, code });
-    const greeting = name ? `Hi ${name},` : "Hi,";
+
+    const cleanedCode = String(code || "").replace(/\s+/g, "");
+    const codeDisplay = cleanedCode.length === 6 ? `${cleanedCode.slice(0, 3)} ${cleanedCode.slice(3)}` : cleanedCode;
+
+    const greetingName = String(name || "").trim();
+    const greeting = greetingName ? `Hi ${greetingName},` : "Hi,";
+
+    const fallbackMinutes = Number(process.env.EMAIL_VERIFICATION_EXPIRES_MIN || 10);
+    const expiresMinutesRaw = expiresAt instanceof Date ? Math.ceil((expiresAt.getTime() - Date.now()) / 60_000) : fallbackMinutes;
+    const expiresMinutes = Number.isFinite(expiresMinutesRaw) && expiresMinutesRaw > 0 ? expiresMinutesRaw : fallbackMinutes;
+
+    const logoPath = resolveEmailLogoPath();
+    const attachments = logoPath
+      ? [
+          {
+            filename: path.basename(logoPath),
+            path: logoPath,
+            cid: EMAIL_LOGO_CID
+          }
+        ]
+      : undefined;
+
     const lines = [
       greeting,
       "",
-      "Your Forex Trading App verification code is:",
+      `Your ${brandName} verification code is: ${cleanedCode}`,
+      `This code expires in ${expiresMinutes} minutes.`,
       "",
-      code,
+      link ? `Verify link: ${link}` : "",
       "",
-      link ? `Or verify via link: ${link}` : "",
-      "",
-      "If you didn't create this account, you can ignore this email."
+      "Do not share this code with anyone.",
+      "If you didn't request this, you can safely ignore this email."
     ].filter(Boolean);
+
+    const html = buildVerificationEmailHtml({
+      brandName,
+      greeting,
+      codeDisplay,
+      codeRaw: cleanedCode,
+      link,
+      expiresMinutes,
+      hasLogo: Boolean(logoPath)
+    });
 
     await sendEmail({
       to,
-      subject: "Verify your email",
+      subject: `${brandName} verification code`,
       text: lines.join("\n"),
-      html: `
-        <p>${greeting}</p>
-        <p>Your Forex Trading App verification code is:</p>
-        <p style="font-size: 22px; font-weight: bold; letter-spacing: 2px;">${code}</p>
-        ${link ? `<p><a href="${link}">Verify email</a></p>` : ""}
-        <p>If you didn't create this account, you can ignore this email.</p>
-      `
+      html,
+      attachments
     });
   }
 
@@ -252,7 +426,7 @@ class AuthService {
     }
 
     try {
-      await this.sendVerificationEmail({ to: user.email, name: user.name, code });
+      await this.sendVerificationEmail({ to: user.email, name: user.name, code, expiresAt });
       return { ok: true };
     } catch (error) {
       logger.error("Verification email send failed", { email: normalizedEmail, ip, error: error.message });
@@ -362,27 +536,60 @@ class AuthService {
     }
 
     try {
+      const brandName = String(process.env.EMAIL_BRAND_NAME || "Forex Future").trim() || "Forex Future";
       const greeting = user.name ? `Hi ${user.name},` : "Hi,";
+      const safeGreeting = escapeHtml(greeting);
+      const safeBrand = escapeHtml(brandName);
+      const safeLink = link ? escapeHtml(link) : "";
+      const safeToken = escapeHtml(token);
+
+      const logoPath = resolveEmailLogoPath();
+      const attachments = logoPath
+        ? [
+            {
+              filename: path.basename(logoPath),
+              path: logoPath,
+              cid: EMAIL_LOGO_CID
+            }
+          ]
+        : undefined;
+
       const lines = [
         greeting,
         "",
-        "We received a request to reset your Forex Trading App password.",
+        `We received a request to reset your ${brandName} password.`,
         "",
         link ? `Reset link: ${link}` : `Reset token: ${token}`,
         "",
+        "Do not share this token with anyone.",
         "If you didn't request this, you can safely ignore this email."
       ];
 
       await sendEmail({
         to: user.email,
-        subject: "Reset your password",
+        subject: `${brandName} password reset`,
         text: lines.join("\n"),
         html: `
-          <p>${greeting}</p>
-          <p>We received a request to reset your Forex Trading App password.</p>
-          ${link ? `<p><a href="${link}">Reset your password</a></p>` : `<p><strong>Reset token:</strong> ${token}</p>`}
-          <p>If you didn't request this, you can safely ignore this email.</p>
-        `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+            <div style="padding: 0 0 12px 0; text-align: center;">
+              ${
+                logoPath
+                  ? `<img src="cid:${EMAIL_LOGO_CID}" width="72" height="72" alt="${safeBrand} logo" style="display:inline-block; width:72px; height:72px; border-radius: 16px;" />`
+                  : `<div style="font-weight: 800; font-size: 20px; letter-spacing: 0.5px;">${safeBrand}</div>`
+              }
+            </div>
+            <p>${safeGreeting}</p>
+            <p>We received a request to reset your ${safeBrand} password.</p>
+            ${
+              link
+                ? `<p><a href="${safeLink}">Reset your password</a></p>`
+                : `<p><strong>Reset token:</strong> <code>${safeToken}</code></p>`
+            }
+            <p>Do not share this token with anyone.</p>
+            <p>If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        `,
+        attachments
       });
     } catch (error) {
       logger.error("Password reset email failed", { email: normalizedEmail, error: error.message });
