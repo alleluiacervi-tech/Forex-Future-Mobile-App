@@ -439,7 +439,7 @@ class AuthService {
 
   async verifyEmailCode(email, code) {
     const normalizedEmail = String(email || "").trim().toLowerCase();
-    const submitted = String(code || "").trim();
+    const submitted = String(code || "").replace(/\D/g, "");
     if (!normalizedEmail || !this.validateEmail(normalizedEmail)) {
       throw new Error("Invalid email.");
     }

@@ -18,8 +18,67 @@ const logger = new Logger('AuthRoutes');
 
 const resetThrottle = new Map();
 const resetThrottleMs = Number(process.env.PASSWORD_RESET_THROTTLE_MS || 60_000);
+
+const toNonNegativeInt = (value, fallback) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
+};
+
+const emailVerificationThrottleWindowMs = toNonNegativeInt(process.env.EMAIL_VERIFICATION_THROTTLE_MS, 60_000);
+const emailVerificationThrottleMaxAttempts = toNonNegativeInt(process.env.EMAIL_VERIFICATION_THROTTLE_MAX_ATTEMPTS, 6);
+
 const verifyThrottle = new Map();
-const verifyThrottleMs = Number(process.env.EMAIL_VERIFICATION_THROTTLE_MS || 60_000);
+const resendThrottle = new Map();
+
+const secondsFromMs = (ms) => Math.max(1, Math.ceil(ms / 1000));
+
+const checkVerifyRateLimit = (key) => {
+  if (emailVerificationThrottleWindowMs <= 0 || emailVerificationThrottleMaxAttempts <= 0) {
+    return { throttled: false };
+  }
+
+  const now = Date.now();
+  const existing = verifyThrottle.get(key);
+  if (!existing || typeof existing !== "object") {
+    verifyThrottle.set(key, { windowStart: now, attempts: 1 });
+    return { throttled: false };
+  }
+
+  const windowStart = Number(existing.windowStart || 0);
+  const attempts = Number(existing.attempts || 0);
+  const withinWindow = windowStart > 0 && now - windowStart < emailVerificationThrottleWindowMs;
+
+  if (!withinWindow) {
+    verifyThrottle.set(key, { windowStart: now, attempts: 1 });
+    return { throttled: false };
+  }
+
+  if (attempts >= emailVerificationThrottleMaxAttempts) {
+    const retryAfterMs = emailVerificationThrottleWindowMs - (now - windowStart);
+    const retryAfterSec = secondsFromMs(retryAfterMs);
+    return { throttled: true, retryAfterSec };
+  }
+
+  verifyThrottle.set(key, { windowStart, attempts: attempts + 1 });
+  return { throttled: false };
+};
+
+const checkResendRateLimit = (key) => {
+  if (emailVerificationThrottleWindowMs <= 0) {
+    return { throttled: false };
+  }
+
+  const now = Date.now();
+  const lastAt = Number(resendThrottle.get(key) || 0);
+  if (lastAt > 0 && now - lastAt < emailVerificationThrottleWindowMs) {
+    const retryAfterMs = emailVerificationThrottleWindowMs - (now - lastAt);
+    const retryAfterSec = secondsFromMs(retryAfterMs);
+    return { throttled: true, retryAfterSec };
+  }
+
+  resendThrottle.set(key, now);
+  return { throttled: false };
+};
 
 router.post("/register", async (req, res) => {
   const { data, error } = parseSchema(registerSchema, req.body);
@@ -61,15 +120,17 @@ router.post("/email/verify", async (req, res) => {
 
   const normalizedEmail = data.email.trim().toLowerCase();
   const key = `verify:${req.ip}|${normalizedEmail}`;
-  const lastAt = verifyThrottle.get(key) || 0;
-  const now = Date.now();
-  if (now - lastAt < verifyThrottleMs) {
-    return res.status(429).json({ error: "Too many attempts. Please wait a moment and try again." });
+  const limited = checkVerifyRateLimit(key);
+  if (limited.throttled) {
+    res.set("Retry-After", String(limited.retryAfterSec));
+    return res
+      .status(429)
+      .json({ error: `Too many attempts. Please wait ${limited.retryAfterSec}s and try again.`, retryAfterSec: limited.retryAfterSec });
   }
-  verifyThrottle.set(key, now);
 
   try {
     const result = await authService.verifyEmailCode(normalizedEmail, data.code);
+    verifyThrottle.delete(key);
     return res.json({ ok: true, ...result });
   } catch (err) {
     return res.status(400).json({ error: err instanceof Error ? err.message : "Email verification failed." });
@@ -84,12 +145,10 @@ router.post("/email/resend", async (req, res) => {
 
   const normalizedEmail = data.email.trim().toLowerCase();
   const key = `resend:${req.ip}|${normalizedEmail}`;
-  const lastAt = verifyThrottle.get(key) || 0;
-  const now = Date.now();
-  if (now - lastAt < verifyThrottleMs) {
+  const limited = checkResendRateLimit(key);
+  if (limited.throttled) {
     return res.json({ message: "If the account exists, a new verification code will be sent shortly." });
   }
-  verifyThrottle.set(key, now);
 
   try {
     const result = await authService.requestEmailVerification(normalizedEmail, { ip: req.ip });
