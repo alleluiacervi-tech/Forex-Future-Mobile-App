@@ -23,7 +23,7 @@ export default function MarketScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
   const [selectedFilter, setSelectedFilter] = useState('All');
-  const [selectedPair, setSelectedPair] = useState(null);
+  const [selectedPair, setSelectedPair] = useState<CurrencyPair | null>(null);
   const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
 
   const filters = ['All', 'Major', 'Minor', 'Exotic'];

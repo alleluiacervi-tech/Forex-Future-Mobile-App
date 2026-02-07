@@ -168,16 +168,24 @@ export const useMarketData = (refreshInterval: number = 5000) => {
     
     try {
       // Try to get current prices from API as fallback
+      type QuoteResponse = {
+        pair: string;
+        currentPrice: number;
+        bid?: number;
+        ask?: number;
+        timestamp?: string;
+      };
+
       const symbols = Object.values(FINNHUB_SYMBOL_MAP);
       const promises = symbols.map(symbol => 
-        apiPost('/api/market/quote', { symbol }).catch(() => null)
+        apiPost<QuoteResponse>('/api/market/quote', { symbol }).catch(() => null)
       );
       
       const results = await Promise.all(promises);
       const quotes: Record<string, number> = {};
       
       results.forEach((result, index) => {
-        if (result?.currentPrice) {
+        if (typeof result?.currentPrice === 'number') {
           const ourSymbol = Object.keys(FINNHUB_SYMBOL_MAP).find(
             key => FINNHUB_SYMBOL_MAP[key] === symbols[index]
           );

@@ -45,6 +45,4 @@ export interface ChartData {
 export * from './navigation';
 export * from './market';
 export * from './components';
-export * from './ai';
 export * from './alerts';
-

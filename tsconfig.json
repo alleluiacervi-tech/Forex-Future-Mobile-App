@@ -18,10 +18,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx"
-  ],
+  "include": ["App.tsx", "src/**/*.ts", "src/**/*.tsx"],
   "exclude": [
     "node_modules",
     "backend"
