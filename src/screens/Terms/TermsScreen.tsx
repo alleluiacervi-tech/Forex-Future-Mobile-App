@@ -16,11 +16,11 @@ export default function TermsScreen({ onAgree }: TermsScreenProps) {
   const terms = useMemo(
     () =>
       [
-        'Forex Future is a serious, high-level AI-powered platform built to deliver institutional-grade market insights, AI-driven recommendations, real-time news updates, and advanced analytical tools.',
+        'Forex Future is a market alerts platform built to deliver real-time price monitoring, volatility notifications, and professional trading tools.',
         'The platform supports informed decision-making and is designed as a reliable resource for market intelligence and financial insights.',
-        'While the application leverages advanced artificial intelligence and data analysis, it does not guarantee 100% accuracy in predictions, recommendations, signals, or trading outcomes.',
+        'While the application uses technical analysis and market data, it does not guarantee accuracy, completeness, timeliness, or trading outcomes.',
         'Market conditions are volatile, complex, and inherently unpredictable; results can differ materially from any model-based expectations.',
-        'All information, insights, and recommendations provided are for informational and educational purposes only and must not be considered financial, investment, or trading advice.',
+        'All information, alerts, and insights provided are for informational and educational purposes only and must not be considered financial, investment, or trading advice.',
         'Trading and investing involve significant risk, including the potential loss of capital. You are solely responsible for your decisions, position sizing, and risk management.',
         'By using this application, you agree that the app and its developers will not be held liable for losses, damages, or claims resulting from reliance on the information provided.',
       ],

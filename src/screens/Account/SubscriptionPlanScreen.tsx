@@ -19,7 +19,7 @@ export default function SubscriptionPlanScreen() {
   };
 
   const features = [
-    { icon: 'analytics-outline', title: 'Advanced AI Analysis', description: 'Real-time market insights powered by machine learning' },
+    { icon: 'flash-outline', title: 'Advanced Volatility Alerts', description: 'Smart alerts for large moves across multiple time windows' },
     { icon: 'notifications-outline', title: 'Unlimited Price Alerts', description: 'Set custom alerts for any currency pair' },
     { icon: 'stats-chart-outline', title: 'Professional Charts', description: 'Full access to EMA, RSI, and technical indicators' },
     { icon: 'newspaper-outline', title: 'Real-Time News', description: 'Breaking market news and economic calendar' },
@@ -39,7 +39,7 @@ export default function SubscriptionPlanScreen() {
       name: 'Premium',
       price: '$29.99',
       period: 'month',
-      features: ['All features unlocked', 'Unlimited alerts', 'Priority support', 'AI analysis', 'Real-time news'],
+      features: ['All features unlocked', 'Unlimited alerts', 'Priority support', 'Real-time news'],
       isCurrent: true,
       popular: true,
     },
@@ -47,7 +47,7 @@ export default function SubscriptionPlanScreen() {
       name: 'Pro',
       price: '$79.99',
       period: 'month',
-      features: ['Everything in Premium', 'Advanced AI models', 'Custom indicators', 'API access', 'White-label options'],
+      features: ['Everything in Premium', 'Custom indicators', 'API access', 'White-label options'],
       isCurrent: false,
     },
   ];

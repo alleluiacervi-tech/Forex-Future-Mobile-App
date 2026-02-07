@@ -27,7 +27,7 @@ export default function PrivacyPolicyScreen() {
       content: [
         'Provide and maintain our trading platform and services.',
         'Process transactions and send transaction notifications.',
-        'Deliver personalized market insights and AI-driven recommendations.',
+        'Deliver market insights and smart alerts.',
         'Improve app functionality, user experience, and develop new features.',
         'Communicate important updates, security alerts, and promotional offers.',
         'Ensure platform security and prevent fraudulent activities.',

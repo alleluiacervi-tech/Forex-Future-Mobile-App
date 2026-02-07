@@ -4,7 +4,6 @@ import { ScreenWrapper, Container, EmptyState } from '../../components/layout';
 import { Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { MarketAlertCard } from '../../components/market/MarketAlertCard';
-import { mockMarketAlerts } from '../../constants/marketData';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { CompositeNavigationProp } from '@react-navigation/native';
@@ -18,7 +17,7 @@ type NavigationProp = CompositeNavigationProp<
 
 export default function NotificationsScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const alerts = mockMarketAlerts;
+  const alerts = [];
 
   return (
     <ScreenWrapper>
@@ -57,4 +56,3 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 });
-

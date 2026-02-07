@@ -112,7 +112,7 @@ function StartupSplash() {
         </LinearGradient>
 
         <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.splashSubtitle}>
-          AI-driven market insights for smarter financial decisions
+          Smart market alerts for big moves
         </Text>
 
         <ActivityIndicator style={styles.splashSpinner} color={theme.colors.primary} />

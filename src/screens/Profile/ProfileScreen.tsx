@@ -149,7 +149,7 @@ export default function ProfileScreen() {
             </Text>
             <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
               <View style={styles.featuresCompact}>
-                <FeatureItem icon="analytics-outline" title="AI Analysis" color="#4CAF50" />
+                <FeatureItem icon="flash-outline" title="Volatility Alerts" color="#4CAF50" />
                 <FeatureItem icon="notifications-outline" title="Smart Alerts" color="#2196F3" />
                 <FeatureItem icon="stats-chart-outline" title="Technical Tools" color="#FFC107" />
                 <FeatureItem icon="shield-checkmark-outline" title="Risk Management" color="#f44336" />
@@ -295,7 +295,7 @@ export default function ProfileScreen() {
               Forex Future v1.0.0 • Build 2024.12.20
             </Text>
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.footerText}>
-              AI-driven market insights • Not financial advice
+              Real-time market alerts • Not financial advice
             </Text>
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.footerText}>
               © 2024 Forex Future. All rights reserved.

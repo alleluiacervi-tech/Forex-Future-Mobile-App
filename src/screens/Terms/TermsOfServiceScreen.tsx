@@ -13,10 +13,10 @@ export default function TermsOfServiceScreen() {
   const terms = useMemo(
     () =>
       [
-        'Forex Future provides market data, AI-driven insights, indicators, and educational information for general informational purposes only.',
+        'Forex Future provides market data, alerts, indicators, and educational information for general informational purposes only.',
         'Forex Future does not provide financial, investment, tax, or legal advice. You are solely responsible for all decisions you make.',
         'Trading foreign exchange and leveraged products carries a high level of risk and may not be suitable for all investors. You may lose some or all of your capital.',
-        'AI signals and analytics are probabilistic and may be incorrect, incomplete, delayed, or affected by unusual market conditions.',
+        'Alerts and analytics may be incorrect, incomplete, delayed, or affected by unusual market conditions.',
         'You agree to use the platform responsibly and to apply appropriate risk management including position sizing and stop-losses where applicable.',
         'We are not liable for losses, damages, or claims arising from use of the app or reliance on any information provided.',
         'You must comply with all applicable laws and regulations in your jurisdiction, including restrictions on trading and data usage.',

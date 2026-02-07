@@ -73,16 +73,16 @@ export default function AboutScreen() {
     {
       icon: 'insights',
       iconColor: theme.colors.primary,
-      title: 'AI Trade Signals',
+      title: 'Big-Move Alerts',
       description:
-        'Generate buy/sell/wait guidance that blends price action, volatility, and trend context into risk-aware setups.',
+        'Get notified when a pair makes a significant move across common time windows (1m, 15m, 1h, 4h, 1d).',
     },
     {
       icon: 'psychology',
       iconColor: theme.colors.primary,
-      title: 'Explainable Insights',
+      title: 'Clear Context',
       description:
-        'Explain the rationale behind each setup so you know why the model is confident (or not).',
+        'Every alert includes timeframe, direction, and magnitude so you can assess impact in seconds.',
     },
     {
       icon: 'notifications-active',
@@ -143,9 +143,9 @@ export default function AboutScreen() {
             <View style={styles.metricsRow}>
               <View style={[styles.metricCard, { borderColor: theme.colors.border }]}>
                 <Text variant="caption" color={theme.colors.textSecondary}>
-                  Signals
+                  Alerts
                 </Text>
-                <Text variant="h3">Buy / Sell / Wait</Text>
+                <Text variant="h3">Big Moves</Text>
               </View>
               <View style={[styles.metricCard, { borderColor: theme.colors.border }]}>
                 <Text variant="caption" color={theme.colors.textSecondary}>
@@ -156,8 +156,8 @@ export default function AboutScreen() {
             </View>
 
             <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.description}>
-              Forex Future is an AI-powered trading copilot built for disciplined decisions. It
-              monitors volatility, tracks trend context, and surfaces signal-driven opportunities.
+              Forex Future is a smart alert platform built for disciplined decisions. It monitors
+              volatility, tracks price action, and surfaces big-move alerts in real time.
             </Text>
 
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.credibilityLine}>

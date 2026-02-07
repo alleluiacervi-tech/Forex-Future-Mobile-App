@@ -7,14 +7,13 @@ import { RootStackParamList } from '../../types';
 import { ScreenWrapper, Container } from '../../components/layout';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { CurrencyPairCard, PriceChangeIndicator } from '../../components/market';
-import AIRecommendationCard from '../../components/market/AIRecommendationCard';
 import LiveIndicator from '../../components/common/LiveIndicator';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import { CurrencyPair } from '../../types/market';
 import { PriceChart, RSIChart } from '../../components/charts';
 import { Tabs, Text, Card } from '../../components/common';
 import { MAJOR_PAIRS } from '../../constants/forexPairs';
-import { useMarketData, useTheme, useAIRecommendation } from '../../hooks';
+import { useMarketData, useTheme } from '../../hooks';
 import { APP_CONFIG } from '../../config';
 import { formatPrice, formatPercent } from '../../utils';
 
@@ -26,22 +25,6 @@ export default function MarketScreen() {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedPair, setSelectedPair] = useState(null);
   const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
-
-  // AI recommendation for selected pair
-  const aiOptions = selectedPair
-    ? {
-        timeframe: '1H',
-        currentPrice: selectedPair.price,
-        change: selectedPair.change,
-        changePercent: selectedPair.changePercent,
-        riskPercent: 1,
-      }
-    : {};
-  const {
-    recommendation: aiRecommendation,
-    loading: aiLoading,
-    error: aiError,
-  } = useAIRecommendation(selectedPair?.symbol || '', aiOptions);
 
   const filters = ['All', 'Major', 'Minor', 'Exotic'];
 
@@ -90,27 +73,6 @@ export default function MarketScreen() {
                 <Text variant="caption" color={theme.colors.textSecondary}>RSI</Text>
                 <RSIChart basePrice={selectedPair.price} timeframe="1H" />
               </View>
-            </View>
-            {/* AI Recommendation */}
-            <View style={styles.aiSection}>
-              <Text variant="caption" color={theme.colors.textSecondary} style={styles.aiTitle}>
-                AI Recommendation
-              </Text>
-              {aiLoading ? (
-                <View style={[styles.aiEmpty, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                  <ActivityIndicator size="small" />
-                </View>
-              ) : aiRecommendation ? (
-                <AIRecommendationCard recommendation={aiRecommendation} />
-              ) : aiError ? (
-                <View style={[styles.aiEmpty, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                  <Text variant="caption" color={theme.colors.textSecondary}>{aiError}</Text>
-                </View>
-              ) : (
-                <View style={[styles.aiEmpty, { backgroundColor: theme.colors.background, borderColor: theme.colors.border }]}>
-                  <Text variant="caption" color={theme.colors.textSecondary}>No AI recommendation available</Text>
-                </View>
-              )}
             </View>
           </Card>
         )}
@@ -183,18 +145,6 @@ const styles = StyleSheet.create({
   miniChart: {
     flex: 1,
     height: 120,
-  },
-  aiSection: {
-    marginTop: 16,
-  },
-  aiTitle: {
-    marginBottom: 8,
-  },
-  aiEmpty: {
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
   },
   listContent: {
     paddingBottom: 16,

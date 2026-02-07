@@ -37,12 +37,12 @@ export default function RiskDisclosureScreen() {
     {
       icon: 'analytics-outline',
       color: '#FFC107',
-      title: 'AI & Technology Risk',
+      title: 'Technology Risk',
       risks: [
-        'AI predictions and recommendations are based on historical data and algorithms that may not account for unprecedented market conditions.',
+        'Alerts and analytics are based on historical data and technical heuristics that may not account for unprecedented market conditions.',
         'Technology failures, system outages, or connectivity issues may prevent you from executing trades.',
-        'AI models can produce false signals or inaccurate predictions.',
-        'No AI system can guarantee profitable trading outcomes.',
+        'Automated alerts can produce false signals or delayed/inaccurate triggers.',
+        'No alert system can guarantee profitable trading outcomes.',
       ],
     },
     {
@@ -80,7 +80,7 @@ export default function RiskDisclosureScreen() {
   ];
 
   const importantNotices = [
-    'This application provides information, analysis, and AI-driven insights for educational purposes only.',
+    'This application provides information, analysis, and alerts for educational purposes only.',
     'Nothing in this app constitutes financial advice, investment advice, or trading recommendations.',
     'You should consult with a licensed financial advisor before making investment decisions.',
     'Trading forex involves substantial risk and is not suitable for all investors.',

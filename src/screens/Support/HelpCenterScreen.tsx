@@ -41,8 +41,8 @@ export default function HelpCenterScreen() {
   const faqs = [
     {
       id: 1,
-      question: 'How do I interpret the AI trading signals?',
-      answer: 'Our AI analyzes market data using advanced algorithms to generate trading signals. Green signals indicate potential buying opportunities, while red signals suggest selling. Each signal includes a confidence score (0-100%) and supporting technical indicators. Remember, these are informational insights, not financial advice.',
+      question: 'How do smart volatility alerts work?',
+      answer: 'Forex Future monitors live price movements and triggers alerts when a pair makes a significant move within common time windows (for example 1m, 15m, 1h). Each alert includes the timeframe and % change so you can quickly judge impact. Alerts are informational only — not financial advice.',
     },
     {
       id: 2,
@@ -66,8 +66,8 @@ export default function HelpCenterScreen() {
     },
     {
       id: 6,
-      question: 'How accurate are the AI predictions?',
-      answer: 'While our AI uses sophisticated models trained on historical data, no prediction system is 100% accurate. Market conditions are unpredictable and influenced by countless factors. Our AI provides insights to support your research, but you should always conduct your own analysis and never invest more than you can afford to lose.',
+      question: 'Why did I receive an alert?',
+      answer: 'Alerts trigger when volatility thresholds are met (a large move within a given window) or when a price level you set is crossed. Market data can be delayed or affected by liquidity conditions, spreads, and news events, so always verify price and context before acting.',
     },
     {
       id: 7,

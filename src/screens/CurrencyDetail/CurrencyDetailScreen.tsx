@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -9,9 +9,8 @@ import TopNavBar from '../../components/navigation/TopNavBar';
 import LiveIndicator from '../../components/common/LiveIndicator';
 import { PriceChart, RSIChart } from '../../components/charts';
 import { Text, Card, Tabs } from '../../components/common';
-import AIRecommendationCard from '../../components/market/AIRecommendationCard';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
-import { useMarketData, useTheme, useAIRecommendation } from '../../hooks';
+import { useMarketData, useTheme } from '../../hooks';
 import { formatPrice, formatPercent, formatNumber } from '../../utils';
 import { APP_CONFIG } from '../../config';
 
@@ -24,30 +23,7 @@ export default function CurrencyDetailScreen() {
   const [selectedTimeframe, setSelectedTimeframe] = useState('1H');
   const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
 
-  // Debug logs
-  console.log('[CurrencyDetail] route pair:', pair);
-  console.log('[CurrencyDetail] pairs length:', pairs.length);
-  console.log('[CurrencyDetail] first 3 symbols:', pairs.slice(0, 3).map(p => p.symbol));
-
   const currencyPair = pairs.find((p) => p.symbol === pair) || pairs[0] || null;
-  console.log('[CurrencyDetail] resolved currencyPair:', currencyPair?.symbol);
-  const recommendationOptions = useMemo(
-    () => ({
-      timeframe: selectedTimeframe,
-      currentPrice: currencyPair?.price,
-      change: currencyPair?.change,
-      changePercent: currencyPair?.changePercent,
-      riskPercent: 1,
-    }),
-    [selectedTimeframe, currencyPair?.price, currencyPair?.change, currencyPair?.changePercent],
-  );
-
-  const {
-    recommendation: aiRecommendation,
-    loading: aiLoading,
-    error: aiError,
-    refetch,
-  } = useAIRecommendation(pair, recommendationOptions);
 
   const timeframes = ['1M', '5M', '15M', '1H', '4H', '1D'];
 
@@ -110,27 +86,6 @@ export default function CurrencyDetailScreen() {
             <RSIChart basePrice={currencyPair.price} timeframe={selectedTimeframe} />
           </View>
 
-          <View style={styles.aiContainer}>
-            <Text variant="h4" style={styles.aiTitle}>
-              AI Recommendation
-            </Text>
-            <ErrorBoundary>
-              {aiRecommendation ? (
-                <AIRecommendationCard
-                  recommendation={aiRecommendation}
-                  onRefresh={() => refetch()}
-                  refreshing={aiLoading}
-                />
-              ) : (
-                <Card style={[styles.aiEmptyCard, { backgroundColor: theme.colors.surface }]}>
-                  <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                    No AI recommendation is available for this pair yet.
-                  </Text>
-                </Card>
-              )}
-            </ErrorBoundary>
-          </View>
-
           {/* Stats */}
           <View style={styles.statsContainer}>
             <Card style={styles.statItem}>
@@ -181,16 +136,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     padding: 16,
-  },
-  aiContainer: {
-    marginBottom: 16,
-  },
-  aiTitle: {
-    fontWeight: '800',
-    marginBottom: 10,
-  },
-  aiEmptyCard: {
-    borderWidth: StyleSheet.hairlineWidth,
   },
   statsContainer: {
     flexDirection: 'row',

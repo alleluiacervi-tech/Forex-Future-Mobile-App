@@ -3,13 +3,11 @@ import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from '
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { MainTabParamList, RootStackParamList } from '../../types';
-import { ScreenWrapper, Container } from '../../components/layout';
+import { ScreenWrapper, Container, EmptyState } from '../../components/layout';
 import { Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
-import { mockMarketAlerts } from '../../constants/marketData';
-import AIRecommendationCard from '../../components/market/AIRecommendationCard';
 import { MarketAlertCard } from '../../components/market/MarketAlertCard';
-import { useAIRecommendations, useMarketData, useTheme } from '../../hooks';
+import { useMarketData, useTheme } from '../../hooks';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { APP_CONFIG } from '../../config';
@@ -23,14 +21,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'ai' | 'alerts'>('all');
   const { pairs } = useMarketData(APP_CONFIG.refreshInterval);
-
-  const topPairs = pairs.slice(0, 3).map((pair) => pair.symbol);
-  const { recommendations: aiRecommendations } = useAIRecommendations(topPairs, {
-    timeframe: '1H',
-    riskPercent: 1,
-  });
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -39,22 +30,7 @@ export default function HomeScreen() {
     }, 1000);
   }, []);
 
-  const ai = aiRecommendations;
-  const alerts = mockMarketAlerts;
-
-  const feed =
-    filter === 'ai'
-      ? ai.map((r) => ({ kind: 'ai' as const, id: r.id, data: r }))
-      : filter === 'alerts'
-        ? alerts.map((a) => ({ kind: 'alert' as const, id: a.id, data: a }))
-        : [
-            ...alerts.map((a) => ({ kind: 'alert' as const, id: a.id, data: a })),
-            ...ai.map((r) => ({ kind: 'ai' as const, id: r.id, data: r })),
-          ].sort((x, y) => {
-            const xRank = x.kind === 'alert' ? (x.data.minutesAgo ?? 9999) : 9999;
-            const yRank = y.kind === 'alert' ? (y.data.minutesAgo ?? 9999) : 9999;
-            return xRank - yRank;
-          });
+  const alerts = [];
 
   return (
     <ScreenWrapper>
@@ -74,77 +50,24 @@ export default function HomeScreen() {
           </View>
 
           <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.helperText}>
-            Tap any pair to view detailed insights, including momentum and RSI overbought/oversold levels.
+            Smart alerts surface fast market moves so you can react without watching charts all day.
           </Text>
 
-          <View style={[styles.filtersRow, { backgroundColor: theme.colors.surface }]}>
-            <TouchableOpacity
-              onPress={() => setFilter('all')}
-              activeOpacity={0.8}
-              style={[
-                styles.filterChip,
-                filter === 'all' && { backgroundColor: `${theme.colors.primary}25` },
-              ]}
-            >
-              <Text
-                variant="bodySmall"
-                color={filter === 'all' ? theme.colors.primary : theme.colors.textSecondary}
-                style={styles.filterChipText}
-              >
-                All
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setFilter('ai')}
-              activeOpacity={0.8}
-              style={[
-                styles.filterChip,
-                filter === 'ai' && { backgroundColor: `${theme.colors.primary}25` },
-              ]}
-            >
-              <Text
-                variant="bodySmall"
-                color={filter === 'ai' ? theme.colors.primary : theme.colors.textSecondary}
-                style={styles.filterChipText}
-              >
-                AI
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => setFilter('alerts')}
-              activeOpacity={0.8}
-              style={[
-                styles.filterChip,
-                filter === 'alerts' && { backgroundColor: `${theme.colors.primary}25` },
-              ]}
-            >
-              <Text
-                variant="bodySmall"
-                color={filter === 'alerts' ? theme.colors.primary : theme.colors.textSecondary}
-                style={styles.filterChipText}
-              >
-                Alerts
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.feedList}>
-            {feed.map((item) =>
-              item.kind === 'alert' ? (
+            {alerts.length === 0 ? (
+              <EmptyState
+                icon="notifications-none"
+                title="No Alerts Yet"
+                message="When the market makes a big move, it will show up here."
+              />
+            ) : (
+              alerts.map((a) => (
                 <MarketAlertCard
-                  key={`a-${item.id}`}
-                  alert={item.data}
-                  onPress={() => navigation.navigate('CurrencyDetail', { pair: item.data.pair })}
+                  key={a.id}
+                  alert={a}
+                  onPress={() => navigation.navigate('CurrencyDetail', { pair: a.pair })}
                 />
-              ) : (
-                <AIRecommendationCard
-                  key={`r-${item.id}`}
-                  recommendation={item.data}
-                  onPress={() => navigation.navigate('CurrencyDetail', { pair: item.data.pair })}
-                />
-              )
+              ))
             )}
           </View>
         </Container>
@@ -167,23 +90,6 @@ const styles = StyleSheet.create({
     marginTop: -6,
     marginBottom: 12,
     lineHeight: 18,
-  },
-  filtersRow: {
-    flexDirection: 'row',
-    padding: 6,
-    borderRadius: 14,
-    marginBottom: 14,
-    gap: 8,
-  },
-  filterChip: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterChipText: {
-    fontWeight: '700',
   },
   feedList: {
     paddingBottom: 10,
