@@ -51,15 +51,6 @@ const updateUserSchema = z.object({
     .optional()
 });
 
-const recommendationSchema = z.object({
-  pair: z.string().regex(/^[A-Z]{3}\/[A-Z]{3}$/),
-  timeframe: z.string().min(2).optional(),
-  currentPrice: z.number().positive().optional(),
-  accountBalance: z.number().positive().optional(),
-  riskPercent: z.number().positive().max(10).optional(),
-  notes: z.string().optional()
-});
-
 const parseSchema = (schema, payload) => {
   const result = schema.safeParse(payload);
   if (!result.success) {
@@ -75,7 +66,6 @@ export {
   loginSchema,
   orderSchema,
   parseSchema,
-  recommendationSchema,
   registerSchema,
   resendVerificationSchema,
   resetPasswordSchema,

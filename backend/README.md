@@ -34,8 +34,6 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/forex
 JWT_SECRET=change-me
 JWT_EXPIRES_IN=2h
 WS_HEARTBEAT_MS=15000
-GROQ_API_KEY=your-groq-api-key
-GROQ_MODEL=llama-3.1-70b-versatile
 
 # Market data (Finnhub)
 FINNHUB_API_KEY=your-finnhub-api-key
@@ -82,6 +80,7 @@ The API will run on `http://localhost:4000` and the WebSocket server will be ava
 - `POST /api/auth/password/reset` – Reset password using a token.
 - `GET /api/market/pairs` – List supported FX pairs with live pricing.
 - `GET /api/market/history/:pair` – Get mock historical prices.
+- `GET /api/market/alerts` – List recent smart alerts (big-move volatility triggers).
 - `GET /api/market/footprints/:pair` – Institutional footprint signals (zones, smart money, rubber band, timeframe bias).
 - `POST /api/trades/orders` – Place a trade order.
 - `GET /api/trades/orders` – List orders.
@@ -90,8 +89,6 @@ The API will run on `http://localhost:4000` and the WebSocket server will be ava
 - `GET /api/portfolio/transactions` – List transactions.
 - `GET /api/users/me` – Get user settings.
 - `PUT /api/users/me` – Update user settings.
-- `POST /api/recommendations` – Generate institutional-grade AI trade guidance.
-- `GET /api/recommendations` – List AI trade recommendations.
 
 ## WebSocket Events
 
@@ -150,7 +147,3 @@ curl -sS -X POST http://localhost:4000/api/auth/password/forgot \
 ## Notes
 
 The footprint endpoints provide heuristic signals (supply/demand zones, accumulation/distribution, mean-reversion stretch, and multi-timeframe bias). They are designed to help professional decision-making but are not guarantees. Replace the mock pricing service with a real market data feed in production and secure secrets with a proper vault or managed secret store.
-
-## Groq AI Recommendations
-
-The recommendations endpoint uses the Groq API to return BUY/SELL/WAIT guidance with professional reasoning based on supply/demand, smart money concepts, and market psychology. It also calculates suggested position size based on user risk settings. Ensure `GROQ_API_KEY` is configured before calling `POST /api/recommendations`.

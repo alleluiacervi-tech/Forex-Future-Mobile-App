@@ -1,18 +1,8 @@
 import express from "express";
 import prisma from "../db/prisma.js";
 import { buildFootprintSummary } from "../services/footprints.js";
-import { requestRecommendation } from "../services/groq.js";
-import { getMarketWindowSnapshot } from "../services/marketRecorder.js";
 import { getHistoricalRates, getLiveRates, getPriceForPair } from "../services/rates.js";
 import { symbolToPair } from "../services/marketSymbols.js";
-import {
-  computePipValuePerLot,
-  defaultFootprintPointsForInterval,
-  extractKeyLevelsHint,
-  getSessionUtc,
-  normalizeTimeframeToInterval
-} from "../services/recommendationContext.js";
-import { parseSchema, recommendationSchema } from "../utils/validators.js";
 
 const router = express.Router();
 
@@ -78,53 +68,6 @@ router.get("/footprints/:pair", async (req, res) => {
   try {
     const footprint = await buildFootprintSummary(pair);
     return res.json(footprint);
-  } catch (error) {
-    return res.status(502).json({ error: error.message });
-  }
-});
-
-router.post("/recommendations", async (req, res) => {
-  const { data, error } = parseSchema(recommendationSchema, req.body);
-  if (error) {
-    return res.status(400).json({ error });
-  }
-
-  const { pair, timeframe, currentPrice, accountBalance, riskPercent, notes } = data;
-
-  try {
-    const pricing = currentPrice ? null : await getPriceForPair(pair);
-    const resolvedPrice = currentPrice ?? pricing?.mid ?? pricing?.bid ?? pricing?.ask;
-    const resolvedBalance = accountBalance ?? 10000;
-    const resolvedTimeframe = timeframe || "1H";
-    const resolvedRisk = riskPercent ?? 1;
-
-    if (!resolvedPrice) {
-      return res.status(400).json({ error: "Missing pricing for recommendation." });
-    }
-
-    const interval = normalizeTimeframeToInterval(resolvedTimeframe) || "1h";
-    const points = defaultFootprintPointsForInterval(interval);
-    const footprint = await buildFootprintSummary(pair, { points, candleOpts: { interval } });
-    const accountCurrency = "USD";
-    const keyLevelsHint = extractKeyLevelsHint({ footprint, pair });
-    const pipValuePerLot = computePipValuePerLot({ pair, price: resolvedPrice, accountCurrency });
-    const windowSnapshot = getMarketWindowSnapshot(pair);
-    const recommendation = await requestRecommendation({
-      pair,
-      timeframe: resolvedTimeframe,
-      currentPrice: resolvedPrice,
-      accountBalance: resolvedBalance,
-      accountCurrency,
-      riskPercent: resolvedRisk,
-      notes,
-      pipValuePerLot,
-      session: getSessionUtc(),
-      keyLevelsHint,
-      windowSnapshot,
-      lstmContext: footprint
-    });
-
-    return res.json({ recommendation, footprint });
   } catch (error) {
     return res.status(502).json({ error: error.message });
   }
