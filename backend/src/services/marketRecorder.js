@@ -1,9 +1,39 @@
 import { EventEmitter } from "events";
+import { v4 as uuidv4 } from "uuid";
 import prisma from "../db/prisma.js";
 import { marketEvents } from "./marketCache.js";
 import { symbolToPair } from "./marketSymbols.js";
 
 const alertEvents = new EventEmitter();
+const recentAlerts = [];
+const maxRecentAlerts = Number(process.env.MARKET_ALERT_BUFFER_MAX || 500);
+
+const toTimeMs = (value) => {
+  if (value instanceof Date) return value.getTime();
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const pushRecentAlert = (alert) => {
+  recentAlerts.unshift(alert);
+  if (recentAlerts.length > maxRecentAlerts) {
+    recentAlerts.splice(maxRecentAlerts, recentAlerts.length - maxRecentAlerts);
+  }
+};
+
+const getRecentMarketAlerts = ({ pair = null, limit = 50, since = null } = {}) => {
+  const resolvedLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+  const sinceMs = since ? toTimeMs(since) : null;
+
+  const filtered = recentAlerts.filter((alert) => {
+    if (pair && alert?.pair !== pair) return false;
+    if (!sinceMs) return true;
+    const tsMs = toTimeMs(alert?.triggeredAt) ?? toTimeMs(alert?.createdAt);
+    return Number.isFinite(tsMs) ? tsMs >= sinceMs : true;
+  });
+
+  return filtered.slice(0, resolvedLimit);
+};
 
 const parseIntervalMs = (interval) => {
   if (typeof interval !== "string") return 60 * 1000;
@@ -118,8 +148,6 @@ const severityFor = (absChangePercent, windowMinutes) => {
 };
 
 const maybeCreateAlerts = async ({ pair, tsMs, price, ticks }) => {
-  if (!prisma.marketAlert) return;
-
   const windows = [1, 15, 60, 240, 1440];
   for (const windowMinutes of windows) {
     const threshold = alertThresholds[windowMinutes];
@@ -140,22 +168,41 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks }) => {
 
     const severity = severityFor(abs, windowMinutes);
 
-    try {
-      const created = await prisma.marketAlert.create({
-        data: {
-          pair,
-          windowMinutes,
-          fromPrice,
-          toPrice: price,
-          changePercent,
-          severity,
-          triggeredAt: new Date(tsMs)
-        }
-      });
+    const memoryAlert = {
+      id: uuidv4(),
+      pair,
+      windowMinutes,
+      fromPrice,
+      toPrice: price,
+      changePercent,
+      severity,
+      triggeredAt: new Date(tsMs),
+      createdAt: new Date(tsMs)
+    };
 
+    let emitted = memoryAlert;
+    if (prisma.marketAlert) {
       try {
-        alertEvents.emit("marketAlert", created);
+        emitted = await prisma.marketAlert.create({
+          data: {
+            pair,
+            windowMinutes,
+            fromPrice,
+            toPrice: price,
+            changePercent,
+            severity,
+            triggeredAt: new Date(tsMs)
+          }
+        });
       } catch {}
+    }
+
+    try {
+      pushRecentAlert(emitted);
+    } catch {}
+
+    try {
+      alertEvents.emit("marketAlert", emitted);
     } catch {}
   }
 };
@@ -293,4 +340,4 @@ const startMarketRecorder = () => {
   };
 };
 
-export { startMarketRecorder, alertEvents, getMarketWindowSnapshot };
+export { startMarketRecorder, alertEvents, getMarketWindowSnapshot, getRecentMarketAlerts };

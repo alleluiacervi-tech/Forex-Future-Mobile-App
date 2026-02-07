@@ -1,6 +1,7 @@
 import express from "express";
 import prisma from "../db/prisma.js";
 import { buildFootprintSummary } from "../services/footprints.js";
+import { getRecentMarketAlerts } from "../services/marketRecorder.js";
 import { getHistoricalRates, getLiveRates, getPriceForPair } from "../services/rates.js";
 import { symbolToPair } from "../services/marketSymbols.js";
 
@@ -40,7 +41,8 @@ router.get("/alerts", async (req, res) => {
 
   try {
     if (!prisma.marketAlert) {
-      return res.json({ alerts: [] });
+      const alerts = getRecentMarketAlerts({ pair, limit, since });
+      return res.json({ alerts });
     }
 
     const where = {};
@@ -55,7 +57,8 @@ router.get("/alerts", async (req, res) => {
 
     return res.json({ alerts });
   } catch (error) {
-    return res.status(502).json({ error: error.message });
+    const alerts = getRecentMarketAlerts({ pair, limit, since });
+    return res.json({ alerts });
   }
 });
 

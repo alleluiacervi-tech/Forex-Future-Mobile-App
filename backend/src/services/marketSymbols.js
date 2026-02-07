@@ -4,6 +4,7 @@ const pairToSymbol = {
   "USD/JPY": "OANDA:USD_JPY",
   "USD/CHF": "OANDA:USD_CHF",
   "AUD/USD": "OANDA:AUD_USD",
+  "USD/CAD": "OANDA:USD_CAD",
   "NZD/USD": "OANDA:NZD_USD"
 };
 
@@ -18,6 +19,7 @@ const basePrices = {
   "USD/JPY": 148.22,
   "USD/CHF": 0.8732,
   "AUD/USD": 0.6614,
+  "USD/CAD": 1.3465,
   "NZD/USD": 0.6111
 };
 

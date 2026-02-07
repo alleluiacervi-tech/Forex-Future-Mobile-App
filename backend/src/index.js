@@ -13,7 +13,7 @@ import emailRoutes from "./routes/email.js";
 import initializeSocket from "./services/socket.js";
 import { logEmailConfigStatus } from "./services/email.js";
 import { getLiveRatesFromCache } from "./services/marketCache.js";
-import { startMarketRecorder } from "./services/marketRecorder.js";
+import { alertEvents, startMarketRecorder } from "./services/marketRecorder.js";
 
 const app = express();
 
@@ -49,11 +49,23 @@ app.use((req, res) => {
 
 const server = http.createServer(app);
 
-initializeSocket({ server, heartbeatMs: config.wsHeartbeatMs });
+const wss = initializeSocket({ server, heartbeatMs: config.wsHeartbeatMs });
 
 startMarketRecorder();
 
 logEmailConfigStatus();
+
+// Broadcast smart market alerts over the market WebSocket.
+// Clients can ignore this if they only care about `trade` messages.
+alertEvents.on("marketAlert", (alert) => {
+  const payload = JSON.stringify({ type: "marketAlert", data: alert });
+  wss?.clients?.forEach((ws) => {
+    try {
+      if (ws.readyState !== 1) return;
+      ws.send(payload);
+    } catch {}
+  });
+});
 
 server.listen(config.port, "0.0.0.0", () => {
   // eslint-disable-next-line no-console

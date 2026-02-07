@@ -7,7 +7,7 @@ import { ScreenWrapper, Container, EmptyState } from '../../components/layout';
 import { Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { MarketAlertCard } from '../../components/market/MarketAlertCard';
-import { useMarketData, useTheme } from '../../hooks';
+import { useMarketAlerts, useMarketData, useTheme } from '../../hooks';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { APP_CONFIG } from '../../config';
@@ -22,15 +22,19 @@ export default function HomeScreen() {
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
   const { pairs } = useMarketData(APP_CONFIG.refreshInterval);
+  const { alerts, loading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useMarketAlerts({
+    limit: 50,
+    pollMs: 15000,
+  });
 
-  const onRefresh = React.useCallback(() => {
+  const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => {
+    try {
+      await refetchAlerts();
+    } finally {
       setRefreshing(false);
-    }, 1000);
-  }, []);
-
-  const alerts = [];
+    }
+  }, [refetchAlerts]);
 
   return (
     <ScreenWrapper>
@@ -58,7 +62,13 @@ export default function HomeScreen() {
               <EmptyState
                 icon="notifications-none"
                 title="No Alerts Yet"
-                message="When the market makes a big move, it will show up here."
+                message={
+                  alertsError
+                    ? `Unable to load alerts: ${alertsError}`
+                    : alertsLoading
+                      ? 'Monitoring markets for big moves...'
+                      : "When the market makes a big move, it will show up here."
+                }
               />
             ) : (
               alerts.map((a) => (

@@ -11,6 +11,7 @@ const FINNHUB_SYMBOL_MAP: Record<string, string> = {
   'USD/JPY': 'OANDA:USD_JPY',
   'USD/CHF': 'OANDA:USD_CHF',
   'AUD/USD': 'OANDA:AUD_USD',
+  'USD/CAD': 'OANDA:USD_CAD',
   'NZD/USD': 'OANDA:NZD_USD',
 };
 

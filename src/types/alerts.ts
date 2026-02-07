@@ -9,4 +9,6 @@ export interface MarketAlert {
   timeframe?: string;
   changePercent?: number;
   minutesAgo?: number;
+  severity?: 'low' | 'medium' | 'high' | string;
+  triggeredAt?: string;
 }
