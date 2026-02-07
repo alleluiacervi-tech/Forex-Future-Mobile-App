@@ -15,13 +15,14 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function AuthScreenExample() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
-  const { register, startTrial, isLoading } = useAuth();
+  const { register, verifyEmail, resendEmailVerification, startTrial, isLoading } = useAuth();
 
-  const [screen, setScreen] = useState<'subscription' | 'signup' | 'trial'>('subscription');
+  const [screen, setScreen] = useState<'subscription' | 'signup' | 'verify' | 'trial'>('subscription');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [touched, setTouched] = useState({
@@ -82,11 +83,75 @@ export default function AuthScreenExample() {
     }
 
     try {
-      await register(name, email, password);
+      const verification = await register(name, email, password);
+      if (verification?.verificationUnavailable) {
+        Alert.alert(
+          'Verification unavailable',
+          'Email verification is temporarily unavailable. Please try again later.',
+        );
+        return;
+      }
+
+      if (verification?.verificationRequired) {
+        if (verification?.debugCode) {
+          setVerificationCode(verification.debugCode);
+        }
+        setScreen('verify');
+        Alert.alert('Success', 'Account created! Please verify your email.');
+        return;
+      }
+
       setScreen('trial');
       Alert.alert('Success', 'Account created! Please activate your free trial.');
     } catch (error) {
       Alert.alert('Registration Error', error instanceof Error ? error.message : 'Failed to register');
+    }
+  };
+
+  const handleVerifyEmail = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanedCode = verificationCode.replace(/\s+/g, '');
+
+    if (!normalizedEmail || !validateEmail(normalizedEmail)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+
+    if (!cleanedCode || cleanedCode.length < 4) {
+      Alert.alert('Invalid code', 'Please enter the verification code from your email.');
+      return;
+    }
+
+    try {
+      await verifyEmail(normalizedEmail, cleanedCode);
+      Alert.alert('Verified', 'Your email is verified. You can now activate your free trial.');
+      setScreen('trial');
+    } catch (error) {
+      Alert.alert('Verification failed', error instanceof Error ? error.message : 'Unable to verify email');
+    }
+  };
+
+  const handleResendVerification = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !validateEmail(normalizedEmail)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+
+    try {
+      const result = await resendEmailVerification(normalizedEmail);
+      Alert.alert(
+        'Sent',
+        typeof result?.message === 'string' && result.message
+          ? result.message
+          : 'If the account exists, a new verification code will be sent shortly.',
+      );
+
+      if (result?.debugCode) {
+        setVerificationCode(result.debugCode);
+      }
+    } catch (error) {
+      Alert.alert('Request failed', error instanceof Error ? error.message : 'Unable to resend code');
     }
   };
 
@@ -294,6 +359,67 @@ export default function AuthScreenExample() {
             </View>
           )}
 
+          {screen === 'verify' && (
+            <View style={styles.content}>
+              <Text variant="h3" style={styles.title}>
+                Verify Email
+              </Text>
+              <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.subtitle}>
+                Enter the verification code we sent to your email
+              </Text>
+
+              <Card style={[styles.formCard, { backgroundColor: theme.colors.surface }]}>
+                <Input
+                  label="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={false}
+                  placeholder={email}
+                  leftAccessory={<Icon name="mail" size={20} color={theme.colors.textSecondary} />}
+                />
+
+                <View style={styles.inputGroup}>
+                  <Input
+                    label="Verification Code"
+                    value={verificationCode}
+                    onChangeText={setVerificationCode}
+                    placeholder="123456"
+                    keyboardType="numeric"
+                    leftAccessory={<Icon name="vpn-key" size={20} color={theme.colors.textSecondary} />}
+                  />
+                </View>
+
+                <Button
+                  title={isLoading ? 'Verifying...' : 'Verify Email'}
+                  onPress={handleVerifyEmail}
+                  variant="primary"
+                  size="large"
+                  disabled={isLoading}
+                />
+
+                <TouchableOpacity
+                  onPress={handleResendVerification}
+                  activeOpacity={0.7}
+                  style={styles.backButton}
+                >
+                  <Text variant="body" color={theme.colors.primary}>
+                    Resend code
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setScreen('signup')}
+                  activeOpacity={0.7}
+                  style={styles.backButton}
+                >
+                  <Text variant="body" color={theme.colors.primary}>
+                    ← Back
+                  </Text>
+                </TouchableOpacity>
+              </Card>
+            </View>
+          )}
+
           {screen === 'trial' && (
             <View style={styles.content}>
               <Text variant="h3" style={styles.title}>
@@ -307,6 +433,7 @@ export default function AuthScreenExample() {
                 <Input
                   label="Email"
                   value={email}
+                  onChangeText={setEmail}
                   editable={false}
                   placeholder={email}
                   leftAccessory={<Icon name="mail" size={20} color={theme.colors.textSecondary} />}

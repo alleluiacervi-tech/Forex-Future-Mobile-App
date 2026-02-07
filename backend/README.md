@@ -71,9 +71,13 @@ The API will run on `http://localhost:4000` and the WebSocket server will be ava
 
 ## API Overview
 
-- `POST /api/auth/register` – Register a new user.
-- `POST /api/auth/login` – Login and receive a JWT.
-- `GET /api/auth/me` – Get the current user profile.
+- `POST /api/auth/register` – Register a new user (starts email verification).
+- `POST /api/auth/email/verify` – Verify email using a code.
+- `POST /api/auth/email/resend` – Resend a verification code.
+- `POST /api/auth/trial/start` – Activate free trial (requires verified email).
+- `POST /api/auth/login` – Login and receive a JWT (requires verified email + active trial).
+- `GET /api/auth/me` – Get the current user profile (protected).
+- `POST /api/auth/password/change` – Change password (protected).
 - `POST /api/auth/password/forgot` – Request a password reset email.
 - `POST /api/auth/password/reset` – Reset password using a token.
 - `GET /api/market/pairs` – List supported FX pairs with live pricing.

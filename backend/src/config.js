@@ -5,13 +5,12 @@ import { fileURLToPath } from "url";
 // Load .env from process.cwd() first (default), then fall back to backend/.env
 dotenv.config();
 
-// If important keys aren't present, attempt to load the backend/.env file
+// Always attempt to load the backend/.env file as a fallback.
+// dotenv will not override keys that are already present in process.env.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const backendEnvPath = path.join(__dirname, "..", ".env");
-if (!process.env.GROQ_API_KEY) {
-  dotenv.config({ path: backendEnvPath });
-}
+dotenv.config({ path: backendEnvPath, override: false });
 
 const config = {
   port: Number(process.env.PORT || 4000),
