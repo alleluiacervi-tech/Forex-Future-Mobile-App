@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons as Icon } from '@expo/vector-icons';
@@ -10,6 +11,9 @@ export default function SubscriptionPlanScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
 
+  type IconName = ComponentProps<typeof Icon>['name'];
+  type Feature = { icon: IconName; title: string; description: string };
+
   const currentPlan = {
     name: 'Premium',
     price: '$29.99',
@@ -18,7 +22,7 @@ export default function SubscriptionPlanScreen() {
     status: 'Active',
   };
 
-  const features = [
+  const features: Feature[] = [
     { icon: 'flash-outline', title: 'Advanced Volatility Alerts', description: 'Smart alerts for large moves across multiple time windows' },
     { icon: 'notifications-outline', title: 'Unlimited Price Alerts', description: 'Set custom alerts for any currency pair' },
     { icon: 'stats-chart-outline', title: 'Professional Charts', description: 'Full access to EMA, RSI, and technical indicators' },

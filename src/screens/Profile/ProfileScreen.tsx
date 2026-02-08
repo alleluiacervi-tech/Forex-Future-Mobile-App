@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,6 +18,8 @@ export default function ProfileScreen() {
   const theme = useTheme();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const { logout, isLoading } = useAuth();
+
+  type IconName = ComponentProps<typeof Icon>['name'];
   
   // Settings state
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -24,7 +27,7 @@ export default function ProfileScreen() {
   const [priceAlertsEnabled, setPriceAlertsEnabled] = useState(true);
 
   const MenuItem = ({ icon, title, subtitle, onPress, showChevron = true, hasSwitch, switchValue, onSwitchChange, iconColor }: {
-    icon: string;
+    icon: IconName;
     title: string;
     subtitle?: string;
     onPress?: () => void;
@@ -68,7 +71,7 @@ export default function ProfileScreen() {
   );
 
   const FeatureItem = ({ icon, title, color }: {
-    icon: string;
+    icon: IconName;
     title: string;
     color: string;
   }) => (

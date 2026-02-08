@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons as Icon } from '@expo/vector-icons';
@@ -11,7 +12,8 @@ export default function HelpCenterScreen() {
   const navigation = useNavigation();
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const categories = [
+  type IconName = ComponentProps<typeof Icon>['name'];
+  const categories: Array<{ icon: IconName; title: string; color: string; articles: number }> = [
     {
       icon: 'rocket-outline',
       title: 'Getting Started',
@@ -81,7 +83,7 @@ export default function HelpCenterScreen() {
     },
   ];
 
-  const quickLinks = [
+  const quickLinks: Array<{ icon: IconName; title: string; subtitle: string }> = [
     { icon: 'book-outline', title: 'User Guide', subtitle: 'Complete app documentation' },
     { icon: 'play-circle-outline', title: 'Video Tutorials', subtitle: 'Learn with step-by-step videos' },
     { icon: 'chatbubbles-outline', title: 'Community Forum', subtitle: 'Connect with other traders' },

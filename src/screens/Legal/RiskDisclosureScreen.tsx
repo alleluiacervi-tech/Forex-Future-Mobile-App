@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons as Icon } from '@expo/vector-icons';
@@ -11,7 +12,8 @@ export default function RiskDisclosureScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
 
-  const riskCategories = [
+  type IconName = ComponentProps<typeof Icon>['name'];
+  const riskCategories: Array<{ icon: IconName; color: string; title: string; risks: string[] }> = [
     {
       icon: 'trending-down-outline',
       color: '#f44336',

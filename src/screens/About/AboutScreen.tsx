@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -12,7 +13,7 @@ import { RootStackParamList } from '../../types';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 interface FeatureCardProps {
-  icon: string;
+  icon: ComponentProps<typeof Icon>['name'];
   iconColor: string;
   title: string;
   description: string;
@@ -63,7 +64,7 @@ export default function AboutScreen() {
     navigation.navigate('Welcome');
   };
 
-  const features = [
+  const features: FeatureCardProps[] = [
     {
       icon: 'show-chart',
       iconColor: theme.colors.primary,

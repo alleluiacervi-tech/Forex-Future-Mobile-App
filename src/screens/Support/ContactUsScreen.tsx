@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons as Icon } from '@expo/vector-icons';
@@ -12,7 +13,14 @@ export default function ContactUsScreen() {
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
 
-  const contactMethods = [
+  type IconName = ComponentProps<typeof Icon>['name'];
+  const contactMethods: Array<{
+    icon: IconName;
+    title: string;
+    subtitle: string;
+    description: string;
+    color: string;
+  }> = [
     {
       icon: 'mail-outline',
       title: 'Email Support',
@@ -43,7 +51,7 @@ export default function ContactUsScreen() {
     },
   ];
 
-  const commonTopics = [
+  const commonTopics: Array<{ icon: IconName; title: string; color: string }> = [
     { icon: 'card-outline', title: 'Billing Issue', color: '#2196F3' },
     { icon: 'bug-outline', title: 'Report a Bug', color: '#f44336' },
     { icon: 'bulb-outline', title: 'Feature Request', color: '#FFC107' },

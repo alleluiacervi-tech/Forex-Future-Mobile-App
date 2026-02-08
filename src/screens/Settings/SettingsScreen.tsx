@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,7 +18,17 @@ export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [soundEnabled, setSoundEnabled] = React.useState(true);
 
-  const settingsItems = [
+  type IconName = ComponentProps<typeof Icon>['name'];
+  const settingsItems: Array<{
+    id: string;
+    title: string;
+    icon: IconName;
+    onPress: () => void;
+    hasSwitch?: boolean;
+    switchValue?: boolean;
+    onSwitchChange?: (value: boolean) => void;
+    isDestructive?: boolean;
+  }> = [
     {
       id: 'account',
       title: 'Account Settings',
@@ -163,4 +174,3 @@ const styles = StyleSheet.create({
     padding: 24,
   },
 });
-

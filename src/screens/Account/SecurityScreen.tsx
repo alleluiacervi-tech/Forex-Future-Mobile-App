@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons as Icon } from '@expo/vector-icons';
@@ -15,7 +16,7 @@ export default function SecurityScreen() {
   const [loginAlerts, setLoginAlerts] = useState(true);
 
   const SecurityItem = ({ icon, title, subtitle, onPress, hasSwitch, switchValue, onSwitchChange, iconColor }: {
-    icon: string;
+    icon: ComponentProps<typeof Icon>['name'];
     title: string;
     subtitle: string;
     onPress?: () => void;

@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons as Icon } from '@expo/vector-icons';
@@ -11,7 +12,8 @@ export default function LicensesScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
 
-  const licenses = [
+  type IconName = ComponentProps<typeof Icon>['name'];
+  const licenses: Array<{ icon: IconName; color: string; title: string; details: string[] }> = [
     {
       icon: 'shield-checkmark-outline',
       color: '#4CAF50',

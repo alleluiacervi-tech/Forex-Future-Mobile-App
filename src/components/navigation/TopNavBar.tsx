@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation, useRoute, CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -11,6 +12,8 @@ type NavigationProp = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList>,
   NativeStackNavigationProp<RootStackParamList>
 >;
+
+type IconName = ComponentProps<typeof Icon>['name'];
 
 export default function TopNavBar() {
   const theme = useTheme();
@@ -33,8 +36,8 @@ export default function TopNavBar() {
 
   const renderItem = (opts: {
     key: string;
-    icon: string;
-    activeIcon?: string;
+    icon: IconName;
+    activeIcon?: IconName;
     onPress: () => void;
   }) => {
     const selected = isActive(opts.key);

@@ -3,3 +3,4 @@ export * from './useAppState';
 export * from './useInterval';
 export * from './useMarketData';
 export * from './useMarketAlerts';
+export * from './useAIRecommendations';
