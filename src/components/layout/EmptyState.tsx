@@ -1,11 +1,12 @@
 import React from 'react';
+import type { ComponentProps } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { Text } from '../common';
 import { colors, spacing } from '../../theme';
 
 interface EmptyStateProps {
-  icon?: string;
+  icon?: ComponentProps<typeof Icon>['name'];
   title: string;
   message?: string;
 }
@@ -44,4 +45,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
