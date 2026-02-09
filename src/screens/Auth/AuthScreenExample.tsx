@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -33,15 +33,7 @@ export default function AuthScreenExample() {
   });
 
   // Validation
-  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const validatePassword = (password: string) => {
-    return (
-      password.length >= 8 &&
-      /[A-Z]/.test(password) &&
-      /[a-z]/.test(password) &&
-      /[0-9]/.test(password)
-    );
-  };
+  const validateEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
 
   const nameError = useMemo(() => {
     if (!touched.name) return undefined;
@@ -52,8 +44,9 @@ export default function AuthScreenExample() {
 
   const emailError = useMemo(() => {
     if (!touched.email) return undefined;
-    if (!email.trim()) return 'Email is required';
-    if (!validateEmail(email)) return 'Enter a valid email address';
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) return 'Email is required';
+    if (!validateEmail(normalized)) return 'Enter a valid email address';
     return undefined;
   }, [email, touched.email]);
 
@@ -83,7 +76,12 @@ export default function AuthScreenExample() {
     }
 
     try {
-      const verification = await register(name, email, password);
+      const trimmedName = name.trim();
+      const normalizedEmail = email.trim().toLowerCase();
+      setName(trimmedName);
+      setEmail(normalizedEmail);
+
+      const verification = await register(trimmedName, normalizedEmail, password);
       if (verification?.verificationUnavailable) {
         Alert.alert(
           'Verification unavailable',
@@ -157,7 +155,7 @@ export default function AuthScreenExample() {
 
   const handleStartTrial = async () => {
     try {
-      await startTrial(email, password);
+      await startTrial(email.trim().toLowerCase(), password);
       navigation.replace('Main');
     } catch (error) {
       Alert.alert('Trial Error', error instanceof Error ? error.message : 'Failed to start trial');
@@ -339,10 +337,11 @@ export default function AuthScreenExample() {
                 </View>
 
                 <Button
-                  title={isLoading ? 'Creating...' : 'Create Account'}
+                  title="Create Account"
                   onPress={handleSignUp}
                   variant="primary"
                   size="large"
+                  loading={isLoading}
                   disabled={isLoading}
                 />
 
@@ -390,10 +389,11 @@ export default function AuthScreenExample() {
                 </View>
 
                 <Button
-                  title={isLoading ? 'Verifying...' : 'Verify Email'}
+                  title="Verify Email"
                   onPress={handleVerifyEmail}
                   variant="primary"
                   size="large"
+                  loading={isLoading}
                   disabled={isLoading}
                 />
 
@@ -401,6 +401,7 @@ export default function AuthScreenExample() {
                   onPress={handleResendVerification}
                   activeOpacity={0.7}
                   style={styles.backButton}
+                  disabled={isLoading}
                 >
                   <Text variant="body" color={theme.colors.primary}>
                     Resend code
@@ -460,10 +461,11 @@ export default function AuthScreenExample() {
                 </View>
 
                 <Button
-                  title={isLoading ? 'Starting Trial...' : 'Start Free Trial'}
+                  title="Start Free Trial"
                   onPress={handleStartTrial}
                   variant="primary"
                   size="large"
+                  loading={isLoading}
                   disabled={isLoading}
                 />
 
