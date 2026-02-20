@@ -271,12 +271,11 @@ class AuthService {
   }
 
   buildPasswordResetLink(token) {
+    const defaultResetUrl = "forexapp://reset-password?token={token}";
     const base =
       process.env.PASSWORD_RESET_URL ||
       process.env.PASSWORD_RESET_LINK_BASE ||
-      "";
-
-    if (!base) return null;
+      defaultResetUrl;
 
     if (base.includes("{token}")) {
       return base.replace("{token}", encodeURIComponent(token));
@@ -288,8 +287,7 @@ class AuthService {
   }
 
   buildEmailVerificationLink({ email, code }) {
-    const base = process.env.EMAIL_VERIFY_URL || "";
-    if (!base) return null;
+    const base = process.env.EMAIL_VERIFY_URL || "forexapp://verify-email?email={email}&code={code}";
 
     const encodedEmail = encodeURIComponent(String(email || ""));
     const encodedCode = encodeURIComponent(String(code || ""));

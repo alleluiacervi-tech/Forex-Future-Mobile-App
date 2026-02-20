@@ -44,6 +44,16 @@ npm start
    - Press `i` for iOS simulator
    - Press `a` for Android emulator
 
+### Mobile API setup (required for auth on real devices)
+
+Create a root `.env` and set:
+
+```bash
+EXPO_PUBLIC_API_URL=http://<your-lan-ip>:4000
+```
+
+For Expo `--tunnel`, your backend is **not** tunneled automatically. Use a public HTTPS backend URL instead.
+
 ## Project Structure
 
 ```
@@ -108,4 +118,3 @@ expo build:android
 ## License
 
 This project is licensed under the MIT License.
-

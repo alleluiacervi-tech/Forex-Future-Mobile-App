@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper } from '../../components/layout';
 import { Button, Card, Input, Text } from '../../components/common';
@@ -13,6 +14,15 @@ import { useAuth } from '../../context/AuthContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ScreenRouteProp = RouteProp<RootStackParamList, 'ResetPassword'>;
+
+const getStringParam = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    const first = value.find((item) => typeof item === 'string');
+    return typeof first === 'string' ? first : undefined;
+  }
+  return undefined;
+};
 
 export default function ResetPasswordScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -26,6 +36,28 @@ export default function ResetPasswordScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [touched, setTouched] = useState({ token: false, newPassword: false, confirmPassword: false });
+
+  useEffect(() => {
+    const applyToken = (value?: string) => {
+      if (!value || !value.trim()) return;
+      setToken((current) => (current.trim() ? current : value.trim()));
+    };
+
+    applyToken(route.params?.token);
+
+    const applyFromUrl = (url: string | null) => {
+      if (!url) return;
+      const parsed = Linking.parse(url);
+      const path = parsed.path || '';
+      if (!path.includes('reset-password')) return;
+      applyToken(getStringParam(parsed.queryParams?.token));
+    };
+
+    void Linking.getInitialURL().then(applyFromUrl).catch(() => {});
+    const subscription = Linking.addEventListener('url', ({ url }) => applyFromUrl(url));
+
+    return () => subscription.remove();
+  }, [route.params?.token]);
 
   const tokenError = useMemo(() => {
     if (!touched.token) return undefined;
@@ -238,4 +270,3 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
 });
-

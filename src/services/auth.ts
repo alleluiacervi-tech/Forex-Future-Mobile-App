@@ -47,6 +47,25 @@ type ErrorResponse = {
 
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+const withNetworkHint = (error: unknown, endpoint: string) => {
+  if (!(error instanceof Error)) {
+    return new Error(String(error));
+  }
+
+  const message = error.message.toLowerCase();
+  if (
+    message.includes('network request failed') ||
+    message.includes('failed to fetch') ||
+    message.includes('load failed')
+  ) {
+    return new Error(
+      `Unable to reach auth server at ${endpoint}. Set EXPO_PUBLIC_API_URL to a reachable backend URL and restart Expo.`,
+    );
+  }
+
+  return error;
+};
+
 const pickError = (data: unknown, fallback: string) => {
   if (!data || typeof data !== 'object') return fallback;
   const errorValue = (data as ErrorResponse).error;
@@ -102,8 +121,9 @@ class AuthService {
 
       return data as AuthRegisterResponse;
     } catch (error) {
-      console.error('[AuthService] Registration error:', getErrorMessage(error));
-      throw error;
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/register`);
+      console.error('[AuthService] Registration error:', getErrorMessage(enrichedError));
+      throw enrichedError;
     }
   }
 
@@ -125,8 +145,9 @@ class AuthService {
 
       return data as VerifyEmailResponse;
     } catch (error) {
-      console.error('[AuthService] Verify email error:', getErrorMessage(error));
-      throw error;
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/email/verify`);
+      console.error('[AuthService] Verify email error:', getErrorMessage(enrichedError));
+      throw enrichedError;
     }
   }
 
@@ -148,8 +169,9 @@ class AuthService {
 
       return data as ResendVerificationResponse;
     } catch (error) {
-      console.error('[AuthService] Resend verification error:', getErrorMessage(error));
-      throw error;
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/email/resend`);
+      console.error('[AuthService] Resend verification error:', getErrorMessage(enrichedError));
+      throw enrichedError;
     }
   }
 
@@ -184,8 +206,9 @@ class AuthService {
 
       return data as AuthLoginResponse;
     } catch (error) {
-      console.error('[AuthService] Login error:', getErrorMessage(error));
-      throw error;
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/login`);
+      console.error('[AuthService] Login error:', getErrorMessage(enrichedError));
+      throw enrichedError;
     }
   }
 
@@ -220,8 +243,9 @@ class AuthService {
 
       return data as AuthLoginResponse;
     } catch (error) {
-      console.error('[AuthService] Trial start error:', getErrorMessage(error));
-      throw error;
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/trial/start`);
+      console.error('[AuthService] Trial start error:', getErrorMessage(enrichedError));
+      throw enrichedError;
     }
   }
 
@@ -251,8 +275,9 @@ class AuthService {
 
       return data as AuthMessageResponse;
     } catch (error) {
-      console.error('[AuthService] Password change error:', getErrorMessage(error));
-      throw error;
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/password/change`);
+      console.error('[AuthService] Password change error:', getErrorMessage(enrichedError));
+      throw enrichedError;
     }
   }
 
@@ -274,8 +299,9 @@ class AuthService {
 
       return data as AuthForgotPasswordResponse;
     } catch (error) {
-      console.error('[AuthService] Password reset request error:', getErrorMessage(error));
-      throw error;
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/password/forgot`);
+      console.error('[AuthService] Password reset request error:', getErrorMessage(enrichedError));
+      throw enrichedError;
     }
   }
 
@@ -297,8 +323,9 @@ class AuthService {
 
       return data as AuthMessageResponse;
     } catch (error) {
-      console.error('[AuthService] Password reset error:', getErrorMessage(error));
-      throw error;
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/password/reset`);
+      console.error('[AuthService] Password reset error:', getErrorMessage(enrichedError));
+      throw enrichedError;
     }
   }
 
@@ -334,8 +361,9 @@ class AuthService {
 
       return data as { user: User; account?: User['account'] };
     } catch (error) {
-      console.error('[AuthService] Get user error:', getErrorMessage(error));
-      throw error;
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/me`);
+      console.error('[AuthService] Get user error:', getErrorMessage(enrichedError));
+      throw enrichedError;
     }
   }
 

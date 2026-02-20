@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper } from '../../components/layout';
 import { Button, Card, Input, Text } from '../../components/common';
@@ -13,6 +14,15 @@ import { useAuth } from '../../context/AuthContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ScreenRouteProp = RouteProp<RootStackParamList, 'ForgotPassword'>;
+
+const getStringParam = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    const first = value.find((item) => typeof item === 'string');
+    return typeof first === 'string' ? first : undefined;
+  }
+  return undefined;
+};
 
 export default function ForgotPasswordScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -49,13 +59,19 @@ export default function ForgotPasswordScreen() {
 
       Alert.alert('Check your email', message);
 
-      if (result?.debugToken) {
-        Alert.alert('Dev token (debug)', result.debugToken);
+      let resolvedDebugToken = result?.debugToken;
+      if (!resolvedDebugToken && result?.debugLink) {
+        const parsed = Linking.parse(result.debugLink);
+        resolvedDebugToken = getStringParam(parsed.queryParams?.token);
+      }
+
+      if (resolvedDebugToken) {
+        Alert.alert('Dev token (debug)', resolvedDebugToken);
       }
 
       navigation.navigate('ResetPassword', {
         email: normalized,
-        token: result?.debugToken,
+        token: resolvedDebugToken,
       });
     } catch (error) {
       Alert.alert('Request failed', error instanceof Error ? error.message : 'Unable to request reset');

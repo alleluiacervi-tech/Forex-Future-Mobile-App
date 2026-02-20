@@ -81,6 +81,10 @@ The API will run on `http://localhost:4000` and the WebSocket server will be ava
 - `POST /api/auth/password/change` – Change password (protected).
 - `POST /api/auth/password/forgot` – Request a password reset email.
 - `POST /api/auth/password/reset` – Reset password using a token.
+
+Default email verification deep link (if `EMAIL_VERIFY_URL` is unset):
+`forexapp://verify-email?email={email}&code={code}`
+
 - `GET /api/market/pairs` – List supported FX pairs with live pricing.
 - `GET /api/market/history/:pair` – Get mock historical prices.
 - `GET /api/market/alerts` – List recent smart alerts (big-move volatility triggers).
@@ -129,6 +133,10 @@ These endpoints are **disabled** unless `EMAIL_VALIDATION_TOKEN` is set. Provide
 Configure SMTP (`EMAIL_USER`, `EMAIL_APP_PASSWORD`) and optionally a deep link / URL to include in reset emails:
 
 - `PASSWORD_RESET_URL=forexapp://reset-password?token={token}`
+
+If `PASSWORD_RESET_URL` is omitted, backend falls back to:
+
+- `forexapp://reset-password?token={token}`
 
 Endpoints:
 

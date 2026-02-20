@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
+import * as Linking from 'expo-linking';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ScreenWrapper } from '../../components/layout';
 import { Button, Card, Input, Text } from '../../components/common';
@@ -14,6 +15,15 @@ import { useAuth } from '../../context/AuthContext';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ScreenRouteProp = RouteProp<RootStackParamList, 'VerifyEmail'>;
 
+const getStringParam = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    const first = value.find((item) => typeof item === 'string');
+    return typeof first === 'string' ? first : undefined;
+  }
+  return undefined;
+};
+
 export default function VerifyEmailScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRouteProp>();
@@ -23,6 +33,35 @@ export default function VerifyEmailScreen() {
   const [email, setEmail] = useState(route.params?.email ?? '');
   const [code, setCode] = useState(route.params?.code ?? route.params?.debugCode ?? '');
   const [touched, setTouched] = useState({ email: false, code: false });
+
+  useEffect(() => {
+    const applyEmail = (value?: string) => {
+      if (!value || !value.trim()) return;
+      setEmail((current) => (current.trim() ? current : value.trim()));
+    };
+
+    const applyCode = (value?: string) => {
+      if (!value || !value.trim()) return;
+      setCode((current) => (current.trim() ? current : value.trim()));
+    };
+
+    applyEmail(route.params?.email);
+    applyCode(route.params?.code ?? route.params?.debugCode);
+
+    const applyFromUrl = (url: string | null) => {
+      if (!url) return;
+      const parsed = Linking.parse(url);
+      const path = parsed.path || '';
+      if (!path.includes('verify-email')) return;
+      applyEmail(getStringParam(parsed.queryParams?.email));
+      applyCode(getStringParam(parsed.queryParams?.code));
+    };
+
+    void Linking.getInitialURL().then(applyFromUrl).catch(() => {});
+    const subscription = Linking.addEventListener('url', ({ url }) => applyFromUrl(url));
+
+    return () => subscription.remove();
+  }, [route.params?.code, route.params?.debugCode, route.params?.email]);
 
   const emailError = useMemo(() => {
     if (!touched.email) return undefined;
