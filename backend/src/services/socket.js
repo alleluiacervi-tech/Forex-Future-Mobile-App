@@ -7,7 +7,7 @@ import { basePrices, supportedSymbols, symbolToPair } from "./marketSymbols.js";
  * Path: /ws/market
  *
  * Features:
- * - Upstream Finnhub WS relay
+ * - Upstream FCS WebSocket relay
  * - Server-side ping/pong heartbeat (detect dead clients)
  * - Backpressure protection (skip sends if buffer is high)
  * - Clean interval lifecycle
@@ -16,27 +16,28 @@ import { basePrices, supportedSymbols, symbolToPair } from "./marketSymbols.js";
 
 const DEFAULTS = {
   path: "/ws/market",
-  pingMs: 15000,              // ping frequency
-  clientTimeoutMs: 30000,     // terminate if no pong within this window
+  pingMs: 15000, // ping frequency
+  clientTimeoutMs: 30000, // terminate if no pong within this window
   maxBufferedBytes: 1_000_000, // ~1MB backpressure threshold
   maxPendingUpstreamMessages: Number(process.env.WS_MAX_PENDING_UPSTREAM_MESSAGES || 1000),
-  // If Finnhub is connected but not sending data, optionally generate synthetic ticks in dev.
+  // If upstream is connected but not sending data, optionally generate synthetic ticks in dev.
   enableSyntheticTicks:
     process.env.MARKET_WS_SYNTHETIC_TICKS === "true" ||
     (!process.env.NODE_ENV || process.env.NODE_ENV !== "production"),
   forceSyntheticTicks: process.env.MARKET_WS_FORCE_SYNTHETIC_TICKS === "true",
   syntheticTickMs: Number(process.env.MARKET_WS_SYNTHETIC_MS || 1000),
   upstreamSilentMs: Number(process.env.MARKET_WS_UPSTREAM_SILENT_MS || 15000),
-  // In local/dev, allow running without Finnhub to avoid startup crashes.
+  // In local/dev, allow running without upstream WS to avoid startup crashes.
   allowNoUpstream:
-    process.env.ALLOW_NO_FINNHUB_WS === "true" ||
+    process.env.ALLOW_NO_FCS_WS === "true" ||
     (process.env.NODE_ENV && process.env.NODE_ENV !== "production"),
-  finnhubUrl:
-    process.env.FINNHUB_WS_URL ||
-    (process.env.FINNHUB_API_KEY
-      ? `wss://ws.finnhub.io?token=${process.env.FINNHUB_API_KEY}`
-      : ""),
-  finnhubReconnectMs: 5000,
+  fcsUrl: process.env.FCS_WS_URL || "wss://ws-v4.fcsapi.com/ws",
+  // Demo key keeps local/dev startup simple; override with your paid key in env.
+  fcsApiKey: process.env.FCS_API_KEY || "fcs_socket_demo",
+  fcsTimeframe: String(process.env.FCS_WS_TIMEFRAME || "60"),
+  upstreamReconnectMs: Number(
+    process.env.MARKET_WS_UPSTREAM_RECONNECT_MS || process.env.FCS_WS_RECONNECT_MS || 5000
+  ),
   logConnections: true,
   logUpstreamMessages:
     process.env.MARKET_WS_DEBUG === "true" || process.env.WS_LOG_UPSTREAM_MESSAGES === "true",
@@ -54,6 +55,51 @@ const safeJson = (obj) => {
 
 const nowIso = () => new Date().toISOString();
 
+const hasAccessKeyInUrl = (url) => /(?:\?|&)access_key=/.test(String(url || ""));
+
+const resolveUpstreamUrl = ({ fcsUrl, fcsApiKey }) => {
+  const base = String(fcsUrl || "").trim();
+  if (!base) return "";
+  if (hasAccessKeyInUrl(base)) return base;
+  if (!fcsApiKey) return "";
+  const separator = base.includes("?") ? "&" : "?";
+  return `${base}${separator}access_key=${encodeURIComponent(fcsApiKey)}`;
+};
+
+const toTimestampMs = (rawTs) => {
+  const ts = Number(rawTs);
+  if (!Number.isFinite(ts)) return Date.now();
+  if (ts > 1e12) return Math.round(ts);
+  if (ts > 1e10) return Math.round(ts);
+  return Math.round(ts * 1000);
+};
+
+const normalizeFcsPrice = (payload) => {
+  if (payload?.type !== "price") return null;
+
+  const symbol = payload?.symbol;
+  const prices = payload?.prices || {};
+  const price = Number(prices?.c);
+
+  if (!symbol || !Number.isFinite(price)) return null;
+
+  const timestampMs = toTimestampMs(prices?.update ?? prices?.t ?? payload?.timestamp ?? Date.now());
+
+  const volume = Number(prices?.v);
+  const bid = Number(prices?.b);
+  const ask = Number(prices?.a);
+
+  return {
+    symbol,
+    price,
+    timestampMs,
+    volume: Number.isFinite(volume) ? volume : 0,
+    bid: Number.isFinite(bid) ? bid : null,
+    ask: Number.isFinite(ask) ? ask : null,
+    timeframe: String(payload?.timeframe || "")
+  };
+};
+
 const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   if (!server) throw new Error("initializeSocket: missing { server }");
 
@@ -62,13 +108,15 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     ...opts
   };
 
-  // Backward compatibility: heartbeatMs retained but unused in Finnhub relay mode
+  // Backward compatibility: heartbeatMs retained.
   if (Number.isFinite(Number(heartbeatMs)) && Number(heartbeatMs) > 0) {
     config.pingMs = Number(heartbeatMs);
   }
 
-  if (!config.finnhubUrl && !config.allowNoUpstream) {
-    throw new Error("initializeSocket: missing FINNHUB_API_KEY or FINNHUB_WS_URL");
+  config.upstreamUrl = resolveUpstreamUrl({ fcsUrl: config.fcsUrl, fcsApiKey: config.fcsApiKey });
+
+  if (!config.upstreamUrl && !config.allowNoUpstream) {
+    throw new Error("initializeSocket: missing FCS_API_KEY or FCS_WS_URL with access_key");
   }
 
   const wss = new WebSocketServer({ server, path: config.path });
@@ -129,6 +177,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   const startSyntheticTicks = (reason) => {
     if (!config.enableSyntheticTicks) return;
     if (syntheticTimer) return;
+
     const tickMs = Number.isFinite(Number(config.syntheticTickMs)) && Number(config.syntheticTickMs) > 0
       ? Number(config.syntheticTickMs)
       : 1000;
@@ -143,6 +192,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       supportedSymbols.forEach((symbol) => {
         const price = nextSyntheticPrice(symbol);
         if (!Number.isFinite(price)) return;
+
         recordTrade({ symbol, price, timestampMs: ts, volume: 0 });
 
         const payload = safeJson({
@@ -166,99 +216,114 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     }
   };
 
-  // Upstream Finnhub connection
-  let finnhub = null;
-  let finnhubReconnectTimer = null;
-  let finnhubOpenedAt = 0;
+  // Upstream FCS connection
+  let upstream = null;
+  let upstreamReconnectTimer = null;
   let lastUpstreamDataAt = 0;
-  const pendingFinnhubMessages = [];
+
+  const pendingUpstreamMessages = [];
   const maxPendingUpstreamMessages =
     Number.isFinite(Number(config.maxPendingUpstreamMessages)) && Number(config.maxPendingUpstreamMessages) > 0
       ? Number(config.maxPendingUpstreamMessages)
       : 1000;
   let warnedPendingQueueOverflow = false;
 
-  const enqueueFinnhubPayload = (payload) => {
-    pendingFinnhubMessages.push(payload);
-    if (pendingFinnhubMessages.length > maxPendingUpstreamMessages) {
+  const enqueueUpstreamPayload = (payload) => {
+    pendingUpstreamMessages.push(payload);
+    if (pendingUpstreamMessages.length > maxPendingUpstreamMessages) {
       // Drop oldest to prevent unbounded memory growth during upstream outages.
-      pendingFinnhubMessages.splice(0, pendingFinnhubMessages.length - maxPendingUpstreamMessages);
+      pendingUpstreamMessages.splice(0, pendingUpstreamMessages.length - maxPendingUpstreamMessages);
       if (!warnedPendingQueueOverflow && config.logUpstreamMessages) {
         warnedPendingQueueOverflow = true;
         // eslint-disable-next-line no-console
         console.warn(
-          `Finnhub WS: pending message queue overflow (capped at ${maxPendingUpstreamMessages}). Dropping oldest messages.`
+          `Upstream WS: pending message queue overflow (capped at ${maxPendingUpstreamMessages}). Dropping oldest messages.`
         );
       }
     }
   };
 
-  const flushFinnhubQueue = () => {
-    if (!finnhub || finnhub.readyState !== WebSocket.OPEN) return;
-    while (pendingFinnhubMessages.length > 0) {
-      const payload = pendingFinnhubMessages.shift();
+  const flushUpstreamQueue = () => {
+    if (!upstream || upstream.readyState !== WebSocket.OPEN) return;
+    while (pendingUpstreamMessages.length > 0) {
+      const payload = pendingUpstreamMessages.shift();
       try {
-        finnhub.send(payload);
+        upstream.send(payload);
       } catch {
         break;
       }
     }
   };
 
-  const sendToFinnhub = (messageObj) => {
-    if (!config.finnhubUrl) return;
+  const sendToUpstream = (messageObj) => {
+    if (!config.upstreamUrl) return;
+
     const payload = safeJson(messageObj);
-    if (!finnhub || finnhub.readyState !== WebSocket.OPEN) {
-      enqueueFinnhubPayload(payload);
+    if (!upstream || upstream.readyState !== WebSocket.OPEN) {
+      enqueueUpstreamPayload(payload);
       return;
     }
+
     try {
-      finnhub.send(payload);
+      upstream.send(payload);
     } catch {
-      enqueueFinnhubPayload(payload);
+      enqueueUpstreamPayload(payload);
     }
+  };
+
+  const joinSymbolUpstream = (symbol) => {
+    sendToUpstream({ type: "join_symbol", symbol, timeframe: config.fcsTimeframe });
+  };
+
+  const leaveSymbolUpstream = (symbol) => {
+    sendToUpstream({ type: "leave_symbol", symbol, timeframe: config.fcsTimeframe });
   };
 
   const resubscribeAllSymbols = () => {
-    if (!config.finnhubUrl) return;
+    if (!config.upstreamUrl) return;
+
     alwaysSubscribedSymbols.forEach((symbol) => {
-      sendToFinnhub({ type: "subscribe", symbol });
+      joinSymbolUpstream(symbol);
     });
+
     symbolCounts.forEach((count, symbol) => {
       if (count > 0 && !alwaysSubscribedSymbols.has(symbol)) {
-        sendToFinnhub({ type: "subscribe", symbol });
+        joinSymbolUpstream(symbol);
       }
     });
   };
 
-  const scheduleFinnhubReconnect = () => {
-    if (!config.finnhubUrl) return;
-    if (finnhubReconnectTimer) return;
-    finnhubReconnectTimer = setTimeout(() => {
-      finnhubReconnectTimer = null;
-      connectFinnhub();
-    }, config.finnhubReconnectMs);
+  const scheduleUpstreamReconnect = () => {
+    if (!config.upstreamUrl) return;
+    if (upstreamReconnectTimer) return;
+
+    upstreamReconnectTimer = setTimeout(() => {
+      upstreamReconnectTimer = null;
+      connectUpstream();
+    }, config.upstreamReconnectMs);
   };
 
-  const connectFinnhub = () => {
-    if (!config.finnhubUrl) return;
+  const connectUpstream = () => {
+    if (!config.upstreamUrl) return;
+
     try {
-      finnhub = new WebSocket(config.finnhubUrl);
+      upstream = new WebSocket(config.upstreamUrl);
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error("Failed to create Finnhub WS:", error.message);
-      scheduleFinnhubReconnect();
+      console.error("Failed to create FCS upstream WS:", error.message);
+      scheduleUpstreamReconnect();
       return;
     }
 
-    finnhub.on("open", () => {
-      finnhubOpenedAt = Date.now();
+    upstream.on("open", () => {
       lastUpstreamDataAt = 0;
+
       if (config.logConnections) {
         // eslint-disable-next-line no-console
-        console.log("Finnhub WS connected.");
+        console.log("FCS upstream WS connected.");
       }
-      flushFinnhubQueue();
+
+      flushUpstreamQueue();
       resubscribeAllSymbols();
 
       if (config.forceSyntheticTicks) {
@@ -268,116 +333,128 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
           Number.isFinite(Number(config.upstreamSilentMs)) && Number(config.upstreamSilentMs) > 0
             ? Number(config.upstreamSilentMs)
             : 15000;
+
         setTimeout(() => {
-          // If upstream never emitted a trade/quote soon after connect, it often means
-          // invalid symbols, plan limitations, or an invalid token. Provide a dev fallback.
-          if (!finnhub || finnhub.readyState !== WebSocket.OPEN) return;
+          // If upstream never emits prices soon after connect, it often means
+          // invalid symbols, plan limitations, or invalid credentials.
+          if (!upstream || upstream.readyState !== WebSocket.OPEN) return;
           if (lastUpstreamDataAt) return;
+
           if (config.logConnections) {
             // eslint-disable-next-line no-console
             console.warn(
-              `Finnhub WS: connected but no trade/quote received after ${silentMs}ms. ` +
-                `Set WS_LOG_UPSTREAM_MESSAGES=true to inspect upstream payloads.`
+              `FCS upstream WS: connected but no prices received after ${silentMs}ms. ` +
+                `Set WS_LOG_UPSTREAM_MESSAGES=true to inspect payloads.`
             );
           }
+
           startSyntheticTicks("upstream silent");
         }, silentMs).unref?.();
       }
     });
 
-    finnhub.on("message", (raw) => {
-      const msg = raw.toString();
+    upstream.on("message", (raw) => {
+      let payload;
       try {
-        const payload = JSON.parse(msg);
-        if (payload?.type === "error") {
-          // eslint-disable-next-line no-console
-          console.error("Finnhub WS upstream error:", payload);
-        }
-        if (config.logUpstreamMessages) {
-          try {
-            // eslint-disable-next-line no-console
-            console.log(
-              `[Finnhub] ${payload?.type} with ${Array.isArray(payload?.data) ? payload.data.length : 0} items`
-            );
-          } catch {}
-        }
-        if (config.logUpstreamSamples) {
-          try {
-            if (payload?.type === "trade" && Array.isArray(payload.data) && payload.data.length > 0) {
-              payload.data.slice(0, 2).forEach((sample) => {
-                // eslint-disable-next-line no-console
-                console.log(`  [trade] ${sample?.s}: ${sample?.p} @ ${new Date(Number(sample?.t)).toISOString()}`);
-              });
-            }
-            if (payload?.type === "quote" && Array.isArray(payload.data) && payload.data.length > 0) {
-              payload.data.slice(0, 2).forEach((sample) => {
-                // eslint-disable-next-line no-console
-                console.log(`  [quote] ${sample?.s}: bid=${sample?.b} ask=${sample?.a}`);
-              });
-            }
-          } catch {}
-        }
-        if (Array.isArray(payload?.data)) {
-          if (payload.type === "trade") {
-            lastUpstreamDataAt = Date.now();
-            stopSyntheticTicks();
-            payload.data.forEach((item) => {
-              recordTrade({
-                symbol: item?.s,
-                price: Number(item?.p),
-                timestampMs: Number(item?.t),
-                volume: Number(item?.v)
-              });
-            });
-          }
-          if (payload.type === "quote") {
-            lastUpstreamDataAt = Date.now();
-            stopSyntheticTicks();
-            payload.data.forEach((item) => {
-              recordQuote({
-                symbol: item?.s,
-                bid: item?.b,
-                ask: item?.a,
-                timestampMs: Number(item?.t)
-              });
-            });
-          }
-        }
-      } catch {}
-      const clientCount = wss.clients.size;
+        payload = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
+
+      if (payload?.type === "error") {
+        // eslint-disable-next-line no-console
+        console.error("FCS upstream error:", payload);
+      }
+
       if (config.logUpstreamMessages) {
         try {
           // eslint-disable-next-line no-console
-          console.log(`[Finnhub→Relay] sending message to ${clientCount} connected clients`);
+          console.log(`[FCS] ${payload?.type} ${payload?.symbol || ""}`.trim());
         } catch {}
       }
-      wss.clients.forEach((ws) => {
-        sendRaw(ws, msg);
-      });
+
+      const normalized = normalizeFcsPrice(payload);
+      if (normalized) {
+        lastUpstreamDataAt = Date.now();
+        stopSyntheticTicks();
+
+        recordTrade({
+          symbol: normalized.symbol,
+          price: normalized.price,
+          timestampMs: normalized.timestampMs,
+          volume: normalized.volume
+        });
+
+        if (Number.isFinite(normalized.bid) && Number.isFinite(normalized.ask)) {
+          recordQuote({
+            symbol: normalized.symbol,
+            bid: normalized.bid,
+            ask: normalized.ask,
+            timestampMs: normalized.timestampMs
+          });
+        }
+
+        const relayPayload = safeJson({
+          type: "trade",
+          data: [
+            {
+              s: normalized.symbol,
+              p: normalized.price,
+              t: normalized.timestampMs,
+              v: normalized.volume
+            }
+          ]
+        });
+
+        if (config.logUpstreamSamples) {
+          try {
+            // eslint-disable-next-line no-console
+            console.log(
+              `[price] ${normalized.symbol}: ${normalized.price} @ ${new Date(normalized.timestampMs).toISOString()}`
+            );
+          } catch {}
+        }
+
+        wss.clients.forEach((ws) => {
+          sendRaw(ws, relayPayload);
+        });
+
+        return;
+      }
+
+      // Relay upstream status/error frames as-is for diagnostics.
+      if (payload?.type === "welcome" || payload?.type === "message" || payload?.type === "error") {
+        const msg = safeJson(payload);
+        wss.clients.forEach((ws) => {
+          sendRaw(ws, msg);
+        });
+      }
     });
 
-    finnhub.on("close", () => {
+    upstream.on("close", () => {
       if (config.logConnections) {
         // eslint-disable-next-line no-console
-        console.log("Finnhub WS disconnected. Reconnecting...");
+        console.log("FCS upstream WS disconnected. Reconnecting...");
       }
+
       if (config.enableSyntheticTicks && wss.clients.size > 0) {
         startSyntheticTicks("upstream disconnected");
       }
-      scheduleFinnhubReconnect();
+
+      scheduleUpstreamReconnect();
     });
 
-    finnhub.on("error", (error) => {
+    upstream.on("error", (error) => {
       // eslint-disable-next-line no-console
-      console.error("Finnhub WS error:", error.message);
+      console.error("FCS upstream WS error:", error.message);
     });
   };
 
-  if (config.finnhubUrl) {
-    connectFinnhub();
+  if (config.upstreamUrl) {
+    connectUpstream();
   } else if (config.logConnections) {
     // eslint-disable-next-line no-console
-    console.warn("Finnhub WS disabled. Set FINNHUB_API_KEY/FINNHUB_WS_URL or ALLOW_NO_FINNHUB_WS=true.");
+    console.warn("FCS upstream WS disabled. Set FCS_API_KEY/FCS_WS_URL or ALLOW_NO_FCS_WS=true.");
   }
 
   // Heartbeat ping/pong
@@ -400,7 +477,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
   }, config.pingMs);
 
-  wss.on("connection", (ws, req) => {
+  wss.on("connection", (ws) => {
     const initialSubscriptions = new Set(defaultSymbols);
     clientState.set(ws, {
       connectedAt: Date.now(),
@@ -414,7 +491,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
 
     ws.on("message", (raw) => {
-      // Only ping supported; majors-only symbols are fixed server-side
+      // Only ping supported; symbol subscriptions are managed server-side.
       let msg;
       try {
         msg = JSON.parse(raw.toString());
@@ -435,12 +512,14 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     ws.on("close", () => {
       const state = clientState.get(ws);
       if (!state) return;
+
       state.subscriptions.forEach((symbol) => {
         const current = symbolCounts.get(symbol) || 0;
         const next = Math.max(0, current - 1);
+
         if (next === 0 && !alwaysSubscribedSymbols.has(symbol)) {
           symbolCounts.delete(symbol);
-          sendToFinnhub({ type: "unsubscribe", symbol });
+          leaveSymbolUpstream(symbol);
         } else {
           symbolCounts.set(symbol, next);
         }
@@ -461,16 +540,17 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       const current = symbolCounts.get(symbol) || 0;
       symbolCounts.set(symbol, current + 1);
       if (current === 0 && !alwaysSubscribedSymbols.has(symbol)) {
-        sendToFinnhub({ type: "subscribe", symbol });
+        joinSymbolUpstream(symbol);
       }
     });
 
     sendJson(ws, {
       type: "welcome",
       ts: nowIso(),
-      message: "Connected to Finnhub market stream.",
+      message: "Connected to FCS market stream.",
       path: config.path,
-      symbols: defaultSymbols
+      symbols: defaultSymbols,
+      timeframe: config.fcsTimeframe
     });
 
     ws.on("close", () => {
@@ -484,20 +564,20 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   // Cleanup on server close (wss "close" event means the WS server was closed)
   wss.on("close", () => {
     clearInterval(pingInterval);
-    if (finnhubReconnectTimer) clearTimeout(finnhubReconnectTimer);
+    if (upstreamReconnectTimer) clearTimeout(upstreamReconnectTimer);
     stopSyntheticTicks();
     try {
-      finnhub?.close();
+      upstream?.close();
     } catch {}
   });
 
   // Allow caller to close cleanly
   wss.closeGracefully = () => {
     clearInterval(pingInterval);
-    if (finnhubReconnectTimer) clearTimeout(finnhubReconnectTimer);
+    if (upstreamReconnectTimer) clearTimeout(upstreamReconnectTimer);
     stopSyntheticTicks();
     try {
-      finnhub?.close();
+      upstream?.close();
     } catch {}
     try {
       wss.close();

@@ -35,12 +35,15 @@ JWT_SECRET=change-me
 JWT_EXPIRES_IN=2h
 WS_HEARTBEAT_MS=15000
 
-# Market data (Finnhub)
-FINNHUB_API_KEY=your-finnhub-api-key
-# Optional: override full WS URL (otherwise built from FINNHUB_API_KEY)
-# FINNHUB_WS_URL=wss://ws.finnhub.io?token=...
+# Market data (FCS WebSocket v4)
+FCS_API_KEY=your-fcs-websocket-api-key
+# Optional: override WS base URL (access_key is auto-appended if missing)
+# FCS_WS_URL=wss://ws-v4.fcsapi.com/ws
+# Optional: timeframe for join_symbol subscriptions
+# FCS_WS_TIMEFRAME=60
+# If FCS_API_KEY is omitted, backend uses demo key: fcs_socket_demo
 # Optional (dev): start backend without upstream WS
-# ALLOW_NO_FINNHUB_WS=true
+# ALLOW_NO_FCS_WS=true
 
 # Email (SMTP) - optional
 # EMAIL_USER=your_email@example.com
@@ -94,14 +97,14 @@ The API will run on `http://localhost:4000` and the WebSocket server will be ava
 
 Connect to the market WebSocket at `ws://localhost:4000/ws/market`.
 
-The server relays Finnhub WebSocket messages (JSON). You’ll typically receive `trade` updates in Finnhub’s format:
+The server relays normalized market messages (JSON). You’ll typically receive `trade` updates in this format:
 
 ```json
 {
   "type": "trade",
   "data": [
     {
-      "s": "OANDA:EUR_USD",
+      "s": "FX:EURUSD",
       "p": 1.0843,
       "t": 1704110400000,
       "v": 100000

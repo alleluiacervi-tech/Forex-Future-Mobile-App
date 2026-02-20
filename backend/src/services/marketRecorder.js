@@ -69,9 +69,37 @@ const state = {
   flushMs: Number(process.env.MARKET_RECORDER_FLUSH_MS || 5000),
   flushing: false,
   disabledReason: null,
+  lastDbWarningAt: 0,
+  dbRetryAt: 0,
   ticksByPair: new Map(),
   lastAlertKeyAt: new Map(),
   maxTickWindowMs: Number(process.env.MARKET_ALERT_TICK_WINDOW_MS || 26 * 60 * 60 * 1000)
+};
+
+const isRetryableDbError = (error) => {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "");
+  if (code === "P1001" || code === "P1002" || code === "P1008" || code === "P1017") return true;
+  if (/can't reach database server/i.test(message)) return true;
+  if (/timed out/i.test(message)) return true;
+  if (/connection/i.test(message) && /failed|closed|reset|refused/i.test(message)) return true;
+  return false;
+};
+
+const warnDbConnectivity = (error) => {
+  const now = Date.now();
+  if (now - state.lastDbWarningAt < 30000) return;
+  state.lastDbWarningAt = now;
+  try {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[MarketRecorder] Database temporarily unavailable. Will retry on next flush.",
+      {
+        code: error?.code,
+        message: error?.message
+      }
+    );
+  } catch {}
 };
 
 const ensureTicks = (pair) => {
@@ -267,6 +295,7 @@ const upsertCandle = async (candle) => {
 
 const flush = async () => {
   if (!state.enabled || state.flushing) return;
+  if (state.dbRetryAt && Date.now() < state.dbRetryAt) return;
   if (!prisma.marketCandle) {
     state.enabled = false;
     state.disabledReason = "Prisma client missing MarketCandle model (run prisma migrate/generate).";
@@ -276,14 +305,33 @@ const flush = async () => {
   state.flushing = true;
   try {
     const keys = Array.from(state.dirtyKeys.values());
-    state.dirtyKeys.clear();
     for (const key of keys) {
       const candle = state.activeCandles.get(key);
-      if (candle) await upsertCandle(candle);
+      if (!candle) {
+        state.dirtyKeys.delete(key);
+        continue;
+      }
+
+      try {
+        await upsertCandle(candle);
+        state.dirtyKeys.delete(key);
+      } catch (error) {
+        if (isRetryableDbError(error)) {
+          state.disabledReason = error?.message || "database temporarily unavailable";
+          state.dbRetryAt = Date.now() + 30000;
+          warnDbConnectivity(error);
+          break;
+        }
+
+        state.enabled = false;
+        state.disabledReason = error?.message || "market recorder flush failed";
+        state.dbRetryAt = 0;
+        break;
+      }
     }
-  } catch (error) {
-    state.enabled = false;
-    state.disabledReason = error?.message || "market recorder flush failed";
+    if (!state.dirtyKeys.size) {
+      state.dbRetryAt = 0;
+    }
   } finally {
     state.flushing = false;
   }

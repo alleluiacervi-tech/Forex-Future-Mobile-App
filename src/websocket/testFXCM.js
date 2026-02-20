@@ -25,11 +25,19 @@ const pairs = [
 // Metals (if enabled on your key/plan)
 const metals = ['FX:XAUUSD'];
 
-const timeframe = process.env.FCS_TIMEFRAME || '60';
-const subscriptions = [...pairs, ...metals].map((symbol) => ({
-  symbol,
-  timeframe,
-}));
+const defaultTimeframes = ['1', '5', '15', '30', '60', '120', '240', '1D', '1W'];
+const timeframes = (process.env.FCS_TIMEFRAMES || defaultTimeframes.join(','))
+  .split(',')
+  .map((tf) => tf.trim())
+  .filter(Boolean);
+
+const symbols = [...pairs, ...metals];
+const subscriptions = symbols.flatMap((symbol) =>
+  timeframes.map((timeframe) => ({
+    symbol,
+    timeframe,
+  }))
+);
 
 function maskKey(key) {
   if (!key || key.length <= 8) return key || 'undefined';
@@ -42,6 +50,7 @@ client.reconnectlimit = 10;
 
 client.onconnected = () => {
   console.log(`Connected and authenticated (${maskKey(API_KEY)})`);
+  console.log(`Subscribing ${symbols.length} symbols across ${timeframes.length} timeframes`);
   subscriptions.forEach(({ symbol, timeframe }) => {
     client.join(symbol, timeframe);
     console.log(`Joined ${symbol} @ ${timeframe}`);
