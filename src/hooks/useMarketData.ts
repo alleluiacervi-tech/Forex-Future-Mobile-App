@@ -33,25 +33,13 @@ const SYMBOL_TO_PAIR_MAP = Object.entries(MARKET_SYMBOL_MAP).reduce<Record<strin
   {},
 );
 
-const DEFAULT_BASE_PRICES: Record<string, number> = {
-  'EUR/USD': 1.08,
-  'GBP/USD': 1.27,
-  'USD/JPY': 157.5,
-  'USD/CHF': 0.9,
-  'AUD/USD': 0.66,
-  'USD/CAD': 1.35,
-  'NZD/USD': 0.61,
-  'EUR/GBP': 0.85,
-  'EUR/JPY': 160.5,
-  'GBP/JPY': 188.0,
-  'EUR/CHF': 0.95,
-  'AUD/JPY': 98.0,
-  'CAD/JPY': 110.0,
-  'CHF/JPY': 170.0,
-  'AUD/CAD': 0.89,
-  'NZD/JPY': 90.0,
-  'XAU/USD': 2925.0,
-};
+const PAIR_ORDER_INDEX = Object.keys(MARKET_SYMBOL_MAP).reduce<Record<string, number>>(
+  (acc, pair, index) => {
+    acc[pair] = index;
+    return acc;
+  },
+  {},
+);
 
 type MarketRate = {
   pair: string;
@@ -68,27 +56,40 @@ type MarketPairsResponse = {
   };
 };
 
-const buildSeedPairs = (): CurrencyPair[] =>
-  Object.keys(MARKET_SYMBOL_MAP).map((pair) => {
-    const [base, quote] = pair.split('/');
-    const price = DEFAULT_BASE_PRICES[pair] ?? 1;
-    return {
-      id: pair,
-      symbol: pair,
-      base,
-      quote,
-      price,
-      change: 0,
-      changePercent: 0,
-      high24h: price,
-      low24h: price,
-      volume24h: 0,
-    };
-  });
+const sortPairs = (input: CurrencyPair[]) =>
+  input
+    .slice()
+    .sort((a, b) => (PAIR_ORDER_INDEX[a.symbol] ?? Number.MAX_SAFE_INTEGER) - (PAIR_ORDER_INDEX[b.symbol] ?? Number.MAX_SAFE_INTEGER));
+
+const buildPairSnapshot = (
+  pair: string,
+  price: number,
+  volume: number,
+  existing?: CurrencyPair,
+  previousPrice?: number,
+): CurrencyPair => {
+  const [base = pair.slice(0, 3), quote = pair.slice(4, 7)] = pair.split('/');
+  const referencePrice = Number.isFinite(previousPrice as number) ? Number(previousPrice) : price;
+  const change = price - referencePrice;
+  const changePercent = referencePrice !== 0 ? (change / referencePrice) * 100 : 0;
+
+  return {
+    id: pair,
+    symbol: pair,
+    base,
+    quote,
+    price,
+    change,
+    changePercent,
+    high24h: existing ? Math.max(existing.high24h, price) : price,
+    low24h: existing ? Math.min(existing.low24h, price) : price,
+    volume24h: (existing?.volume24h ?? 0) + volume,
+  };
+};
 
 export const useMarketData = (refreshInterval: number = 5000) => {
   const initialMarketStatus = useMemo(() => getForexMarketStatus(), []);
-  const marketStatusPollMs = Math.max(30_000, refreshInterval);
+  const marketStatusPollMs = Math.max(5_000, Math.min(refreshInterval, 30_000));
   const maxReconnectAttempts = 5;
 
   const [pairs, setPairs] = useState<CurrencyPair[]>([]);
@@ -112,6 +113,7 @@ export const useMarketData = (refreshInterval: number = 5000) => {
   const applyPriceUpdate = useCallback(
     (pair: string, priceValue: unknown, volumeValue: unknown = 0) => {
       if (!marketOpenRef.current) return;
+      if (!MARKET_SYMBOL_MAP[pair]) return;
 
       const price = Number(priceValue);
       if (!Number.isFinite(price)) return;
@@ -119,27 +121,22 @@ export const useMarketData = (refreshInterval: number = 5000) => {
       const volume = Number(volumeValue);
       const normalizedVolume = Number.isFinite(volume) ? volume : 0;
 
-      setPairs((prevPairs) =>
-        prevPairs.map((existingPair) => {
-          if (existingPair.symbol !== pair) return existingPair;
+      setPairs((prevPairs) => {
+        const existing = prevPairs.find((item) => item.symbol === pair);
+        const prevPrice = previousPricesRef.current[pair] ?? existing?.price ?? price;
 
-          const prevPrice = previousPricesRef.current[pair] ?? existingPair.price;
-          const change = price - prevPrice;
-          const changePercent = prevPrice !== 0 ? (change / prevPrice) * 100 : 0;
+        previousPricesRef.current[pair] = price;
 
-          previousPricesRef.current[pair] = price;
+        if (existing) {
+          return prevPairs.map((item) =>
+            item.symbol === pair
+              ? buildPairSnapshot(pair, price, normalizedVolume, existing, prevPrice)
+              : item,
+          );
+        }
 
-          return {
-            ...existingPair,
-            price,
-            change,
-            changePercent,
-            high24h: Math.max(existingPair.high24h, price),
-            low24h: Math.min(existingPair.low24h, price),
-            volume24h: existingPair.volume24h + normalizedVolume,
-          };
-        }),
-      );
+        return sortPairs([...prevPairs, buildPairSnapshot(pair, price, normalizedVolume, undefined, prevPrice)]);
+      });
     },
     [],
   );
@@ -269,71 +266,55 @@ export const useMarketData = (refreshInterval: number = 5000) => {
 
     try {
       const response = await apiGet<MarketPairsResponse>('/api/market/pairs');
-      if (typeof response?.market?.isOpen === 'boolean') {
-        syncMarketOpenState(response.market.isOpen);
-      } else {
-        syncMarketOpenState(getForexMarketStatus().isOpen);
-      }
+      const serverMarketOpen =
+        typeof response?.market?.isOpen === 'boolean'
+          ? response.market.isOpen
+          : getForexMarketStatus().isOpen;
+      syncMarketOpenState(serverMarketOpen);
 
       const rates = Array.isArray(response?.pairs) ? response.pairs : [];
-      const quotes: Record<string, number> = {};
-
-      rates.forEach((rate) => {
-        if (!rate?.pair) return;
-        const pair = String(rate.pair);
-        const price = Number(rate.mid ?? rate.bid ?? rate.ask);
-        if (!Number.isFinite(price) || !MARKET_SYMBOL_MAP[pair]) return;
-        quotes[pair] = price;
-      });
+      const normalizedRates = rates
+        .map((rate) => {
+          if (!rate?.pair) return null;
+          const pair = String(rate.pair);
+          if (!MARKET_SYMBOL_MAP[pair]) return null;
+          const price = Number(rate.mid ?? rate.bid ?? rate.ask);
+          if (!Number.isFinite(price)) return null;
+          return { pair, price };
+        })
+        .filter((item): item is { pair: string; price: number } => Boolean(item));
 
       setPairs((prevPairs) => {
-        const sourcePairs = prevPairs.length > 0 ? prevPairs : buildSeedPairs();
+        const previousByPair = new Map(prevPairs.map((pair) => [pair.symbol, pair]));
+        const nextPairs: CurrencyPair[] = [];
 
-        const nextPairs = sourcePairs.map((existingPair) => {
-          const latestPrice = quotes[existingPair.symbol];
-          if (!Number.isFinite(latestPrice)) {
-            if (!Number.isFinite(previousPricesRef.current[existingPair.symbol])) {
-              previousPricesRef.current[existingPair.symbol] = existingPair.price;
-            }
-            return existingPair;
-          }
+        normalizedRates.forEach(({ pair, price }) => {
+          const existing = previousByPair.get(pair);
+          const previousPrice = previousPricesRef.current[pair] ?? existing?.price ?? price;
 
-          const prevPrice = previousPricesRef.current[existingPair.symbol] ?? existingPair.price;
-          const change = latestPrice - prevPrice;
-          const changePercent = prevPrice !== 0 ? (change / prevPrice) * 100 : 0;
-          previousPricesRef.current[existingPair.symbol] = latestPrice;
-
-          return {
-            ...existingPair,
-            price: latestPrice,
-            change,
-            changePercent,
-            high24h: Math.max(existingPair.high24h, latestPrice),
-            low24h: Math.min(existingPair.low24h, latestPrice),
-          };
+          previousPricesRef.current[pair] = price;
+          nextPairs.push(buildPairSnapshot(pair, price, 0, existing, previousPrice));
         });
 
-        return nextPairs;
+        if (nextPairs.length === 0) {
+          return serverMarketOpen ? [] : prevPairs;
+        }
+
+        return sortPairs(nextPairs);
       });
 
-      if (Object.keys(quotes).length === 0) {
-        setError((prev) => prev ?? 'Live quotes are temporarily unavailable. Showing last known prices.');
+      if (normalizedRates.length === 0) {
+        if (serverMarketOpen) {
+          setError('Market is open. Waiting for first live WS quotes...');
+        } else {
+          setError(null);
+        }
       } else {
         setError(null);
       }
     } catch (err) {
       console.error('[MarketData] Failed to fetch market data:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch market data');
-
-      setPairs((prevPairs) => {
-        const fallbackPairs = prevPairs.length > 0 ? prevPairs : buildSeedPairs();
-        fallbackPairs.forEach((pair) => {
-          if (!Number.isFinite(previousPricesRef.current[pair.symbol])) {
-            previousPricesRef.current[pair.symbol] = pair.price;
-          }
-        });
-        return fallbackPairs;
-      });
     } finally {
       setLoading(false);
     }

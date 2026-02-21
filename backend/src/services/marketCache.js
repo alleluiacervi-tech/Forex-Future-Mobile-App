@@ -117,12 +117,19 @@ const buildRateFromPrice = ({ pair, price, timestampMs }) => {
   };
 };
 
-const getLiveRatesFromCache = ({ includeFallbackBasePrices = false } = {}) => {
+const getLiveRatesFromCache = ({ includeFallbackBasePrices = false, maxAgeMs = null } = {}) => {
   const now = Date.now();
+  const enforceMaxAge = Number.isFinite(Number(maxAgeMs)) && Number(maxAgeMs) >= 0;
+
   return supportedPairs
     .map((pair) => {
       const symbol = pairToSymbol[pair];
       const latest = symbol ? liveBySymbol.get(symbol) : null;
+
+      if (latest && enforceMaxAge && now - latest.timestampMs > Number(maxAgeMs)) {
+        return null;
+      }
+
       if (!latest && !includeFallbackBasePrices) {
         return null;
       }
@@ -132,6 +139,10 @@ const getLiveRatesFromCache = ({ includeFallbackBasePrices = false } = {}) => {
       return buildRateFromPrice({ pair, price, timestampMs: ts });
     })
     .filter(Boolean);
+};
+
+const clearLiveRatesCache = () => {
+  liveBySymbol.clear();
 };
 
 const getHistoricalFromCache = ({ pair, points, interval }) => {
@@ -169,4 +180,11 @@ const getHistoricalFromCache = ({ pair, points, interval }) => {
   return data;
 };
 
-export { marketEvents, recordTrade, recordQuote, getLiveRatesFromCache, getHistoricalFromCache };
+export {
+  marketEvents,
+  recordTrade,
+  recordQuote,
+  getLiveRatesFromCache,
+  clearLiveRatesCache,
+  getHistoricalFromCache
+};

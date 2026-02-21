@@ -1,70 +1,22 @@
 import prisma from "../db/prisma.js";
 import { getHistoricalFromCache, getLiveRatesFromCache } from "./marketCache.js";
-import { supportedPairs } from "./marketSymbols.js";
+import { isForexMarketOpen } from "./marketSession.js";
 
-const isJpyPair = (pair) => pair.includes("JPY");
-const decimalsForPair = (pair) => (isJpyPair(pair) ? 3 : 5);
-const pipSizeForPair = (pair) => (isJpyPair(pair) ? 0.01 : 0.0001);
-const roundTo = (value, decimals) => Number(Number(value).toFixed(decimals));
+const MARKET_OPEN_QUOTE_MAX_AGE_MS = Number(process.env.MARKET_OPEN_QUOTE_MAX_AGE_MS || 120000);
 
-const buildRateFromPrice = ({ pair, price, timestampMs }) => {
-  if (!Number.isFinite(Number(price))) return null;
-
-  const pip = pipSizeForPair(pair);
-  const spread = pip * 1.5;
-  const decimals = decimalsForPair(pair);
-  const mid = Number(price);
-  const bid = roundTo(mid - spread / 2, decimals);
-  const ask = roundTo(mid + spread / 2, decimals);
-
-  return {
-    pair,
-    bid,
-    ask,
-    mid: roundTo(mid, decimals),
-    spread: roundTo(ask - bid, decimals),
-    volume: 0,
-    timestamp: new Date(timestampMs ?? Date.now()).toISOString()
-  };
-};
-
-const getLatestDbRateForPair = async (pair) => {
-  if (!prisma.marketCandle) return null;
-
-  try {
-    const candle = await prisma.marketCandle.findFirst({
-      where: { pair },
-      orderBy: { bucketStart: "desc" },
-      select: { close: true, bucketStart: true }
-    });
-    if (!candle) return null;
-    return buildRateFromPrice({
-      pair,
-      price: candle.close,
-      timestampMs: candle.bucketStart?.getTime?.() ?? Date.now()
-    });
-  } catch {
-    return null;
+const resolveOpenSessionMaxAgeMs = () => {
+  if (!Number.isFinite(MARKET_OPEN_QUOTE_MAX_AGE_MS) || MARKET_OPEN_QUOTE_MAX_AGE_MS < 0) {
+    return 120000;
   }
+  return MARKET_OPEN_QUOTE_MAX_AGE_MS;
 };
 
 const getLiveRates = async () => {
-  const liveRates = getLiveRatesFromCache();
-  const byPair = new Map(liveRates.map((rate) => [rate.pair, rate]));
-
-  const missingPairs = supportedPairs.filter((pair) => !byPair.has(pair));
-  if (missingPairs.length === 0) {
-    return supportedPairs.map((pair) => byPair.get(pair)).filter(Boolean);
+  const marketOpen = isForexMarketOpen(new Date());
+  if (marketOpen) {
+    return getLiveRatesFromCache({ maxAgeMs: resolveOpenSessionMaxAgeMs() });
   }
-
-  const dbFallbackRates = await Promise.all(missingPairs.map((pair) => getLatestDbRateForPair(pair)));
-  dbFallbackRates.forEach((rate) => {
-    if (rate?.pair) {
-      byPair.set(rate.pair, rate);
-    }
-  });
-
-  return supportedPairs.map((pair) => byPair.get(pair)).filter(Boolean);
+  return getLiveRatesFromCache();
 };
 
 const parseIntervalMs = (interval) => {

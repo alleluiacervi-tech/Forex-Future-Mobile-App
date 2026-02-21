@@ -1,5 +1,5 @@
 import { WebSocket, WebSocketServer } from "ws";
-import { recordQuote, recordTrade } from "./marketCache.js";
+import { recordQuote, recordTrade, clearLiveRatesCache } from "./marketCache.js";
 import { basePrices, supportedSymbols, symbolToPair } from "./marketSymbols.js";
 import { getForexMarketStatus, isForexMarketOpen } from "./marketSession.js";
 
@@ -21,10 +21,9 @@ const DEFAULTS = {
   clientTimeoutMs: 30000, // terminate if no pong within this window
   maxBufferedBytes: 1_000_000, // ~1MB backpressure threshold
   maxPendingUpstreamMessages: Number(process.env.WS_MAX_PENDING_UPSTREAM_MESSAGES || 1000),
-  // Synthetic ticks are disabled by default to avoid non-real market data.
-  // Explicitly enable only in development/testing environments.
-  enableSyntheticTicks: process.env.MARKET_WS_SYNTHETIC_TICKS === "true",
-  forceSyntheticTicks: process.env.MARKET_WS_FORCE_SYNTHETIC_TICKS === "true",
+  // Synthetic ticks are permanently disabled: only real upstream WS market data is allowed.
+  enableSyntheticTicks: false,
+  forceSyntheticTicks: false,
   syntheticTickMs: Number(process.env.MARKET_WS_SYNTHETIC_MS || 1000),
   upstreamSilentMs: Number(process.env.MARKET_WS_UPSTREAM_SILENT_MS || 15000),
   marketHoursEnforced: process.env.MARKET_HOURS_ENFORCED !== "false",
@@ -497,6 +496,18 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     }
 
     if (marketOpen === previousMarketOpen) return;
+
+    if (marketOpen && !previousMarketOpen) {
+      // Start a fresh session from real opening ticks only.
+      clearLiveRatesCache();
+
+      if (!upstream || upstream.readyState === WebSocket.CLOSED || upstream.readyState === WebSocket.CLOSING) {
+        connectUpstream();
+      } else if (upstream.readyState === WebSocket.OPEN) {
+        resubscribeAllSymbols();
+      }
+    }
+
     previousMarketOpen = marketOpen;
 
     const payload = safeJson({
