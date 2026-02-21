@@ -1,6 +1,7 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { recordQuote, recordTrade } from "./marketCache.js";
 import { basePrices, supportedSymbols, symbolToPair } from "./marketSymbols.js";
+import { getForexMarketStatus, isForexMarketOpen } from "./marketSession.js";
 
 /**
  * Professional WS Market Stream
@@ -20,13 +21,13 @@ const DEFAULTS = {
   clientTimeoutMs: 30000, // terminate if no pong within this window
   maxBufferedBytes: 1_000_000, // ~1MB backpressure threshold
   maxPendingUpstreamMessages: Number(process.env.WS_MAX_PENDING_UPSTREAM_MESSAGES || 1000),
-  // If upstream is connected but not sending data, optionally generate synthetic ticks in dev.
-  enableSyntheticTicks:
-    process.env.MARKET_WS_SYNTHETIC_TICKS === "true" ||
-    (!process.env.NODE_ENV || process.env.NODE_ENV !== "production"),
+  // Synthetic ticks are disabled by default to avoid non-real market data.
+  // Explicitly enable only in development/testing environments.
+  enableSyntheticTicks: process.env.MARKET_WS_SYNTHETIC_TICKS === "true",
   forceSyntheticTicks: process.env.MARKET_WS_FORCE_SYNTHETIC_TICKS === "true",
   syntheticTickMs: Number(process.env.MARKET_WS_SYNTHETIC_MS || 1000),
   upstreamSilentMs: Number(process.env.MARKET_WS_UPSTREAM_SILENT_MS || 15000),
+  marketHoursEnforced: process.env.MARKET_HOURS_ENFORCED !== "false",
   // In local/dev, allow running without upstream WS to avoid startup crashes.
   allowNoUpstream:
     process.env.ALLOW_NO_FCS_WS === "true" ||
@@ -120,6 +121,9 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   }
 
   const wss = new WebSocketServer({ server, path: config.path });
+  const getMarketStatus = () => getForexMarketStatus(new Date());
+  const isMarketOpenNow = () =>
+    config.marketHoursEnforced ? isForexMarketOpen(new Date()) : true;
 
   // Track subscriptions per client and aggregate symbol counts
   const clientState = new WeakMap();
@@ -176,6 +180,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
   const startSyntheticTicks = (reason) => {
     if (!config.enableSyntheticTicks) return;
+    if (!isMarketOpenNow()) return;
     if (syntheticTimer) return;
 
     const tickMs = Number.isFinite(Number(config.syntheticTickMs)) && Number(config.syntheticTickMs) > 0
@@ -375,6 +380,11 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
       const normalized = normalizeFcsPrice(payload);
       if (normalized) {
+        if (config.marketHoursEnforced && !isForexMarketOpen(new Date(normalized.timestampMs))) {
+          stopSyntheticTicks();
+          return;
+        }
+
         lastUpstreamDataAt = Date.now();
         stopSyntheticTicks();
 
@@ -437,7 +447,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
         console.log("FCS upstream WS disconnected. Reconnecting...");
       }
 
-      if (config.enableSyntheticTicks && wss.clients.size > 0) {
+      if (config.enableSyntheticTicks && isMarketOpenNow() && wss.clients.size > 0) {
         startSyntheticTicks("upstream disconnected");
       }
 
@@ -476,6 +486,31 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       } catch {}
     });
   }, config.pingMs);
+
+  let previousMarketOpen = isMarketOpenNow();
+  const marketStatusInterval = setInterval(() => {
+    const status = getMarketStatus();
+    const marketOpen = config.marketHoursEnforced ? status.isOpen : true;
+
+    if (!marketOpen) {
+      stopSyntheticTicks();
+    }
+
+    if (marketOpen === previousMarketOpen) return;
+    previousMarketOpen = marketOpen;
+
+    const payload = safeJson({
+      type: "marketStatus",
+      data: {
+        ...status,
+        enforced: config.marketHoursEnforced
+      }
+    });
+
+    wss.clients.forEach((ws) => {
+      sendRaw(ws, payload);
+    });
+  }, 30_000);
 
   wss.on("connection", (ws) => {
     const initialSubscriptions = new Set(defaultSymbols);
@@ -550,7 +585,11 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       message: "Connected to FCS market stream.",
       path: config.path,
       symbols: defaultSymbols,
-      timeframe: config.fcsTimeframe
+      timeframe: config.fcsTimeframe,
+      market: {
+        ...getMarketStatus(),
+        enforced: config.marketHoursEnforced
+      }
     });
 
     ws.on("close", () => {
@@ -564,6 +603,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   // Cleanup on server close (wss "close" event means the WS server was closed)
   wss.on("close", () => {
     clearInterval(pingInterval);
+    clearInterval(marketStatusInterval);
     if (upstreamReconnectTimer) clearTimeout(upstreamReconnectTimer);
     stopSyntheticTicks();
     try {
@@ -574,6 +614,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   // Allow caller to close cleanly
   wss.closeGracefully = () => {
     clearInterval(pingInterval);
+    clearInterval(marketStatusInterval);
     if (upstreamReconnectTimer) clearTimeout(upstreamReconnectTimer);
     stopSyntheticTicks();
     try {

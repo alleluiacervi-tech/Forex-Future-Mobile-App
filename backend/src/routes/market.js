@@ -3,6 +3,7 @@ import prisma from "../db/prisma.js";
 import { buildFootprintSummary } from "../services/footprints.js";
 import { getRecentMarketAlerts } from "../services/marketRecorder.js";
 import { getHistoricalRates, getLiveRates, getPriceForPair } from "../services/rates.js";
+import { getForexMarketStatus } from "../services/marketSession.js";
 import { symbolToPair } from "../services/marketSymbols.js";
 
 const router = express.Router();
@@ -12,9 +13,15 @@ const normalizePair = (pair) => pair.replace("-", "/");
 router.get("/pairs", async (req, res) => {
   try {
     const pairs = await getLiveRates();
-    return res.json({ pairs });
+    return res.json({
+      pairs,
+      market: getForexMarketStatus()
+    });
   } catch (error) {
-    return res.status(502).json({ error: error.message });
+    return res.status(502).json({
+      error: error.message,
+      market: getForexMarketStatus()
+    });
   }
 });
 
@@ -78,6 +85,8 @@ router.get("/footprints/:pair", async (req, res) => {
 
 // Mock quote endpoint for fallback when WebSocket is unavailable
 router.post("/quote", async (req, res) => {
+  const marketStatus = getForexMarketStatus();
+
   try {
     const { symbol, pair: rawPair } = req.body || {};
 
@@ -94,16 +103,31 @@ router.post("/quote", async (req, res) => {
 
     const pricing = await getPriceForPair(pair);
     const currentPrice = pricing?.mid ?? pricing?.bid ?? pricing?.ask;
+    if (!Number.isFinite(Number(currentPrice))) {
+      return res.status(503).json({
+        error: "No verified market quote available for this pair right now.",
+        pair,
+        market: marketStatus
+      });
+    }
 
     return res.json({
       pair,
       currentPrice,
       bid: pricing?.bid,
       ask: pricing?.ask,
-      timestamp: pricing?.timestamp ?? new Date().toISOString()
+      timestamp: pricing?.timestamp ?? new Date().toISOString(),
+      market: marketStatus,
+      frozen: !marketStatus.isOpen
     });
   } catch (error) {
-    return res.status(500).json({ error: "Failed to fetch quote" });
+    return res.status(503).json({
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to fetch quote",
+      market: marketStatus
+    });
   }
 });
 

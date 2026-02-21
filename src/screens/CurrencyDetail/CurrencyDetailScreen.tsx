@@ -21,7 +21,7 @@ export default function CurrencyDetailScreen() {
   const theme = useTheme();
   const { pair } = route.params;
   const [selectedTimeframe, setSelectedTimeframe] = useState('1H');
-  const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
+  const { pairs, loading, error, isMarketOpen } = useMarketData(APP_CONFIG.refreshInterval);
 
   const currencyPair = pairs.find((p) => p.symbol === pair) || pairs[0] || null;
 
@@ -51,7 +51,7 @@ export default function CurrencyDetailScreen() {
             <View>
               <View style={styles.titleRow}>
                 <Text variant="h2">{currencyPair.symbol}</Text>
-                <LiveIndicator size="medium" />
+                <LiveIndicator size="medium" isLive={isMarketOpen} />
               </View>
               <Text variant="bodySmall" color={theme.colors.textSecondary}>
                 {currencyPair.base} / {currencyPair.quote}

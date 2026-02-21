@@ -1,7 +1,71 @@
 import prisma from "../db/prisma.js";
 import { getHistoricalFromCache, getLiveRatesFromCache } from "./marketCache.js";
+import { supportedPairs } from "./marketSymbols.js";
 
-const getLiveRates = async () => getLiveRatesFromCache();
+const isJpyPair = (pair) => pair.includes("JPY");
+const decimalsForPair = (pair) => (isJpyPair(pair) ? 3 : 5);
+const pipSizeForPair = (pair) => (isJpyPair(pair) ? 0.01 : 0.0001);
+const roundTo = (value, decimals) => Number(Number(value).toFixed(decimals));
+
+const buildRateFromPrice = ({ pair, price, timestampMs }) => {
+  if (!Number.isFinite(Number(price))) return null;
+
+  const pip = pipSizeForPair(pair);
+  const spread = pip * 1.5;
+  const decimals = decimalsForPair(pair);
+  const mid = Number(price);
+  const bid = roundTo(mid - spread / 2, decimals);
+  const ask = roundTo(mid + spread / 2, decimals);
+
+  return {
+    pair,
+    bid,
+    ask,
+    mid: roundTo(mid, decimals),
+    spread: roundTo(ask - bid, decimals),
+    volume: 0,
+    timestamp: new Date(timestampMs ?? Date.now()).toISOString()
+  };
+};
+
+const getLatestDbRateForPair = async (pair) => {
+  if (!prisma.marketCandle) return null;
+
+  try {
+    const candle = await prisma.marketCandle.findFirst({
+      where: { pair },
+      orderBy: { bucketStart: "desc" },
+      select: { close: true, bucketStart: true }
+    });
+    if (!candle) return null;
+    return buildRateFromPrice({
+      pair,
+      price: candle.close,
+      timestampMs: candle.bucketStart?.getTime?.() ?? Date.now()
+    });
+  } catch {
+    return null;
+  }
+};
+
+const getLiveRates = async () => {
+  const liveRates = getLiveRatesFromCache();
+  const byPair = new Map(liveRates.map((rate) => [rate.pair, rate]));
+
+  const missingPairs = supportedPairs.filter((pair) => !byPair.has(pair));
+  if (missingPairs.length === 0) {
+    return supportedPairs.map((pair) => byPair.get(pair)).filter(Boolean);
+  }
+
+  const dbFallbackRates = await Promise.all(missingPairs.map((pair) => getLatestDbRateForPair(pair)));
+  dbFallbackRates.forEach((rate) => {
+    if (rate?.pair) {
+      byPair.set(rate.pair, rate);
+    }
+  });
+
+  return supportedPairs.map((pair) => byPair.get(pair)).filter(Boolean);
+};
 
 const parseIntervalMs = (interval) => {
   if (typeof interval !== "string") return 60 * 60 * 1000;
@@ -85,7 +149,7 @@ const getPriceForPair = async (pair) => {
     return found;
   }
 
-  throw new Error(`No live rate available for ${pair}.`);
+  throw new Error(`No verified market data available for ${pair}.`);
 };
 
 export { getHistoricalRates, getLiveRates, getPriceForPair };

@@ -117,15 +117,21 @@ const buildRateFromPrice = ({ pair, price, timestampMs }) => {
   };
 };
 
-const getLiveRatesFromCache = () => {
+const getLiveRatesFromCache = ({ includeFallbackBasePrices = false } = {}) => {
   const now = Date.now();
-  return supportedPairs.map((pair) => {
-    const symbol = pairToSymbol[pair];
-    const latest = symbol ? liveBySymbol.get(symbol) : null;
-    const price = latest?.price ?? basePrices[pair];
-    const ts = latest?.timestampMs ?? now;
-    return buildRateFromPrice({ pair, price, timestampMs: ts });
-  });
+  return supportedPairs
+    .map((pair) => {
+      const symbol = pairToSymbol[pair];
+      const latest = symbol ? liveBySymbol.get(symbol) : null;
+      if (!latest && !includeFallbackBasePrices) {
+        return null;
+      }
+
+      const price = latest?.price ?? basePrices[pair];
+      const ts = latest?.timestampMs ?? now;
+      return buildRateFromPrice({ pair, price, timestampMs: ts });
+    })
+    .filter(Boolean);
 };
 
 const getHistoricalFromCache = ({ pair, points, interval }) => {

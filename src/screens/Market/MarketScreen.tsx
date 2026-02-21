@@ -24,7 +24,7 @@ export default function MarketScreen() {
   const theme = useTheme();
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedPair, setSelectedPair] = useState<CurrencyPair | null>(null);
-  const { pairs, loading, error } = useMarketData(APP_CONFIG.refreshInterval);
+  const { pairs, loading, error, isMarketOpen } = useMarketData(APP_CONFIG.refreshInterval);
 
   const filters = ['All', 'Major', 'Minor', 'Exotic'];
 
@@ -46,7 +46,7 @@ export default function MarketScreen() {
               <View>
                 <View style={styles.summaryTitleRow}>
                   <Text variant="h4">{selectedPair.symbol}</Text>
-                  <LiveIndicator size="small" />
+                  <LiveIndicator size="small" isLive={isMarketOpen} />
                 </View>
                 <Text variant="caption" color={theme.colors.textSecondary}>
                   {selectedPair.base} / {selectedPair.quote}
@@ -78,11 +78,18 @@ export default function MarketScreen() {
         )}
 
         <Tabs tabs={filters} activeTab={selectedFilter} onTabChange={setSelectedFilter} />
+        {!isMarketOpen ? (
+          <View style={styles.stateContainer}>
+            <Text variant="bodySmall" style={styles.stateText}>
+              Market is closed. Prices are frozen until reopen.
+            </Text>
+          </View>
+        ) : null}
         {loading && !pairs.length ? (
           <View style={styles.stateContainer}>
             <ActivityIndicator size="large" />
             <Text variant="bodySmall" style={styles.stateText}>
-              Loading live market data...
+              {isMarketOpen ? 'Loading live market data...' : 'Loading last known market data...'}
             </Text>
           </View>
         ) : error ? (

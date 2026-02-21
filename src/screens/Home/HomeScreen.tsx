@@ -21,7 +21,7 @@ export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
   const [refreshing, setRefreshing] = useState(false);
-  const { pairs } = useMarketData(APP_CONFIG.refreshInterval);
+  const { isMarketOpen } = useMarketData(APP_CONFIG.refreshInterval);
   const { alerts, loading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useMarketAlerts({
     limit: 50,
     pollMs: 15000,
@@ -54,7 +54,9 @@ export default function HomeScreen() {
           </View>
 
           <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.helperText}>
-            Smart alerts surface fast market moves so you can react without watching charts all day.
+            {isMarketOpen
+              ? 'Smart alerts surface fast market moves so you can react without watching charts all day.'
+              : 'Market is closed right now. Alerts and prices remain frozen until reopen.'}
           </Text>
 
           <View style={styles.feedList}>

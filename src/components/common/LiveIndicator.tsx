@@ -7,12 +7,15 @@ import { useTheme } from '../../hooks';
 interface LiveIndicatorProps {
   size?: 'small' | 'medium';
   label?: string;
+  isLive?: boolean;
 }
 
-export default function LiveIndicator({ size = 'small', label }: LiveIndicatorProps) {
+export default function LiveIndicator({ size = 'small', label, isLive = true }: LiveIndicatorProps) {
   const theme = useTheme();
   const dotSize = size === 'small' ? 6 : 8;
   const fontSize = size === 'small' ? 'caption' : 'bodySmall';
+  const color = isLive ? theme.colors.success : theme.colors.textSecondary;
+  const resolvedLabel = label || (isLive ? 'Live' : 'Closed');
 
   return (
     <View style={styles.container}>
@@ -22,12 +25,12 @@ export default function LiveIndicator({ size = 'small', label }: LiveIndicatorPr
           {
             width: dotSize,
             height: dotSize,
-            backgroundColor: theme.colors.success,
+            backgroundColor: color,
           },
         ]}
       />
-      <Text variant={fontSize} color={theme.colors.success} style={styles.text}>
-        {label || 'Live'}
+      <Text variant={fontSize} color={color} style={styles.text}>
+        {resolvedLabel}
       </Text>
     </View>
   );
