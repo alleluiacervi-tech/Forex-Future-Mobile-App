@@ -119,7 +119,11 @@ const buildRateFromPrice = ({ pair, price, timestampMs }) => {
 
 const getLiveRatesFromCache = ({ includeFallbackBasePrices = false, maxAgeMs = null } = {}) => {
   const now = Date.now();
-  const enforceMaxAge = Number.isFinite(Number(maxAgeMs)) && Number(maxAgeMs) >= 0;
+  const enforceMaxAge =
+    maxAgeMs !== null &&
+    maxAgeMs !== undefined &&
+    Number.isFinite(Number(maxAgeMs)) &&
+    Number(maxAgeMs) >= 0;
 
   return supportedPairs
     .map((pair) => {
