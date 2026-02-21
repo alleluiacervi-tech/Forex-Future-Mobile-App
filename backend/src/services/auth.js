@@ -162,6 +162,10 @@ const hashToken = (value) =>
     .digest("hex");
 
 const randomSixDigitCode = () => String(Math.floor(100000 + Math.random() * 900000));
+const FREE_TRIAL_DAYS = Number.isFinite(Number(process.env.FREE_TRIAL_DAYS))
+  ? Math.max(1, Math.floor(Number(process.env.FREE_TRIAL_DAYS)))
+  : 7;
+const FREE_TRIAL_DURATION_MS = FREE_TRIAL_DAYS * 24 * 60 * 60 * 1000;
 
 class AuthService {
   // Validate email format
@@ -185,6 +189,23 @@ class AuthService {
       return { valid: false, error: 'Password must contain at least one number.' };
     }
     return { valid: true };
+  }
+
+  isTrialExpired(trialStartedAt) {
+    if (!(trialStartedAt instanceof Date)) return true;
+    return Date.now() - trialStartedAt.getTime() >= FREE_TRIAL_DURATION_MS;
+  }
+
+  async deactivateTrial(userId) {
+    try {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { trialActive: false },
+        select: { id: true },
+      });
+    } catch (error) {
+      logger.error("Failed to deactivate expired trial", { userId, error: error.message });
+    }
   }
 
   // Hash password
@@ -780,9 +801,17 @@ class AuthService {
       }
 
       // Check trial status
-      if (email.toLowerCase() !== 'demo@forex.app' && !user.trialActive) {
-        logger.warn('Authentication failed - trial not activated', { userId: user.id, email });
-        throw new Error('Free trial must be activated before login.');
+      if (normalizedEmail !== 'demo@forex.app') {
+        if (!user.trialActive) {
+          logger.warn('Authentication failed - trial not activated', { userId: user.id, email: normalizedEmail });
+          throw new Error('Free trial must be activated before login.');
+        }
+
+        if (this.isTrialExpired(user.trialStartedAt)) {
+          await this.deactivateTrial(user.id);
+          logger.warn('Authentication failed - trial expired', { userId: user.id, email: normalizedEmail });
+          throw new Error(`Free trial has expired after ${FREE_TRIAL_DAYS} days. Please subscribe to continue.`);
+        }
       }
 
       // Remove passwordHash from response
@@ -845,10 +874,22 @@ class AuthService {
         throw new Error("Email verification required.");
       }
 
-      // Check if trial already active
-      if (user.trialActive) {
-        logger.warn('Trial already active', { userId: user.id, email });
-        throw new Error('Trial already active.');
+      // Enforce one-time 7-day free trial.
+      if (normalizedEmail !== "demo@forex.app") {
+        if (user.trialActive) {
+          if (this.isTrialExpired(user.trialStartedAt)) {
+            await this.deactivateTrial(user.id);
+            logger.warn('Trial already used and expired', { userId: user.id, email: normalizedEmail });
+            throw new Error(`Free trial already used. The ${FREE_TRIAL_DAYS}-day trial cannot be restarted.`);
+          }
+          logger.warn('Trial already active', { userId: user.id, email: normalizedEmail });
+          throw new Error('Trial already active.');
+        }
+
+        if (user.trialStartedAt) {
+          logger.warn('Trial already used', { userId: user.id, email: normalizedEmail });
+          throw new Error(`Free trial already used. The ${FREE_TRIAL_DAYS}-day trial cannot be restarted.`);
+        }
       }
 
       // Activate trial

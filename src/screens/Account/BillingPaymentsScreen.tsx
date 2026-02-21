@@ -206,7 +206,7 @@ export default function BillingPaymentsScreen() {
                 Add a payment method
               </Text>
               <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.sectionSubtitle}>
-                Your card won’t be charged today. You’ll pay $0 until the free trial ends.
+                Your card won’t be charged today. You’ll pay $0 until the 7-day free trial ends.
               </Text>
 
               <Card style={[styles.trialSummaryCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
@@ -286,7 +286,7 @@ export default function BillingPaymentsScreen() {
                 />
 
                 <Button
-                  title={isLoading ? 'Starting free trial...' : 'Save Card & Start Free Trial'}
+                  title={isLoading ? 'Starting 7-day free trial...' : 'Save Card & Start 7-Day Free Trial'}
                   onPress={handleStartTrial}
                   variant="primary"
                   size="large"

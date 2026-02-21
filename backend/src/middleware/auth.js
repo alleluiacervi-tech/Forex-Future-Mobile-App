@@ -4,6 +4,17 @@ import prisma from "../db/prisma.js";
 import Logger from "../utils/logger.js";
 
 const logger = new Logger('AuthMiddleware');
+const FREE_TRIAL_DAYS = Number.isFinite(Number(process.env.FREE_TRIAL_DAYS))
+  ? Math.max(1, Math.floor(Number(process.env.FREE_TRIAL_DAYS)))
+  : 7;
+const FREE_TRIAL_DURATION_MS = FREE_TRIAL_DAYS * 24 * 60 * 60 * 1000;
+
+const isTrialExpired = (trialStartedAt) => {
+  if (!trialStartedAt) return true;
+  const startedAt = new Date(trialStartedAt);
+  if (Number.isNaN(startedAt.getTime())) return true;
+  return Date.now() - startedAt.getTime() >= FREE_TRIAL_DURATION_MS;
+};
 
 const authenticate = async (req, res, next) => {
   try {
@@ -46,10 +57,27 @@ const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: "User not found." });
     }
 
-    // Check if trial is still active (if not demo account)
-    if (user.email.toLowerCase() !== "demo@forex.app" && !user.trialActive) {
-      logger.warn('Trial not active for user', { userId: user.id, email: user.email });
-      return res.status(403).json({ error: "Trial has expired. Please renew your subscription." });
+    // Check if trial is active and not expired (if not demo account).
+    if (user.email.toLowerCase() !== "demo@forex.app") {
+      if (!user.trialActive) {
+        logger.warn('Trial not active for user', { userId: user.id, email: user.email });
+        return res.status(403).json({ error: "Free trial must be activated before login." });
+      }
+
+      if (isTrialExpired(user.trialStartedAt)) {
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { trialActive: false },
+            select: { id: true },
+          });
+        } catch (error) {
+          logger.error('Failed to deactivate expired trial in middleware', { userId: user.id, error: error.message });
+        }
+
+        logger.warn('Trial expired for user', { userId: user.id, email: user.email });
+        return res.status(403).json({ error: `Trial has expired after ${FREE_TRIAL_DAYS} days. Please renew your subscription.` });
+      }
     }
 
     // Attach user to request

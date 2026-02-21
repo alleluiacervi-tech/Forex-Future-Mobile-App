@@ -182,7 +182,10 @@ router.post("/login", async (req, res) => {
   } catch (error) {
     logger.error('Login endpoint error', { error: error.message });
     
-    if (error.message.includes('trial must be activated')) {
+    if (
+      error.message.toLowerCase().includes('trial must be activated') ||
+      error.message.toLowerCase().includes('trial has expired')
+    ) {
       return res.status(403).json({ error: error.message });
     }
     if (error.message.toLowerCase().includes('email verification required')) {
@@ -205,7 +208,10 @@ router.post("/trial/start", async (req, res) => {
   } catch (error) {
     logger.error('Trial start endpoint error', { error: error.message });
     
-    if (error.message.includes('already active')) {
+    if (
+      error.message.toLowerCase().includes('already active') ||
+      error.message.toLowerCase().includes('already used')
+    ) {
       return res.status(400).json({ error: error.message });
     }
     if (error.message.toLowerCase().includes('email verification required')) {

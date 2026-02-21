@@ -205,10 +205,10 @@ export default function SubscriptionScreen() {
               <Icon name="stars" size={28} color={theme.colors.primary} />
               <View style={styles.trialBannerText}>
                 <Text variant="h4" style={[styles.trialBannerTitle, { color: theme.colors.text }]}>
-                  14‑Day Free Trial
+                  7-Day Free Trial
                 </Text>
                 <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                  Create an account and choose billing. You won’t be charged until your trial ends.
+                  Create an account and choose billing. You won’t be charged until your 7-day trial ends.
                 </Text>
               </View>
             </View>
@@ -220,7 +220,7 @@ export default function SubscriptionScreen() {
               Create your account
             </Text>
             <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.sectionSubtitle}>
-              Use your email and set a password to redeem your free trial.
+              Use your email and set a password to redeem your 7-day free trial.
             </Text>
 
             <Input
@@ -351,7 +351,7 @@ export default function SubscriptionScreen() {
                         {plan.headlinePrice}
                       </Text>
                       <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.planDetailText}>
-                        {plan.hasNoDiscount ? 'No discount' : `Equivalent to ${plan.monthlyEquivalent}`}
+                        {plan.hasNoDiscount ? 'No discount' : `(${plan.monthlyEquivalent})`}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -375,7 +375,7 @@ export default function SubscriptionScreen() {
 
             <View style={styles.confirmSection}>
               <Button
-                title={isLoading ? 'Starting trial...' : `Redeem Free Trial • ${selectedPlan.name} ${selectedPlan.headlinePrice}`}
+                title={isLoading ? 'Starting 7-day trial...' : `Redeem 7-Day Free Trial • ${selectedPlan.name} ${selectedPlan.headlinePrice}`}
                 onPress={handleRedeemTrial}
                 variant="primary"
                 size="large"
