@@ -10,6 +10,7 @@ import tradesRoutes from "./routes/trades.js";
 import portfolioRoutes from "./routes/portfolio.js";
 import usersRoutes from "./routes/users.js";
 import emailRoutes from "./routes/email.js";
+import adminRoutes from "./routes/admin.js";
 import initializeSocket from "./services/socket.js";
 import { logEmailConfigStatus } from "./services/email.js";
 import { getLiveRatesFromCache } from "./services/marketCache.js";
@@ -42,6 +43,7 @@ app.use("/api/trades", tradesRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/email", emailRoutes);
+app.use("/api/admin", adminRoutes); // new admin dashboard endpoints
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found." });

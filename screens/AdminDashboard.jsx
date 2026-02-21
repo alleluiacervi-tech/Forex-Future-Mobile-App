@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import {LineChart, PieChart} from 'react-native-chart-kit';
 import Slider from '@react-native-community/slider';
+import { apiGet } from '../src/services/api';
 
 // theme colors
 const COLORS = {
@@ -26,7 +27,7 @@ const COLORS = {
   info: '#2196F3',
 };
 
-// mock data constants
+// mock data constants (used as fallbacks if API fetch fails)
 const initialStats = [
   {
     title: 'Total Users',
@@ -129,8 +130,23 @@ const screenWidth = Dimensions.get('window').width - 32;
 export default function AdminDashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [alerts, setAlerts] = useState([]);
-  const [wsTicks, setWsTicks] = useState(0);
-  const [lastTick, setLastTick] = useState(new Date());
+
+  // dashboard data fetched from API
+  const [stats, setStats] = useState(initialStats);
+  const [revenueDataState, setRevenueDataState] = useState(revenueData);
+  const [subscriptionPieDataState, setSubscriptionPieDataState] = useState(subscriptionPieData);
+  const [wsData, setWsData] = useState({ provider: 'FCS API', ticks: 0, lastTick: new Date(), uptime: '', reconnections: 0 });
+  const [usersState, setUsersState] = useState(userList);
+  const [notifications, setNotifications] = useState(notificationsInitial);
+  const [revenueMetrics, setRevenueMetrics] = useState({
+    newSubscribersToday: '0',
+    cancelledToday: '0',
+    trialConversionsThisWeek: '0%',
+    churnRate: '0%',
+    mrr: '$0',
+    arr: '$0',
+  });
+
   const [sensitivity, setSensitivity] = useState(70);
   const [volumeThreshold, setVolumeThreshold] = useState(60);
   const [toggles, setToggles] = useState({
@@ -142,7 +158,6 @@ export default function AdminDashboard() {
   });
   const [searchText, setSearchText] = useState('');
   const [filteredUsers, setFilteredUsers] = useState(userList);
-  const [notifications, setNotifications] = useState(notificationsInitial);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -160,30 +175,47 @@ export default function AdminDashboard() {
     ).start();
   }, [pulseAnim]);
 
-  // live alerts feed
+  // fetch dashboard snapshot once on mount
   useEffect(() => {
-    const interval = setInterval(() => {
-      const pair = pairs[Math.floor(Math.random() * pairs.length)];
-      const type = alertTypes[Math.floor(Math.random() * alertTypes.length)];
-      const direction = Math.random() > 0.5 ? 'up' : 'down';
-      const usersReached = Math.floor(Math.random() * 500) + 50;
-      const time = new Date().toLocaleTimeString();
-      const newAlert = {pair, type, direction, usersReached, time};
-      setAlerts(prev => {
-        const next = [newAlert, ...prev];
-        return next.slice(0, 6);
-      });
+    const fetchDashboard = async () => {
+      try {
+        const data = await apiGet('/admin/dashboard');
+        if (data.stats) setStats(data.stats);
+        if (data.revenueData) setRevenueDataState(data.revenueData);
+        if (data.subscriptionPieData) setSubscriptionPieDataState(data.subscriptionPieData);
+        if (data.alerts) setAlerts(data.alerts);
+        if (data.ws) setWsData(d => ({...d, ...data.ws, lastTick: new Date(data.ws.lastTick)}));
+        if (data.users) {
+          setUsersState(data.users);
+          setFilteredUsers(data.users);
+        }
+        if (data.notifications) setNotifications(data.notifications);
+        if (data.revenueMetrics) setRevenueMetrics(data.revenueMetrics);
+      } catch (_) {
+        // fallback to existing mock constants
+      }
+    };
+    fetchDashboard();
+  }, []);
+
+  // poll alerts from backend every 5s
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiGet('/market/alerts?limit=6');
+        if (res.alerts) setAlerts(res.alerts);
+      } catch {}
     }, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // websocket ticks
+  // poll websocket data every 3s
   useEffect(() => {
-    let ticks = 0;
-    const intv = setInterval(() => {
-      ticks += Math.floor(Math.random() * 5) + 1;
-      setWsTicks(prev => Math.min(prev + ticks, 342));
-      setLastTick(new Date());
+    const intv = setInterval(async () => {
+      try {
+        const res = await apiGet('/admin/dashboard');
+        if (res.ws) setWsData(d => ({...d, ...res.ws, lastTick: new Date(res.ws.lastTick)}));
+      } catch {}
     }, 3000);
     return () => clearInterval(intv);
   }, []);
@@ -192,11 +224,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     const text = searchText.toLowerCase();
     setFilteredUsers(
-      userList.filter(u =>
+      usersState.filter(u =>
         u.name.toLowerCase().includes(text) || u.email.toLowerCase().includes(text)
       )
     );
-  }, [searchText]);
+  }, [searchText, usersState]);
 
   const handleUserPress = (user) => {
     Alert.alert(
@@ -232,7 +264,7 @@ export default function AdminDashboard() {
 
       {/* Section 1: Stats */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsScroll}>
-        {initialStats.map((stat, idx) => (
+        {stats.map((stat, idx) => (
           <PressableStatCard key={idx} stat={stat} />
         ))}
       </ScrollView>
@@ -241,7 +273,7 @@ export default function AdminDashboard() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Revenue Overview — Last 30 Days</Text>
         <LineChart
-          data={revenueData}
+          data={revenueDataState}
           width={screenWidth}
           height={220}
           chartConfig={chartConfig}
@@ -250,7 +282,7 @@ export default function AdminDashboard() {
           withDots={false}
         />
         <View style={styles.legendContainer}>
-          {revenueData.datasets.map((d, i) => (
+          {revenueDataState.datasets.map((d, i) => (
             <View key={i} style={styles.legendItem}>
               <View style={[styles.legendColor, {backgroundColor: d.color()}]} />
               <Text style={styles.legendText}>{d.name}</Text>
@@ -263,7 +295,7 @@ export default function AdminDashboard() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Subscription Breakdown</Text>
         <PieChart
-          data={subscriptionPieData}
+          data={subscriptionPieDataState}
           width={screenWidth}
           height={180}
           chartConfig={chartConfig}
@@ -273,7 +305,7 @@ export default function AdminDashboard() {
           absolute
         />
         <View style={styles.legendContainer}>
-          {subscriptionPieData.map((d,i)=>(
+          {subscriptionPieDataState.map((d,i)=>(
             <View key={i} style={styles.legendItem}>
               <View style={[styles.legendColor,{backgroundColor: d.color}]} />
               <Text style={styles.legendText}>{d.name} — {d.population}%</Text>
@@ -306,11 +338,11 @@ export default function AdminDashboard() {
             <View style={styles.greenDot} />
             <Text style={[styles.wsStatus,{color: COLORS.accent}]}>Connected</Text>
           </View>
-          <View style={styles.wsRow}><Text style={styles.wsLabel}>Provider:</Text><Text style={styles.wsValue}>FCS API</Text></View>
-          <View style={styles.wsRow}><Text style={styles.wsLabel}>Ticks / min:</Text><Text style={styles.wsValue}>{wsTicks}</Text></View>
-          <View style={styles.wsRow}><Text style={styles.wsLabel}>Last tick:</Text><Text style={styles.wsValue}>{lastTick.toLocaleTimeString()}</Text></View>
-          <View style={styles.wsRow}><Text style={styles.wsLabel}>Uptime:</Text><Text style={styles.wsValue}>99.8%</Text></View>
-          <View style={styles.wsRow}><Text style={styles.wsLabel}>Reconnection attempts:</Text><Text style={styles.wsValue}>0</Text></View>
+          <View style={styles.wsRow}><Text style={styles.wsLabel}>Provider:</Text><Text style={styles.wsValue}>{wsData.provider}</Text></View>
+          <View style={styles.wsRow}><Text style={styles.wsLabel}>Ticks / min:</Text><Text style={styles.wsValue}>{wsData.ticks}</Text></View>
+          <View style={styles.wsRow}><Text style={styles.wsLabel}>Last tick:</Text><Text style={styles.wsValue}>{wsData.lastTick.toLocaleTimeString()}</Text></View>
+          <View style={styles.wsRow}><Text style={styles.wsLabel}>Uptime:</Text><Text style={styles.wsValue}>{wsData.uptime}</Text></View>
+          <View style={styles.wsRow}><Text style={styles.wsLabel}>Reconnection attempts:</Text><Text style={styles.wsValue}>{wsData.reconnections}</Text></View>
         </View>
       </View>
 
@@ -392,12 +424,12 @@ export default function AdminDashboard() {
         <Text style={styles.sectionTitle}>Revenue Metrics</Text>
         <View style={styles.card}>
           {[
-            ['New subscribers today', '14'],
-            ['Cancelled today','3'],
-            ['Trial conversions this week','67%'],
-            ['Churn rate','2.3%'],
-            ['MRR','$16,940'],
-            ['ARR','$203,280'],
+            ['New subscribers today', revenueMetrics.newSubscribersToday],
+            ['Cancelled today', revenueMetrics.cancelledToday],
+            ['Trial conversions this week', revenueMetrics.trialConversionsThisWeek],
+            ['Churn rate', revenueMetrics.churnRate],
+            ['MRR', revenueMetrics.mrr],
+            ['ARR', revenueMetrics.arr],
           ].map(([label,value],i)=>(
             <View key={i} style={styles.metricRow}>
               <Text style={styles.metricLabel}>{label}</Text>
