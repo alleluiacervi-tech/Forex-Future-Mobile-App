@@ -63,9 +63,9 @@ function patchAsyncNgrok(source) {
   return next;
 }
 
-const changed =
-  patchFile(resolverPath, patchNgrokResolver) |
-  patchFile(asyncNgrokPath, patchAsyncNgrok);
+const resolverChanged = patchFile(resolverPath, patchNgrokResolver);
+const asyncChanged = patchFile(asyncNgrokPath, patchAsyncNgrok);
+const changed = resolverChanged || asyncChanged;
 
 if (changed) {
   console.log('[expo-ngrok-patch] done');
