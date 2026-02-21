@@ -38,7 +38,6 @@ const recordTrade = ({ symbol, price, timestampMs, volume }) => {
     const previous = liveBySymbol.get(symbol);
     const prevPrice = previous?.price;
     try {
-      // eslint-disable-next-line no-console
       console.log(
         "recordTrade: symbol=",
         symbol,
@@ -81,7 +80,6 @@ const recordQuote = ({ symbol, bid, ask, timestampMs }) => {
   const mid = (b + a) / 2;
   if (logCacheWrites) {
     try {
-      // eslint-disable-next-line no-console
       console.log(
         "recordQuote: symbol=",
         symbol,

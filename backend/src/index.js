@@ -68,6 +68,5 @@ alertEvents.on("marketAlert", (alert) => {
 });
 
 server.listen(config.port, "0.0.0.0", () => {
-  // eslint-disable-next-line no-console
   console.log(`Forex backend listening on port ${config.port}`);
 });

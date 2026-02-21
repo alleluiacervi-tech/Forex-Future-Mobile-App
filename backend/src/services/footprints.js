@@ -138,8 +138,7 @@ const detectSupplyDemandZones = (candles, opts = {}) => {
     baseBodyMaxPct = 0.35,      // base candle is relatively small-bodied
     impulseBodyMinPct = 0.60,   // impulse candle is displacement
     impulseMinATRMult = 0.8,    // impulse range relative to ATR
-    lookback = 80,
-    zoneAgeLimit = 999999999    // can be used when timestamps are numeric
+    lookback = 80
   } = opts;
 
   const zones = [];

@@ -63,7 +63,7 @@ router.get("/alerts", async (req, res) => {
     });
 
     return res.json({ alerts });
-  } catch (error) {
+  } catch (_error) {
     const alerts = getRecentMarketAlerts({ pair, limit, since });
     return res.json({ alerts });
   }

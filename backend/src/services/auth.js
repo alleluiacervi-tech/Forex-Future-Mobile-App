@@ -786,7 +786,8 @@ class AuthService {
       }
 
       // Remove passwordHash from response
-      const { passwordHash: _passwordHash, ...safeUser } = user;
+      const safeUser = { ...user };
+      delete safeUser.passwordHash;
 
       // Issue token
       const token = this.issueToken(user.id);

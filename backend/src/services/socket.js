@@ -187,7 +187,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       : 1000;
 
     if (config.logConnections) {
-      // eslint-disable-next-line no-console
       console.warn(`Market WS: starting synthetic ticks (${reason || "fallback"}) every ${tickMs}ms`);
     }
 
@@ -215,7 +214,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     clearInterval(syntheticTimer);
     syntheticTimer = null;
     if (config.logConnections) {
-      // eslint-disable-next-line no-console
       console.warn("Market WS: stopped synthetic ticks (upstream resumed).");
     }
   };
@@ -239,7 +237,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       pendingUpstreamMessages.splice(0, pendingUpstreamMessages.length - maxPendingUpstreamMessages);
       if (!warnedPendingQueueOverflow && config.logUpstreamMessages) {
         warnedPendingQueueOverflow = true;
-        // eslint-disable-next-line no-console
         console.warn(
           `Upstream WS: pending message queue overflow (capped at ${maxPendingUpstreamMessages}). Dropping oldest messages.`
         );
@@ -313,7 +310,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     try {
       upstream = new WebSocket(config.upstreamUrl);
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error("Failed to create FCS upstream WS:", error.message);
       scheduleUpstreamReconnect();
       return;
@@ -323,7 +319,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       lastUpstreamDataAt = 0;
 
       if (config.logConnections) {
-        // eslint-disable-next-line no-console
         console.log("FCS upstream WS connected.");
       }
 
@@ -345,7 +340,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
           if (lastUpstreamDataAt) return;
 
           if (config.logConnections) {
-            // eslint-disable-next-line no-console
             console.warn(
               `FCS upstream WS: connected but no prices received after ${silentMs}ms. ` +
                 `Set WS_LOG_UPSTREAM_MESSAGES=true to inspect payloads.`
@@ -366,13 +360,11 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       }
 
       if (payload?.type === "error") {
-        // eslint-disable-next-line no-console
         console.error("FCS upstream error:", payload);
       }
 
       if (config.logUpstreamMessages) {
         try {
-          // eslint-disable-next-line no-console
           console.log(`[FCS] ${payload?.type} ${payload?.symbol || ""}`.trim());
         } catch {}
       }
@@ -417,7 +409,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
         if (config.logUpstreamSamples) {
           try {
-            // eslint-disable-next-line no-console
             console.log(
               `[price] ${normalized.symbol}: ${normalized.price} @ ${new Date(normalized.timestampMs).toISOString()}`
             );
@@ -442,7 +433,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
     upstream.on("close", () => {
       if (config.logConnections) {
-        // eslint-disable-next-line no-console
         console.log("FCS upstream WS disconnected. Reconnecting...");
       }
 
@@ -454,7 +444,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
 
     upstream.on("error", (error) => {
-      // eslint-disable-next-line no-console
       console.error("FCS upstream WS error:", error.message);
     });
   };
@@ -462,7 +451,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   if (config.upstreamUrl) {
     connectUpstream();
   } else if (config.logConnections) {
-    // eslint-disable-next-line no-console
     console.warn("FCS upstream WS disabled. Set FCS_API_KEY/FCS_WS_URL or ALLOW_NO_FCS_WS=true.");
   }
 
@@ -577,7 +565,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
 
     if (config.logConnections) {
-      // eslint-disable-next-line no-console
       console.log(`Client connected. Active: ${wss.clients.size}`);
     }
 
@@ -605,7 +592,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
     ws.on("close", () => {
       if (config.logConnections) {
-        // eslint-disable-next-line no-console
         console.log(`Client disconnected. Active: ${wss.clients.size}`);
       }
     });

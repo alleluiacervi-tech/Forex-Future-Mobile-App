@@ -91,7 +91,6 @@ const warnDbConnectivity = (error) => {
   if (now - state.lastDbWarningAt < 30000) return;
   state.lastDbWarningAt = now;
   try {
-    // eslint-disable-next-line no-console
     console.warn(
       "[MarketRecorder] Database temporarily unavailable. Will retry on next flush.",
       {
