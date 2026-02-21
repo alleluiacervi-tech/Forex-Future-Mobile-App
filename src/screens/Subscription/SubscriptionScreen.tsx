@@ -26,21 +26,57 @@ export default function SubscriptionScreen() {
   const [touched, setTouched] = useState({ name: false, email: false, password: false, confirmPassword: false });
 
   type Billing = 'monthly' | 'quarterly' | 'yearly';
+  type BillingPlan = {
+    id: Billing;
+    name: string;
+    headlinePrice: string;
+    totalPrice: number;
+    monthlyEquivalent: string;
+    billingLabel: string;
+    discountBadge?: string;
+    isBestValue?: boolean;
+    hasNoDiscount?: boolean;
+  };
 
   const [selectedBilling, setSelectedBilling] = useState<Billing>('monthly');
 
-  const pricing = useMemo(
-    () =>
-      ({
-        monthly: 10,
-        quarterly: 30,
-        yearly: 120,
-      }) as const,
+  const plans = useMemo<BillingPlan[]>(
+    () => [
+      {
+        id: 'monthly',
+        name: 'Monthly',
+        headlinePrice: '$20/month',
+        totalPrice: 20,
+        monthlyEquivalent: '$20/month',
+        billingLabel: 'month',
+        hasNoDiscount: true,
+      },
+      {
+        id: 'quarterly',
+        name: '3 Months',
+        headlinePrice: '$54 total',
+        totalPrice: 54,
+        monthlyEquivalent: '$18/month',
+        billingLabel: '3 months',
+        discountBadge: '10% OFF',
+      },
+      {
+        id: 'yearly',
+        name: 'Annual',
+        headlinePrice: '$192/year',
+        totalPrice: 192,
+        monthlyEquivalent: '$16/month',
+        billingLabel: 'year',
+        discountBadge: '20% OFF',
+        isBestValue: true,
+      },
+    ],
     []
   );
 
-  const selectedPrice = pricing[selectedBilling];
-  const billingLabel = selectedBilling === 'monthly' ? 'month' : selectedBilling === 'quarterly' ? '3 months' : 'year';
+  const selectedPlan = plans.find((plan) => plan.id === selectedBilling) ?? plans[0];
+  const selectedPrice = selectedPlan.totalPrice;
+  const billingLabel = selectedPlan.billingLabel;
 
   const nameError = useMemo(() => {
     if (!touched.name) return undefined;
@@ -271,97 +307,64 @@ export default function SubscriptionScreen() {
                 </Text>
               </View>
 
-              <View style={styles.planGrid}>
-                <View
-                  style={[
-                    styles.planCard,
-                    {
-                      backgroundColor: theme.colors.surfaceLight,
-                      borderColor: theme.colors.primary,
-                    },
-                  ]}
-                >
-                  <View style={styles.planCardTopRow}>
-                    <Text variant="h4" style={styles.planTitle}>
-                      Signals
-                    </Text>
-                    <View style={[styles.selectedBadge, { backgroundColor: theme.colors.primary }]}>
-                      <Icon name="check" size={14} color={theme.colors.onPrimary} />
-                    </View>
-                  </View>
-                  <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                    All users get the same live feed signals and alerts
-                  </Text>
-                </View>
-              </View>
+              <View style={styles.planCards}>
+                {plans.map((plan) => {
+                  const isSelected = selectedBilling === plan.id;
+                  return (
+                    <TouchableOpacity
+                      key={plan.id}
+                      activeOpacity={0.9}
+                      onPress={() => setSelectedBilling(plan.id)}
+                      style={[
+                        styles.planOptionCard,
+                        {
+                          backgroundColor: isSelected ? theme.colors.primary + '18' : theme.colors.surfaceLight,
+                          borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                        },
+                        isSelected && styles.planOptionCardSelected,
+                      ]}
+                    >
+                      <View style={styles.planOptionHeader}>
+                        <Text variant="h4" style={styles.planOptionTitle}>
+                          {plan.name}
+                        </Text>
+                        <View style={styles.planBadges}>
+                          {plan.discountBadge && (
+                            <View style={[styles.discountBadge, { backgroundColor: theme.colors.primary }]}>
+                              <Text variant="caption" style={styles.discountBadgeText}>
+                                {plan.discountBadge}
+                              </Text>
+                            </View>
+                          )}
+                          {plan.isBestValue && (
+                            <View style={[styles.bestValueBadge, { backgroundColor: theme.colors.accent }]}>
+                              <Icon name="stars" size={12} color={theme.colors.onPrimary} />
+                              <Text variant="caption" style={styles.bestValueText}>
+                                BEST VALUE
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
 
-              <View style={styles.billingRow}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setSelectedBilling('monthly')}
-                  style={[
-                    styles.billingChip,
-                    {
-                      backgroundColor: selectedBilling === 'monthly' ? theme.colors.primary + '22' : 'transparent',
-                      borderColor: selectedBilling === 'monthly' ? theme.colors.primary : theme.colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    variant="bodySmall"
-                    color={selectedBilling === 'monthly' ? theme.colors.text : theme.colors.textSecondary}
-                    style={styles.billingChipText}
-                  >
-                    Monthly
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setSelectedBilling('quarterly')}
-                  style={[
-                    styles.billingChip,
-                    {
-                      backgroundColor: selectedBilling === 'quarterly' ? theme.colors.primary + '22' : 'transparent',
-                      borderColor: selectedBilling === 'quarterly' ? theme.colors.primary : theme.colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    variant="bodySmall"
-                    color={selectedBilling === 'quarterly' ? theme.colors.text : theme.colors.textSecondary}
-                    style={styles.billingChipText}
-                  >
-                    3 Months
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setSelectedBilling('yearly')}
-                  style={[
-                    styles.billingChip,
-                    {
-                      backgroundColor: selectedBilling === 'yearly' ? theme.colors.primary + '22' : 'transparent',
-                      borderColor: selectedBilling === 'yearly' ? theme.colors.primary : theme.colors.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    variant="bodySmall"
-                    color={selectedBilling === 'yearly' ? theme.colors.text : theme.colors.textSecondary}
-                    style={styles.billingChipText}
-                  >
-                    Yearly
-                  </Text>
-                </TouchableOpacity>
+                      <Text variant="h3" style={styles.planHeadlinePrice}>
+                        {plan.headlinePrice}
+                      </Text>
+                      <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.planDetailText}>
+                        {plan.hasNoDiscount ? 'No discount' : `Equivalent to ${plan.monthlyEquivalent}`}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               <View style={[styles.summaryRow, { backgroundColor: theme.colors.surfaceLight, borderColor: theme.colors.border }]}>
                 <View style={styles.summaryLeft}>
                   <Text variant="body" style={styles.summaryTitle}>
-                    Signals • {selectedBilling === 'monthly' ? 'Monthly' : selectedBilling === 'quarterly' ? '3 Months' : 'Yearly'}
+                    Signals • {selectedPlan.name}
                   </Text>
                   <Text variant="caption" color={theme.colors.textSecondary}>
-                    Billed ${selectedPrice}/{billingLabel} after trial
+                    Billed {selectedPlan.headlinePrice} after trial
                   </Text>
                 </View>
                 <Text variant="h3" style={styles.summaryPrice}>
@@ -372,7 +375,7 @@ export default function SubscriptionScreen() {
 
             <View style={styles.confirmSection}>
               <Button
-                title={isLoading ? 'Starting trial...' : `Redeem Free Trial • Signals $${selectedPrice}/${billingLabel}`}
+                title={isLoading ? 'Starting trial...' : `Redeem Free Trial • ${selectedPlan.name} ${selectedPlan.headlinePrice}`}
                 onPress={handleRedeemTrial}
                 variant="primary"
                 size="large"
@@ -380,7 +383,7 @@ export default function SubscriptionScreen() {
                 disabled={!canSubmit || isLoading}
               />
               <Text variant="caption" color={theme.colors.textSecondary} style={styles.confirmSubtext}>
-                After the trial, you’ll be billed ${selectedPrice} per {billingLabel}. Cancel anytime.
+                After the trial, you’ll be billed {selectedPlan.headlinePrice}. Cancel anytime.
               </Text>
             </View>
           </Card>
@@ -496,53 +499,64 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  planGrid: {
-    flexDirection: 'row',
+  planCards: {
     gap: 12,
   },
-  planCard: {
-    flex: 1,
-    padding: 14,
+  planOptionCard: {
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
+    padding: 14,
+    gap: 8,
   },
-  planCardTopRow: {
+  planOptionCardSelected: {
+    borderWidth: 2,
+  },
+  planOptionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    justifyContent: 'space-between',
+    gap: 8,
   },
-  planTitle: {
-    fontSize: 16,
+  planOptionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    flexShrink: 1,
+  },
+  planBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+  },
+  discountBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  discountBadgeText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 10,
+  },
+  bestValueBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  bestValueText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 10,
+  },
+  planHeadlinePrice: {
     fontWeight: '800',
   },
-  selectedBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  unselectedBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  billingRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  billingChip: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  billingChipText: {
-    fontWeight: '600',
+  planDetailText: {
+    lineHeight: 18,
   },
   summaryRow: {
     flexDirection: 'row',

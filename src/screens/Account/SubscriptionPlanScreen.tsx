@@ -15,10 +15,10 @@ export default function SubscriptionPlanScreen() {
   type Feature = { icon: IconName; title: string; description: string };
 
   const currentPlan = {
-    name: 'Premium',
-    price: '$29.99',
+    name: 'Monthly',
+    price: '$20',
     period: 'month',
-    renewalDate: 'January 20, 2026',
+    renewalDate: 'March 20, 2026',
     status: 'Active',
   };
 
@@ -33,25 +33,27 @@ export default function SubscriptionPlanScreen() {
 
   const plans = [
     {
-      name: 'Free',
-      price: '$0',
-      period: 'forever',
-      features: ['Basic charts', 'Limited alerts (5/day)', 'Standard support'],
+      name: 'Monthly',
+      price: '$20',
+      period: 'month',
+      detail: 'No discount',
+      isCurrent: true,
+    },
+    {
+      name: '3 Months',
+      price: '$54',
+      period: 'total',
+      detail: '$18/month',
+      discountBadge: '10% OFF',
       isCurrent: false,
     },
     {
-      name: 'Premium',
-      price: '$29.99',
-      period: 'month',
-      features: ['All features unlocked', 'Unlimited alerts', 'Priority support', 'Real-time news'],
-      isCurrent: true,
-      popular: true,
-    },
-    {
-      name: 'Pro',
-      price: '$79.99',
-      period: 'month',
-      features: ['Everything in Premium', 'Custom indicators', 'API access', 'White-label options'],
+      name: 'Annual',
+      price: '$192',
+      period: 'year',
+      detail: '$16/month',
+      discountBadge: '20% OFF',
+      bestValue: true,
       isCurrent: false,
     },
   ];
@@ -129,14 +131,23 @@ export default function SubscriptionPlanScreen() {
               { backgroundColor: theme.colors.surface, borderColor: plan.isCurrent ? theme.colors.primary : theme.colors.border },
               plan.isCurrent && { borderWidth: 2 },
             ]}>
-              {plan.popular && (
-                <View style={[styles.popularBadge, { backgroundColor: theme.colors.primary }]}>
-                  <Icon name="star" size={12} color="#fff" />
-                  <Text variant="caption" style={styles.popularText}>
-                    MOST POPULAR
-                  </Text>
-                </View>
-              )}
+              <View style={styles.planBadgeRow}>
+                {plan.discountBadge && (
+                  <View style={[styles.discountBadge, { backgroundColor: theme.colors.primary }]}>
+                    <Text variant="caption" style={styles.discountBadgeText}>
+                      {plan.discountBadge}
+                    </Text>
+                  </View>
+                )}
+                {plan.bestValue && (
+                  <View style={[styles.bestValueBadge, { backgroundColor: theme.colors.accent }]}>
+                    <Icon name="star" size={12} color="#fff" />
+                    <Text variant="caption" style={styles.bestValueText}>
+                      BEST VALUE
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text variant="h3" style={styles.planCardName}>
                 {plan.name}
               </Text>
@@ -148,16 +159,9 @@ export default function SubscriptionPlanScreen() {
                   /{plan.period}
                 </Text>
               </View>
-              <View style={styles.planFeatures}>
-                {plan.features.map((feature, featureIdx) => (
-                  <View key={featureIdx} style={styles.planFeatureRow}>
-                    <Icon name="checkmark" size={20} color={theme.colors.primary} />
-                    <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.planFeatureText}>
-                      {feature}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+              <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.planDetailText}>
+                {plan.detail}
+              </Text>
               {plan.isCurrent ? (
                 <View style={[styles.currentButton, { backgroundColor: `${theme.colors.primary}14`, borderColor: theme.colors.primary }]}>
                   <Text variant="body" style={[styles.currentButtonText, { color: theme.colors.primary }]}>
@@ -167,7 +171,7 @@ export default function SubscriptionPlanScreen() {
               ) : (
                 <TouchableOpacity style={[styles.upgradeButton, { backgroundColor: theme.colors.primary }]}>
                   <Text variant="body" style={styles.upgradeButtonText}>
-                    {plan.price === '$0' ? 'Downgrade' : 'Upgrade'}
+                    Switch Plan
                   </Text>
                 </TouchableOpacity>
               )}
@@ -311,18 +315,32 @@ const styles = StyleSheet.create({
     padding: 20,
     marginBottom: 16,
   },
-  popularBadge: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
+  planBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginBottom: 10,
+  },
+  discountBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  discountBadgeText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 10,
+  },
+  bestValueBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 4,
     borderRadius: 999,
     gap: 4,
   },
-  popularText: {
+  bestValueText: {
     color: '#fff',
     fontWeight: '800',
     fontSize: 10,
@@ -334,23 +352,14 @@ const styles = StyleSheet.create({
   planPriceRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 20,
+    marginBottom: 8,
   },
   planPrice: {
     fontWeight: '900',
     marginRight: 4,
   },
-  planFeatures: {
+  planDetailText: {
     marginBottom: 20,
-  },
-  planFeatureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-    gap: 8,
-  },
-  planFeatureText: {
-    flex: 1,
     lineHeight: 18,
   },
   currentButton: {
