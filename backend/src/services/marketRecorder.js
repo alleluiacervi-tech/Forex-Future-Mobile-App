@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import prisma from "../db/prisma.js";
 import { marketEvents } from "./marketCache.js";
 import { symbolToPair } from "./marketSymbols.js";
+import { validateTick, isTickOutlier, logDiagnostic } from "./marketValidator.js";
 
 const alertEvents = new EventEmitter();
 const recentAlerts = [];
@@ -73,6 +74,7 @@ const state = {
   dbRetryAt: 0,
   ticksByPair: new Map(),
   lastAlertKeyAt: new Map(),
+  consecutiveMoveCounts: new Map(),
   maxTickWindowMs: Number(process.env.MARKET_ALERT_TICK_WINDOW_MS || 26 * 60 * 60 * 1000)
 };
 
@@ -116,25 +118,45 @@ const pruneTicks = (ticks, nowMs) => {
   }
 };
 
-const findPriceAtOrBefore = (ticks, targetMs) => {
+// return the most recent tick in the array matching priceType (or null)
+const getLastTickOfType = (ticks, priceType) => {
   for (let i = ticks.length - 1; i >= 0; i -= 1) {
-    if (ticks[i].tsMs <= targetMs) return ticks[i].price;
+    if (ticks[i].priceType === priceType) return ticks[i];
   }
   return null;
 };
+
+// look backwards for the most recent tick at or before targetMs that matches the
+// requested priceType and is not flagged as an outlier.  Returns the full tick
+// object so callers have access to the timestamp for diagnostics.
+const findPriceAtOrBefore = (ticks, targetMs, priceType) => {
+  for (let i = ticks.length - 1; i >= 0; i -= 1) {
+    const t = ticks[i];
+    if (t.tsMs <= targetMs) {
+      if (priceType && t.priceType !== priceType) continue;
+      if (t.outlier) continue;
+      return { price: t.price, tsMs: t.tsMs };
+    }
+  }
+  return null;
+};
+
+
 
 const getMarketWindowSnapshot = (pair, windowsMinutes = [1, 15, 60, 240, 1440]) => {
   const ticks = state.ticksByPair.get(pair) || [];
   const last = ticks.length ? ticks[ticks.length - 1] : null;
   const asOfMs = Number.isFinite(Number(last?.tsMs)) ? Number(last.tsMs) : Date.now();
   const lastPrice = Number.isFinite(Number(last?.price)) ? Number(last.price) : null;
+  const lastPriceType = last?.priceType || null;
 
   const windows = (Array.isArray(windowsMinutes) ? windowsMinutes : [])
     .map((m) => Number(m))
     .filter((m) => Number.isFinite(m) && m > 0)
     .map((windowMinutes) => {
       const windowMs = windowMinutes * 60 * 1000;
-      const fromPrice = findPriceAtOrBefore(ticks, asOfMs - windowMs);
+      const ref = findPriceAtOrBefore(ticks, asOfMs - windowMs, lastPriceType);
+      const fromPrice = ref?.price ?? null;
       const toPrice = lastPrice;
       const changePercent =
         Number.isFinite(fromPrice) && Number.isFinite(toPrice) && fromPrice !== 0
@@ -144,7 +166,8 @@ const getMarketWindowSnapshot = (pair, windowsMinutes = [1, 15, 60, 240, 1440]) 
         windowMinutes,
         fromPrice: Number.isFinite(fromPrice) ? fromPrice : null,
         toPrice: Number.isFinite(toPrice) ? toPrice : null,
-        changePercent: Number.isFinite(changePercent) ? changePercent : null
+        changePercent: Number.isFinite(changePercent) ? changePercent : null,
+        referenceTsMs: ref?.tsMs ?? null
       };
     });
 
@@ -165,6 +188,20 @@ const alertThresholds = {
 };
 
 const alertCooldownMs = Number(process.env.MARKET_ALERT_COOLDOWN_MS || 10 * 60 * 1000);
+// tolerance for how old the reference tick may be relative to the ideal window
+// start; if the chosen tick precedes (windowMs + tolerance) we consider the
+// price stale and skip the comparison.
+const REF_TICK_TOLERANCE_MS = Number(process.env.MARKET_ALERT_REF_TOLERANCE_MS || 5000);
+
+// optional hard cap on what constitutes a physically impossible move over a
+// given window.  Used as additional sanity-check in maybeCreateAlerts.
+const MAX_MOVE_CAPS = {
+  1: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_1M || 5),
+  15: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_15M || 10),
+  60: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_1H || 20),
+  240: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_4H || 40),
+  1440: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_1D || 100)
+};
 
 const severityFor = (absChangePercent, windowMinutes) => {
   if (windowMinutes >= 240 && absChangePercent >= 1.2) return "high";
@@ -174,21 +211,87 @@ const severityFor = (absChangePercent, windowMinutes) => {
   return "medium";
 };
 
-const maybeCreateAlerts = async ({ pair, tsMs, price, ticks }) => {
+const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType }) => {
   const windows = [1, 15, 60, 240, 1440];
   for (const windowMinutes of windows) {
     const threshold = alertThresholds[windowMinutes];
     if (!Number.isFinite(threshold)) continue;
 
     const windowMs = windowMinutes * 60 * 1000;
-    const fromPrice = findPriceAtOrBefore(ticks, tsMs - windowMs);
-    if (!Number.isFinite(fromPrice) || fromPrice === 0) continue;
-
+    const ref = findPriceAtOrBefore(ticks, tsMs - windowMs, priceType);
+    if (!ref || !Number.isFinite(ref.price) || ref.price === 0) {
+      logDiagnostic({ pair, tsMs, price, priceType, windowMinutes, note: "no-reference" });
+      continue;
+    }
+    const fromPrice = ref.price;
+    const ageDelta = tsMs - ref.tsMs;
+    if (ageDelta - windowMs > REF_TICK_TOLERANCE_MS) {
+      logDiagnostic({ pair, tsMs, price, priceType, windowMinutes, refTsMs: ref.tsMs, note: "reference-stale" });
+      continue;
+    }
     const changePercent = ((price - fromPrice) / fromPrice) * 100;
     const abs = Math.abs(changePercent);
-    if (abs < threshold) continue;
 
-    const key = `${pair}|${windowMinutes}`;
+    // diagnostic log for each candidate (even if below threshold)
+    logDiagnostic({
+      pair,
+      tsMs,
+      price,
+      priceType,
+      windowMinutes,
+      referencePrice: fromPrice,
+      referenceTsMs: ref.tsMs,
+      tsDelta: tsMs - ref.tsMs,
+      changePercent,
+      threshold,
+      validation: abs >= threshold ? "candidate" : "ignored"
+    });
+
+    if (abs < threshold) {
+      // reset any consecutive counter – move too small to care
+      state.consecutiveMoveCounts.delete(`${pair}|${windowMinutes}|${priceType}`);
+      continue;
+    }
+
+    // guard against impossibly large moves (institutional sanity check)
+    const impossibleCap = MAX_MOVE_CAPS[windowMinutes] || Infinity;
+    if (abs > impossibleCap) {
+      logDiagnostic({
+        pair,
+        tsMs,
+        price,
+        priceType,
+        windowMinutes,
+        changePercent,
+        cap: impossibleCap,
+        note: "beyond-impossible"
+      });
+      // do not treat as alert; require external investigation
+      continue;
+    }
+
+    // enforce outlier confirmation if move is extremely large relative to threshold
+    const extremeMultiplier = Number(process.env.MARKET_ALERT_EXTREME_MULTIPLIER || 5);
+    const isExtreme = abs > threshold * extremeMultiplier;
+    const confirmKey = `${pair}|${windowMinutes}|${priceType}`;
+    if (isExtreme) {
+      const prev = state.consecutiveMoveCounts.get(confirmKey) || 0;
+      if (prev < 1) {
+        // first extreme tick, quarantine it and increment counter
+        state.consecutiveMoveCounts.set(confirmKey, prev + 1);
+        logDiagnostic({ pair, tsMs, price, priceType, windowMinutes, changePercent, note: "extreme-first" });
+        // mark this tick as outlier so it won't be used as a reference
+        const lastTick = ticks[ticks.length - 1];
+        if (lastTick && lastTick.tsMs === tsMs && lastTick.price === price && lastTick.priceType === priceType) {
+          lastTick.outlier = true;
+        }
+        continue;
+      }
+      // second consecutive extreme, clear counter and proceed with alert
+      state.consecutiveMoveCounts.delete(confirmKey);
+    }
+
+    const key = `${pair}|${windowMinutes}|${priceType}`;
     const lastAt = state.lastAlertKeyAt.get(key) || 0;
     if (tsMs - lastAt < alertCooldownMs) continue;
     state.lastAlertKeyAt.set(key, tsMs);
@@ -350,19 +453,46 @@ const startMarketRecorder = () => {
       if (!pair || !Number.isFinite(price)) return;
       const tsMs = Number.isFinite(Number(trade?.timestampMs)) ? Number(trade.timestampMs) : Date.now();
       const volume = trade?.volume;
+      const priceType = trade?.priceType || "last";
 
       const ticks = ensureTicks(pair);
-      ticks.push({ tsMs, price });
+      // reject ticks that arrive with a timestamp earlier than the most recent
+      // tick of the same priceType – feeding stale data would corrupt windows.
+      const lastSame = getLastTickOfType(ticks, priceType);
+      if (lastSame && tsMs < lastSame.tsMs) {
+        logDiagnostic({ pair, tsMs, price, priceType, validation: "out-of-order" });
+        return;
+      }
+
+      const tick = { tsMs, price, priceType };
+
+      const validation = validateTick({ pair, tsMs, price, priceType });
+      if (!validation.ok) {
+        logDiagnostic({ pair, tsMs, price, priceType, validation: validation.issues.join(';') });
+        // do not push invalid tick or create alerts
+        return;
+      }
+
+      tick.outlier = isTickOutlier(ticks, tick);
+      if (tick.outlier) {
+        logDiagnostic({ pair, tsMs, price, priceType, note: "outlier" });
+      }
+
+      ticks.push(tick);
       pruneTicks(ticks, tsMs);
 
+      // update candles using the nominal price even if flagged outlier; candles are
+      // forgiving but alerts will ignore outliers later via findPriceAtOrBefore
       recordIntoCandle({ pair, interval: "1m", tsMs, price, volume });
       recordIntoCandle({ pair, interval: "15m", tsMs, price, volume });
       recordIntoCandle({ pair, interval: "1h", tsMs, price, volume });
       recordIntoCandle({ pair, interval: "4h", tsMs, price, volume });
       recordIntoCandle({ pair, interval: "1d", tsMs, price, volume });
 
-      void maybeCreateAlerts({ pair, tsMs, price, ticks });
-    } catch {}
+      void maybeCreateAlerts({ pair, tsMs, price, ticks, priceType });
+    } catch (e) {
+      // swallow to ensure recorder cannot crash the process
+    }
   };
 
   marketEvents.on("trade", onTrade);

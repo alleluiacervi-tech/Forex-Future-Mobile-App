@@ -28,9 +28,10 @@ const parseIntervalMs = (interval) => {
   return 60 * 60 * 1000;
 };
 
-const recordTrade = ({ symbol, price, timestampMs, volume }) => {
+const recordTrade = ({ symbol, price, timestampMs, volume, priceType = "last", bid = null, ask = null }) => {
+  // priceType: "last" | "mid" | "bid" | "ask" (we compare like-with-like in alert logic)
   if (!symbolToPair[symbol]) return;
-  if (!Number.isFinite(price)) return;
+  if (!Number.isFinite(price) || price <= 0) return;
   const ts = Number.isFinite(timestampMs) ? timestampMs : Date.now();
 
   // Log cache update when price changes (or first write)
@@ -46,12 +47,14 @@ const recordTrade = ({ symbol, price, timestampMs, volume }) => {
         "prev=",
         prevPrice,
         "ts=",
-        new Date(ts).toISOString()
+        new Date(ts).toISOString(),
+        "type=",
+        priceType
       );
     } catch {}
   }
 
-  liveBySymbol.set(symbol, { price, timestampMs: ts });
+  liveBySymbol.set(symbol, { price, timestampMs: ts, priceType });
 
   try {
     const pair = symbolToPair[symbol];
@@ -60,7 +63,10 @@ const recordTrade = ({ symbol, price, timestampMs, volume }) => {
       pair,
       price,
       timestampMs: ts,
-      volume: Number.isFinite(Number(volume)) ? Number(volume) : 0
+      volume: Number.isFinite(Number(volume)) ? Number(volume) : 0,
+      priceType,
+      bid: Number.isFinite(Number(bid)) ? Number(bid) : null,
+      ask: Number.isFinite(Number(ask)) ? Number(ask) : null
     });
   } catch {}
 
@@ -95,7 +101,7 @@ const recordQuote = ({ symbol, bid, ask, timestampMs }) => {
     } catch {}
   }
 
-  recordTrade({ symbol, price: mid, timestampMs });
+  recordTrade({ symbol, price: mid, timestampMs, priceType: "mid", bid: b, ask: a });
 };
 
 const buildRateFromPrice = ({ pair, price, timestampMs }) => {
