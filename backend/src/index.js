@@ -11,6 +11,11 @@ import portfolioRoutes from "./routes/portfolio.js";
 import usersRoutes from "./routes/users.js";
 import emailRoutes from "./routes/email.js";
 import adminRoutes from "./routes/admin.js";
+import {
+  arcjetAdminProtection,
+  arcjetApiProtection,
+  arcjetAuthProtection
+} from "./middleware/arcjet.js";
 import initializeSocket from "./services/socket.js";
 import { logEmailConfigStatus } from "./services/email.js";
 import { getLiveRatesFromCache } from "./services/marketCache.js";
@@ -18,6 +23,7 @@ import { alertEvents, startMarketRecorder } from "./services/marketRecorder.js";
 
 const app = express();
 
+app.set("trust proxy", config.trustProxy);
 app.use(cors());
 app.use(helmet());
 app.use(express.json({ limit: "1mb" }));
@@ -28,6 +34,10 @@ app.get("/health", (req, res) => {
 });
 
 // Debug: expose live rates from in-memory cache
+app.use("/api", arcjetApiProtection);
+app.use("/api/auth", arcjetAuthProtection);
+app.use("/api/admin", arcjetAdminProtection);
+
 app.get("/api/debug/live", (req, res) => {
   try {
     const pairs = getLiveRatesFromCache();

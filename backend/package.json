@@ -4,6 +4,9 @@
   "description": "Professional backend API for the Forex Trading App",
   "main": "src/index.js",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
@@ -14,6 +17,8 @@
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
+    "@arcjet/inspect": "^1.1.0",
+    "@arcjet/node": "^1.1.0",
     "@prisma/client": "5.22.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

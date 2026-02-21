@@ -9,12 +9,13 @@ A production-ready Node.js/Express backend for the Forex Trading App. It uses Po
 - WebSocket feed for live FX prices
 - Trading endpoints for orders, positions, and transactions
 - Portfolio analytics (equity, unrealized PnL)
+- Arcjet protection for bot blocking, rate limiting, and WAF shielding
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - PostgreSQL database
 
 ### Installation
@@ -34,6 +35,7 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/forex
 JWT_SECRET=change-me
 JWT_EXPIRES_IN=2h
 WS_HEARTBEAT_MS=15000
+ARCJET_KEY=your-arcjet-key
 
 # Market data (FCS WebSocket v4)
 FCS_API_KEY=your-fcs-websocket-api-key
@@ -53,6 +55,22 @@ FCS_API_KEY=your-fcs-websocket-api-key
 ```
 
 You can also start from `backend/.env.example` and fill in values.
+
+### Security Hardening (Arcjet)
+
+Arcjet is wired into the backend at three levels:
+
+- Baseline protection for all `/api/*` routes (`shield`, bot detection, token-bucket limit)
+- Additional strict limit for `/api/auth/*`
+- Additional strict limit for `/api/admin/*`
+
+Recommended rollout:
+
+1. Set `ARCJET_MODE=DRY_RUN` and verify behavior/logs.
+2. Configure trusted proxies (`TRUST_PROXY`, `ARCJET_TRUSTED_PROXIES`) for your deployment.
+3. Switch to `ARCJET_MODE=LIVE` in production after validation.
+
+If Arcjet is unavailable, the backend is fail-open by default (`ARCJET_FAIL_CLOSED=false`) to preserve uptime. Set `ARCJET_FAIL_CLOSED=true` for strict enforcement.
 
 ### Database Setup
 
