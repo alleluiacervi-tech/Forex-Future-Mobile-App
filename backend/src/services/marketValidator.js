@@ -24,10 +24,11 @@ export const validateTick = ({ pair, tsMs, price, priceType }) => {
   // pip size.  Failing this usually indicates bad parsing or a cross-instrument feed
   // mixup.
   if (issues.length === 0) {
+    const decimals = decimalsForPair(pair);
     const pip = pipSizeForPair(pair);
     const multiplier = 1 / pip;
     if (Math.abs(Math.round(price * multiplier) - price * multiplier) > Number.EPSILON) {
-      issues.push(`price not multiple of pip (${pip})`);
+      issues.push(`price not multiple of pip (${pip}; decimals=${decimals})`);
     }
   }
 

@@ -5,6 +5,18 @@ import Logger from "../utils/logger.js";
 
 const logger = new Logger("ArcjetMiddleware");
 
+const ensureArcjetEnvironment = () => {
+  const configuredEnv = String(process.env.ARCJET_ENV || "").trim();
+  if (configuredEnv) {
+    return;
+  }
+
+  if (config.nodeEnv !== "production") {
+    process.env.ARCJET_ENV = "development";
+    logger.info('ARCJET_ENV not set; defaulting to "development" for local requests.');
+  }
+};
+
 const normalizeBucket = (bucket) => {
   const refillRate = Math.max(1, Number(bucket?.refillRate || 1));
   const interval = Math.max(1, Number(bucket?.interval || 1));
@@ -23,6 +35,8 @@ const buildArcjetClient = () => {
     logger.warn("Arcjet not enabled because ARCJET_KEY is missing.");
     return null;
   }
+
+  ensureArcjetEnvironment();
 
   const apiBucket = normalizeBucket(config.arcjet.rateLimits.api);
   const authBucket = normalizeBucket(config.arcjet.rateLimits.auth);

@@ -485,8 +485,6 @@ class AuthService {
   async sendPasswordResetEmail({ to, name, code, expiresAt }) {
     const brandName = String(process.env.EMAIL_BRAND_NAME || "Forex Future").trim() || "Forex Future";
     const greeting = name ? `Hi ${name},` : "Hi,";
-    const safeGreeting = escapeHtml(greeting);
-    const safeBrand = escapeHtml(brandName);
 
     const cleanedCode = String(code || "").replace(/\s+/g, "");
     const codeDisplay = cleanedCode.length === 6 ? `${cleanedCode.slice(0, 3)} ${cleanedCode.slice(3)}` : cleanedCode;

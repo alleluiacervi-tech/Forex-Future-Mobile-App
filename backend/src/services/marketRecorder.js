@@ -212,6 +212,7 @@ const severityFor = (absChangePercent, windowMinutes) => {
 };
 
 const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType }) => {
+  const createdAlerts = [];
   const windows = [1, 15, 60, 240, 1440];
   for (const windowMinutes of windows) {
     const threshold = alertThresholds[windowMinutes];
@@ -334,7 +335,9 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType }) => {
     try {
       alertEvents.emit("marketAlert", emitted);
     } catch {}
+    createdAlerts.push(emitted);
   }
+  return createdAlerts;
 };
 
 const recordIntoCandle = ({ pair, interval, tsMs, price, volume }) => {
@@ -490,7 +493,7 @@ const startMarketRecorder = () => {
       recordIntoCandle({ pair, interval: "1d", tsMs, price, volume });
 
       void maybeCreateAlerts({ pair, tsMs, price, ticks, priceType });
-    } catch (e) {
+    } catch (_e) {
       // swallow to ensure recorder cannot crash the process
     }
   };
@@ -517,4 +520,4 @@ const startMarketRecorder = () => {
   };
 };
 
-export { startMarketRecorder, alertEvents, getMarketWindowSnapshot, getRecentMarketAlerts };
+export { startMarketRecorder, alertEvents, getMarketWindowSnapshot, getRecentMarketAlerts, maybeCreateAlerts, state };

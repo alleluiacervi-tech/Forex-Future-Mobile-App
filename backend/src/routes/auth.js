@@ -11,6 +11,7 @@ import {
 } from "../utils/validators.js";
 import authenticate from "../middleware/auth.js";
 import authService from "../services/auth.js";
+import otpService from "../services/otp.js";
 import Logger from "../utils/logger.js";
 
 const router = express.Router();

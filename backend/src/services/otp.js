@@ -12,7 +12,8 @@ const RESEND_LIMIT = 3; // per window
 const RESEND_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const ATTEMPT_BASE_DELAY_MS = 300; // base multiplier for progressive delay
 
-const randomSixDigitCode = () => String(Math.floor(100000 + Math.random() * 900000));
+const randomSixDigitCode = () =>
+  String(Math.floor(Math.random() * 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, '0');
 const hashValue = (val) =>
   crypto.createHash('sha256').update(String(val || '')).digest('hex');
 
@@ -29,7 +30,7 @@ class OtpService {
   async generateOtp(userId, purpose, { ip, deviceInfo } = {}) {
     // count recent OTPs of the same purpose to enforce resend limit
     const windowStart = new Date(Date.now() - RESEND_WINDOW_MS);
-    const recent = await prisma.oTp.count({
+    const recent = await prisma.otp.count({
       where: {
         userId,
         purpose,
@@ -43,7 +44,7 @@ class OtpService {
     }
 
     // invalidate existing unused otp records for same purpose
-    await prisma.oTp.updateMany({
+    await prisma.otp.updateMany({
       where: { userId, purpose, used: false },
       data: { used: true }
     });
@@ -51,7 +52,7 @@ class OtpService {
     const code = randomSixDigitCode();
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-    await prisma.oTp.create({
+    await prisma.otp.create({
       data: {
         userId,
         purpose,
@@ -73,7 +74,7 @@ class OtpService {
    */
   async verifyOtp(userId, purpose, submittedCode, { ip, deviceInfo } = {}) {
     const now = new Date();
-    const otpRecord = await prisma.oTp.findFirst({
+    const otpRecord = await prisma.otp.findFirst({
       where: {
         userId,
         purpose,
@@ -88,7 +89,7 @@ class OtpService {
 
     if (now > otpRecord.expiresAt) {
       // expire it so user needs to request again
-      await prisma.oTp.update({
+      await prisma.otp.update({
         where: { id: otpRecord.id },
         data: { used: true }
       });
@@ -96,7 +97,7 @@ class OtpService {
     }
 
     if (otpRecord.attempts >= OTP_MAX_ATTEMPTS) {
-      await prisma.oTp.update({
+      await prisma.otp.update({
         where: { id: otpRecord.id },
         data: { used: true }
       });
@@ -113,7 +114,7 @@ class OtpService {
       if (attempts >= OTP_MAX_ATTEMPTS) {
         update.used = true;
       }
-      await prisma.oTp.update({ where: { id: otpRecord.id }, data: update });
+      await prisma.otp.update({ where: { id: otpRecord.id }, data: update });
 
       // progressive delay
       const delay = ATTEMPT_BASE_DELAY_MS * attempts;
@@ -124,7 +125,7 @@ class OtpService {
     }
 
     // success
-    await prisma.oTp.update({
+    await prisma.otp.update({
       where: { id: otpRecord.id },
       data: { used: true }
     });
@@ -138,7 +139,7 @@ class OtpService {
    */
   async cleanupExpiredOtps() {
     const now = new Date();
-    const result = await prisma.oTp.updateMany({
+    const result = await prisma.otp.updateMany({
       where: { expiresAt: { lt: now }, used: false },
       data: { used: true }
     });
