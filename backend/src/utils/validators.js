@@ -1,15 +1,27 @@
 import { z } from "zod";
 
-const registerSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(6),
-  // simple card info; real apps should validate more thoroughly and never send raw CVV to backend
-  cardNumber: z.string().min(12).max(19),
-  cardExpMonth: z.number().int().min(1).max(12),
-  cardExpYear: z.number().int().min(new Date().getFullYear()),
-  cardCvc: z.string().min(3).max(4)
-});
+const registerSchema = z
+  .object({
+    name: z.string().min(2),
+    email: z.string().email(),
+    password: z.string().min(6),
+    // Card fields are optional on register; if any are provided, all must be provided.
+    cardNumber: z.string().min(12).max(19).optional(),
+    cardExpMonth: z.number().int().min(1).max(12).optional(),
+    cardExpYear: z.number().int().min(new Date().getFullYear()).optional(),
+    cardCvc: z.string().min(3).max(4).optional()
+  })
+  .superRefine((data, ctx) => {
+    const cardFields = [data.cardNumber, data.cardExpMonth, data.cardExpYear, data.cardCvc];
+    const providedCount = cardFields.filter((value) => value !== undefined && value !== null && value !== "").length;
+
+    if (providedCount > 0 && providedCount < cardFields.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "If providing card details on register, all card fields are required."
+      });
+    }
+  });
 
 const loginSchema = z.object({
   email: z.string().email(),

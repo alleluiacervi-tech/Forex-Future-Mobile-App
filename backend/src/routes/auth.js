@@ -88,16 +88,21 @@ router.post("/register", async (req, res) => {
   }
 
   try {
+    const card =
+      data.cardNumber && data.cardExpMonth && data.cardExpYear && data.cardCvc
+        ? {
+            cardNumber: data.cardNumber,
+            cardExpMonth: data.cardExpMonth,
+            cardExpYear: data.cardExpYear,
+            cardCvc: data.cardCvc
+          }
+        : undefined;
+
     const result = await authService.registerUser(
       data.name,
       data.email,
       data.password,
-      {
-        cardNumber: data.cardNumber,
-        cardExpMonth: data.cardExpMonth,
-        cardExpYear: data.cardExpYear,
-        cardCvc: data.cardCvc
-      }
+      card
     );
     const user = result?.user || result;
     return res.status(201).json({
@@ -202,7 +207,7 @@ router.post("/login", async (req, res) => {
       error.message.toLowerCase().includes('trial must be activated') ||
       error.message.toLowerCase().includes('trial has expired')
     ) {
-      return res.status(403).json({ error: error.message });
+      return res.status(403).json({ error: error.message, trialRequired: true });
     }
     if (error.message.toLowerCase().includes('email verification required')) {
       return res.status(403).json({ error: error.message, verificationRequired: true });

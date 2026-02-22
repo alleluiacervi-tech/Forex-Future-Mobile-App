@@ -65,6 +65,7 @@ type ResendVerificationResponse = {
 type ErrorResponse = {
   error?: string;
   verificationRequired?: boolean;
+  trialRequired?: boolean;
   otpRequired?: boolean;
   debugCode?: string;
   debugExpiresAt?: string;
@@ -99,16 +100,21 @@ const pickError = (data: unknown, fallback: string) => {
 
 class AuthApiError extends Error {
   verificationRequired?: boolean;
+  trialRequired?: boolean;
 
-  constructor(message: string, options: { verificationRequired?: boolean } = {}) {
+  constructor(message: string, options: { verificationRequired?: boolean; trialRequired?: boolean } = {}) {
     super(message);
     this.name = 'AuthApiError';
     this.verificationRequired = options.verificationRequired;
+    this.trialRequired = options.trialRequired;
   }
 }
 
 const isVerificationRequired = (data: unknown) =>
   Boolean(data && typeof data === 'object' && (data as ErrorResponse).verificationRequired);
+
+const isTrialRequired = (data: unknown) =>
+  Boolean(data && typeof data === 'object' && (data as ErrorResponse).trialRequired);
 
 const isOtpRequired = (data: unknown) =>
   Boolean(data && typeof data === 'object' && (data as ErrorResponse).otpRequired);
@@ -221,6 +227,9 @@ class AuthService {
         const message = pickError(data, 'Login failed');
         if (isVerificationRequired(data)) {
           throw new AuthApiError(message, { verificationRequired: true });
+        }
+        if (isTrialRequired(data)) {
+          throw new AuthApiError(message, { trialRequired: true });
         }
         if (isOtpRequired(data)) {
           return {

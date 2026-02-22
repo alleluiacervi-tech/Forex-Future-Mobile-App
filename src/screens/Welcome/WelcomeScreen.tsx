@@ -21,6 +21,7 @@ export default function WelcomeScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showPaymentSetupAction, setShowPaymentSetupAction] = useState(false);
 
   const emailError = useMemo(() => {
     if (!email) return undefined;
@@ -46,6 +47,8 @@ export default function WelcomeScreen() {
       return;
     }
 
+    setShowPaymentSetupAction(false);
+
     try {
       const result = await login(email.trim().toLowerCase(), password);
       if (result?.otpRequired) {
@@ -66,8 +69,42 @@ export default function WelcomeScreen() {
         navigation.navigate('VerifyEmail', { email: email.trim().toLowerCase() });
         return;
       }
+      const trialRequired =
+        (typeof error === 'object' && error !== null && (error as { trialRequired?: boolean }).trialRequired) ||
+        (error instanceof Error &&
+          (error.message.toLowerCase().includes('trial must be activated') ||
+            error.message.toLowerCase().includes('free trial must be activated')));
+      if (trialRequired) {
+        setShowPaymentSetupAction(true);
+        Alert.alert(
+          'Payment setup required',
+          'Continue to payment methods to activate your trial, then sign in again.',
+        );
+        return;
+      }
       Alert.alert('Sign in failed', error instanceof Error ? error.message : 'Unable to sign in');
     }
+  };
+
+  const handleContinueToPaymentMethods = () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      Alert.alert('Missing info', 'Please enter your email and password first.');
+      return;
+    }
+    if (emailError) {
+      Alert.alert('Invalid email', emailError);
+      return;
+    }
+
+    navigation.navigate('BillingPayments', {
+      setupTrial: true,
+      email: normalizedEmail,
+      password,
+      selectedBilling: 'monthly',
+      selectedPrice: 20,
+      billingLabel: 'month',
+    });
   };
 
   const handleRequestAccess = () => {
@@ -182,6 +219,22 @@ export default function WelcomeScreen() {
                 disabled={isLoading}
               />
 
+              {showPaymentSetupAction && (
+                <>
+                  <Button
+                    title="Continue to Payment Methods"
+                    onPress={handleContinueToPaymentMethods}
+                    variant="outline"
+                    size="large"
+                    style={styles.paymentSetupButton}
+                    disabled={isLoading}
+                  />
+                  <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.paymentSetupHint}>
+                    Use the same account details to add your payment method and activate your trial.
+                  </Text>
+                </>
+              )}
+
               <View style={[styles.dividerRow, { borderColor: theme.colors.border }]}>
                 <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
                 <Text variant="caption" color={theme.colors.textSecondary} style={styles.dividerText}>
@@ -292,6 +345,16 @@ const styles = StyleSheet.create({
   signInButton: {
     width: '100%',
     marginTop: 6,
+  },
+  paymentSetupButton: {
+    width: '100%',
+    marginTop: 10,
+  },
+  paymentSetupHint: {
+    marginTop: 8,
+    lineHeight: 18,
+    textAlign: 'center',
+    fontSize: 12,
   },
   dividerRow: {
     flexDirection: 'row',
