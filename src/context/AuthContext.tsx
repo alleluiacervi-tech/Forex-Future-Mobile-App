@@ -45,6 +45,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const isAuthLoginOtpChallenge = (result: AuthLoginResult): result is AuthLoginOtpChallenge =>
+  'otpRequired' in result && result.otpRequired === true;
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -79,7 +82,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(true);
       const result: AuthLoginResult = await authService.login(email, password);
 
-      if ('otpRequired' in result && result.otpRequired) {
+      if (isAuthLoginOtpChallenge(result)) {
         return result;
       }
 
