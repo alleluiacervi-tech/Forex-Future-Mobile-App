@@ -112,7 +112,7 @@ model Watchlist {
   pairs  String[]
 }
 
-/* OTPs generated for verification and sensitive actions. */
+// OTPs generated for verification and sensitive actions.
 model Otp {
   id         String   @id @default(uuid())
   user       User     @relation(fields: [userId], references: [id])
