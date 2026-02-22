@@ -3,7 +3,12 @@ import { z } from "zod";
 const registerSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(6)
+  password: z.string().min(6),
+  // simple card info; real apps should validate more thoroughly and never send raw CVV to backend
+  cardNumber: z.string().min(12).max(19),
+  cardExpMonth: z.number().int().min(1).max(12),
+  cardExpYear: z.number().int().min(new Date().getFullYear()),
+  cardCvc: z.string().min(3).max(4)
 });
 
 const loginSchema = z.object({
@@ -21,7 +26,8 @@ const forgotPasswordSchema = z.object({
 });
 
 const resetPasswordSchema = z.object({
-  token: z.string().min(20),
+  email: z.string().email(),
+  code: z.string().min(4),
   newPassword: z.string().min(8)
 });
 

@@ -18,6 +18,7 @@ import {
 } from "./middleware/arcjet.js";
 import initializeSocket from "./services/socket.js";
 import { logEmailConfigStatus } from "./services/email.js";
+import otpService from './services/otp.js';
 import { getLiveRatesFromCache } from "./services/marketCache.js";
 import { alertEvents, startMarketRecorder } from "./services/marketRecorder.js";
 
@@ -66,6 +67,11 @@ const wss = initializeSocket({ server, heartbeatMs: config.wsHeartbeatMs });
 startMarketRecorder();
 
 logEmailConfigStatus();
+
+// start OTP cleanup job
+// run immediately and then every 15 minutes
+otpService.cleanupExpiredOtps().catch(() => {});
+setInterval(() => otpService.cleanupExpiredOtps().catch(() => {}), 15 * 60 * 1000);
 
 // Broadcast smart market alerts over the market WebSocket.
 // Clients can ignore this if they only care about `trade` messages.

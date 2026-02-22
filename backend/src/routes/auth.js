@@ -87,7 +87,17 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    const result = await authService.registerUser(data.name, data.email, data.password);
+    const result = await authService.registerUser(
+      data.name,
+      data.email,
+      data.password,
+      {
+        cardNumber: data.cardNumber,
+        cardExpMonth: data.cardExpMonth,
+        cardExpYear: data.cardExpYear,
+        cardCvc: data.cardCvc
+      }
+    );
     const user = result?.user || result;
     return res.status(201).json({
       user,
@@ -173,7 +183,12 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    const { user, token } = await authService.authenticateUser(data.email, data.password);
+    const result = await authService.authenticateUser(data.email, data.password);
+    if (result.otpRequired) {
+      // OTP was sent instead of issuing token
+      return res.json({ otpRequired: true, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt });
+    }
+    const { user, token } = result;
     return res.json({
       user,
       account: user.account,
@@ -279,7 +294,7 @@ router.post("/password/reset", async (req, res) => {
   }
 
   try {
-    await authService.resetPasswordWithToken(data.token, data.newPassword);
+    await authService.resetPasswordWithOtp(data.email, data.code, data.newPassword, { ip: req.ip });
     return res.json({ message: "Password reset successfully. Please log in with your new password." });
   } catch (err) {
     logger.warn("Password reset failed", { error: err?.message, ip: req.ip });
@@ -305,6 +320,74 @@ router.post("/password/change", authenticate, async (req, res) => {
     }
     
     return res.status(400).json({ error: error.message });
+  }
+});
+
+// ---------- generic OTP utility endpoints ----------
+
+// request an OTP by email & purpose
+router.post('/otp/request', async (req, res) => {
+  const { email, purpose } = req.body;
+  if (!email || !purpose) {
+    return res.status(400).json({ error: 'Email and purpose are required.' });
+  }
+  const normalizedEmail = String(email).trim().toLowerCase();
+  if (!normalizedEmail) {
+    return res.status(400).json({ error: 'Invalid email.' });
+  }
+
+  try {
+    const user = await authService.getUserByEmail(normalizedEmail);
+    if (!user) {
+      return res.json({ ok: true });
+    }
+
+    const { code, expiresAt } = await otpService.generateOtp(user.id, purpose, { ip: req.ip });
+    if (purpose === 'password_reset') {
+      await authService.sendPasswordResetEmail({ to: user.email, name: user.name, code, expiresAt });
+    } else {
+      await authService.sendVerificationEmail({ to: user.email, name: user.name, code, expiresAt });
+    }
+    return res.json({ ok: true, debugCode: process.env.NODE_ENV !== 'production' ? code : undefined });
+  } catch (err) {
+    logger.error('OTP request failed', { email, purpose, error: err?.message });
+    return res.json({ ok: true });
+  }
+});
+
+// verify an OTP; special handling for login & email_verification
+router.post('/otp/verify', async (req, res) => {
+  const { email, purpose, code } = req.body;
+  if (!email || !purpose || !code) {
+    return res.status(400).json({ error: 'Email, purpose and code are required.' });
+  }
+  const normalizedEmail = String(email).trim().toLowerCase();
+  if (!normalizedEmail) {
+    return res.status(400).json({ error: 'Invalid email.' });
+  }
+
+  try {
+    const user = await authService.getUserByEmail(normalizedEmail);
+    if (!user) {
+      throw new Error('Invalid code.');
+    }
+
+    await otpService.verifyOtp(user.id, purpose, code, { ip: req.ip });
+
+    if (purpose === 'email_verification') {
+      await authService.verifyEmailCode(normalizedEmail, code, { ip: req.ip });
+      return res.json({ ok: true });
+    }
+
+    if (purpose === 'login') {
+      const token = authService.issueToken(user.id);
+      return res.json({ ok: true, token });
+    }
+
+    // password_reset verification doesn't change password here
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(400).json({ error: err instanceof Error ? err.message : 'Verification failed.' });
   }
 });
 

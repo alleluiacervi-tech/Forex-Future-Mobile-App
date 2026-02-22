@@ -1,6 +1,5 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -8,6 +7,8 @@ import config from '../config.js';
 import prisma from '../db/prisma.js';
 import Logger from '../utils/logger.js';
 import { sendEmail, validateEmailConfig } from "./email.js";
+import otpService from './otp.js';
+import paymentService from './payment.js';
 
 const logger = new Logger('AuthService');
 
@@ -155,13 +156,6 @@ const buildVerificationEmailHtml = ({ brandName, greeting, codeDisplay, codeRaw,
 </html>`;
 };
 
-const hashToken = (value) =>
-  crypto
-    .createHash("sha256")
-    .update(String(value || ""))
-    .digest("hex");
-
-const randomSixDigitCode = () => String(Math.floor(100000 + Math.random() * 900000));
 const FREE_TRIAL_DAYS = Number.isFinite(Number(process.env.FREE_TRIAL_DAYS))
   ? Math.max(1, Math.floor(Number(process.env.FREE_TRIAL_DAYS)))
   : 7;
@@ -337,24 +331,10 @@ class AuthService {
     return { emailAvailable, allowDebugReturn, requireEmail, emailValidation };
   }
 
+  // legacy: moved to otpService. kept for backward compatibility if needed.
   async issueAndStoreEmailVerificationCode(userId) {
-    const code = randomSixDigitCode();
-    const expiresMinutes = Number(process.env.EMAIL_VERIFICATION_EXPIRES_MIN || 10);
-    const expiresAt = new Date(Date.now() + (Number.isFinite(expiresMinutes) ? expiresMinutes : 10) * 60 * 1000);
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        emailVerificationCodeHash: hashToken(code),
-        emailVerificationExpiresAt: expiresAt,
-        emailVerificationSentAt: new Date(),
-        emailVerified: false,
-        emailVerifiedAt: null
-      },
-      select: { id: true }
-    });
-
-    return { code, expiresAt };
+    // delegate to otpService with purpose "email_verification"
+    return otpService.generateOtp(userId, 'email_verification');
   }
 
   async sendVerificationEmail({ to, name, code, expiresAt }) {
@@ -435,7 +415,7 @@ class AuthService {
       return { ok: false, unavailable: true };
     }
 
-    const { code, expiresAt } = await this.issueAndStoreEmailVerificationCode(user.id);
+    const { code, expiresAt } = await otpService.generateOtp(user.id, 'email_verification', { ip });
 
     if (!policy.emailAvailable) {
       if (policy.allowDebugReturn) {
@@ -456,7 +436,8 @@ class AuthService {
     }
   }
 
-  async verifyEmailCode(email, code) {
+  // verify OTP code for email verification; also activate trial if necessary.
+  async verifyEmailCode(email, code, { ip, deviceInfo } = {}) {
     const normalizedEmail = String(email || "").trim().toLowerCase();
     const submitted = String(code || "").replace(/\D/g, "");
     if (!normalizedEmail || !this.validateEmail(normalizedEmail)) {
@@ -468,12 +449,7 @@ class AuthService {
 
     const user = await prisma.user.findFirst({
       where: { email: { equals: normalizedEmail, mode: "insensitive" } },
-      select: {
-        id: true,
-        emailVerified: true,
-        emailVerificationCodeHash: true,
-        emailVerificationExpiresAt: true
-      }
+      select: { id: true, emailVerified: true, trialActive: true, trialStartedAt: true }
     });
 
     if (!user) {
@@ -483,28 +459,80 @@ class AuthService {
       return { ok: true, alreadyVerified: true };
     }
 
-    const expiresAtMs = user.emailVerificationExpiresAt ? user.emailVerificationExpiresAt.getTime() : 0;
-    if (!expiresAtMs || Date.now() > expiresAtMs) {
-      throw new Error("Verification code expired. Please request a new code.");
-    }
+    // delegate to otpService, will throw on failure
+    await otpService.verifyOtp(user.id, 'email_verification', submitted, { ip, deviceInfo });
 
-    const expected = String(user.emailVerificationCodeHash || "");
-    if (!expected || hashToken(submitted) !== expected) {
-      throw new Error("Invalid verification code.");
+    // mark user verified
+    const updates = {
+      emailVerified: true,
+      emailVerifiedAt: new Date()
+    };
+
+    // if trial not yet active, start it
+    if (!user.trialActive) {
+      updates.trialActive = true;
+      updates.trialStartedAt = new Date();
     }
 
     await prisma.user.update({
       where: { id: user.id },
-      data: {
-        emailVerified: true,
-        emailVerifiedAt: new Date(),
-        emailVerificationCodeHash: null,
-        emailVerificationExpiresAt: null
-      },
-      select: { id: true }
+      data: updates
     });
 
     return { ok: true };
+  }
+
+  async sendPasswordResetEmail({ to, name, code, expiresAt }) {
+    const brandName = String(process.env.EMAIL_BRAND_NAME || "Forex Future").trim() || "Forex Future";
+    const greeting = name ? `Hi ${name},` : "Hi,";
+    const safeGreeting = escapeHtml(greeting);
+    const safeBrand = escapeHtml(brandName);
+
+    const cleanedCode = String(code || "").replace(/\s+/g, "");
+    const codeDisplay = cleanedCode.length === 6 ? `${cleanedCode.slice(0, 3)} ${cleanedCode.slice(3)}` : cleanedCode;
+
+    const fallbackMinutes = Number(process.env.PASSWORD_RESET_EXPIRES_MIN || 5);
+    const expiresMinutesRaw = expiresAt instanceof Date ? Math.ceil((expiresAt.getTime() - Date.now()) / 60_000) : fallbackMinutes;
+    const expiresMinutes = Number.isFinite(expiresMinutesRaw) && expiresMinutesRaw > 0 ? expiresMinutesRaw : fallbackMinutes;
+
+    const logoPath = resolveEmailLogoPath();
+    const attachments = logoPath
+      ? [
+          {
+            filename: path.basename(logoPath),
+            path: logoPath,
+            cid: EMAIL_LOGO_CID
+          }
+        ]
+      : undefined;
+
+    const lines = [
+      greeting,
+      "",
+      `Use the code below to reset your ${brandName} password:`,
+      `Code: ${cleanedCode}`,
+      `This code expires in ${expiresMinutes} minutes.`,
+      "",
+      "Do not share this code with anyone.",
+      "If you didn't request this, you can safely ignore this email."
+    ].filter(Boolean);
+
+    const html = buildVerificationEmailHtml({
+      brandName,
+      greeting,
+      codeDisplay,
+      codeRaw: cleanedCode,
+      expiresMinutes,
+      hasLogo: Boolean(logoPath)
+    });
+
+    await sendEmail({
+      to,
+      subject: `${brandName} password reset code`,
+      text: lines.join("\n"),
+      html,
+      attachments
+    });
   }
 
   async requestPasswordReset(email, { ip } = {}) {
@@ -512,15 +540,13 @@ class AuthService {
 
     const normalizedEmail = String(email || "").trim().toLowerCase();
     if (!normalizedEmail || !this.validateEmail(normalizedEmail)) {
-      // Keep message generic to avoid enumeration.
       return { ok: true };
     }
 
     const emailValidation = validateEmailConfig();
     const emailAvailable = emailValidation.ok;
     const allowDebugReturn =
-      process.env.NODE_ENV !== "production" &&
-      process.env.PASSWORD_RESET_DEBUG_RETURN_TOKEN !== "false";
+      process.env.NODE_ENV !== "production";
     const requireEmail =
       process.env.PASSWORD_RESET_REQUIRE_EMAIL === "true" ||
       process.env.NODE_ENV === "production";
@@ -544,84 +570,44 @@ class AuthService {
       return { ok: true };
     }
 
-    const token = this.issuePasswordResetToken(user);
-    const link = this.buildPasswordResetLink(token);
+    // create OTP record
+    const { code, expiresAt } = await otpService.generateOtp(user.id, 'password_reset', { ip });
 
     if (!emailAvailable) {
       if (allowDebugReturn) {
-        return { ok: true, debugToken: token, debugLink: link };
+        return { ok: true, debugCode: code, debugExpiresAt: expiresAt.toISOString() };
       }
       return { ok: true };
     }
 
     try {
-      const brandName = String(process.env.EMAIL_BRAND_NAME || "Forex Future").trim() || "Forex Future";
-      const greeting = user.name ? `Hi ${user.name},` : "Hi,";
-      const safeGreeting = escapeHtml(greeting);
-      const safeBrand = escapeHtml(brandName);
-      const safeLink = link ? escapeHtml(link) : "";
-      const safeToken = escapeHtml(token);
-
-      const logoPath = resolveEmailLogoPath();
-      const attachments = logoPath
-        ? [
-            {
-              filename: path.basename(logoPath),
-              path: logoPath,
-              cid: EMAIL_LOGO_CID
-            }
-          ]
-        : undefined;
-
-      const lines = [
-        greeting,
-        "",
-        `We received a request to reset your ${brandName} password.`,
-        "",
-        link ? `Reset link: ${link}` : `Reset token: ${token}`,
-        "",
-        "Do not share this token with anyone.",
-        "If you didn't request this, you can safely ignore this email."
-      ];
-
-      await sendEmail({
-        to: user.email,
-        subject: `${brandName} password reset`,
-        text: lines.join("\n"),
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
-            <div style="padding: 0 0 12px 0; text-align: center;">
-              ${
-                logoPath
-                  ? `<img src="cid:${EMAIL_LOGO_CID}" width="72" height="72" alt="${safeBrand} logo" style="display:inline-block; width:72px; height:72px; border-radius: 16px;" />`
-                  : `<div style="font-weight: 800; font-size: 20px; letter-spacing: 0.5px;">${safeBrand}</div>`
-              }
-            </div>
-            <p>${safeGreeting}</p>
-            <p>We received a request to reset your ${safeBrand} password.</p>
-            ${
-              link
-                ? `<p><a href="${safeLink}">Reset your password</a></p>`
-                : `<p><strong>Reset token:</strong> <code>${safeToken}</code></p>`
-            }
-            <p>Do not share this token with anyone.</p>
-            <p>If you didn't request this, you can safely ignore this email.</p>
-          </div>
-        `,
-        attachments
-      });
+      await this.sendPasswordResetEmail({ to: user.email, name: user.name, code, expiresAt });
     } catch (error) {
       logger.error("Password reset email failed", { email: normalizedEmail, error: error.message });
       if (allowDebugReturn) {
-        return { ok: true, debugToken: token, debugLink: link };
+        return { ok: true, debugCode: code, debugExpiresAt: expiresAt.toISOString() };
       }
     }
 
     return { ok: true };
   }
 
-  async resetPasswordWithToken(token, newPassword) {
-    const { userId } = await this.verifyPasswordResetToken(token);
+  // verify OTP and set new password
+  async resetPasswordWithOtp(email, code, newPassword, { ip, deviceInfo } = {}) {
+    if (!email || !code) {
+      throw new Error('Email and code are required.');
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
+      select: { id: true }
+    });
+    if (!user) {
+      throw new Error('Invalid email or code.');
+    }
+
+    await otpService.verifyOtp(user.id, 'password_reset', code, { ip, deviceInfo });
 
     const passwordValidation = this.validatePassword(newPassword);
     if (!passwordValidation.valid) {
@@ -629,13 +615,12 @@ class AuthService {
     }
 
     const newPasswordHash = await this.hashPassword(newPassword);
-
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: { passwordHash: newPasswordHash }
     });
 
-    logger.info("Password reset completed", { userId });
+    logger.info("Password reset completed", { userId: user.id });
     return true;
   }
 
@@ -651,7 +636,7 @@ class AuthService {
   }
 
   // Register user
-  async registerUser(name, email, password) {
+  async registerUser(name, email, password, card) {
     logger.info('User registration attempt', { email, name });
 
     // Validate inputs
@@ -671,7 +656,6 @@ class AuthService {
       throw new Error(passwordValidation.error);
     }
 
-    // Check if user already exists
     const normalizedEmail = email.trim().toLowerCase();
     const existingUser = await prisma.user.findFirst({
       where: { email: { equals: normalizedEmail, mode: 'insensitive' } }
@@ -682,30 +666,55 @@ class AuthService {
       throw new Error('Email already registered.');
     }
 
+    let stripeToken = null;
+    if (card) {
+      try {
+        stripeToken = await paymentService.tokenizeCard(card);
+      } catch (err) {
+        logger.error('Card tokenization failed', { error: err.message });
+        throw new Error('Payment information is invalid.');
+      }
+    }
+
     try {
-      // Hash password
       const passwordHash = await this.hashPassword(password);
 
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          name: name.trim(),
-          email: normalizedEmail,
-          passwordHash,
-          account: {
-            create: {
-              balance: 100000,
-              equity: 100000,
-              marginUsed: 0,
-              currency: 'USD'
-            }
-          },
-          watchlist: {
-            create: {
-              pairs: ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD']
-            }
+      const userData = {
+        name: name.trim(),
+        email: normalizedEmail,
+        passwordHash,
+        account: {
+          create: {
+            balance: 100000,
+            equity: 100000,
+            marginUsed: 0,
+            currency: 'USD'
           }
         },
+        watchlist: {
+          create: {
+            pairs: ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD']
+          }
+        }
+      };
+
+      if (stripeToken) {
+        userData.paymentMethods = {
+          create: {
+            provider: 'stripe',
+            token: stripeToken.id,
+            brand: stripeToken.card?.brand,
+            last4: stripeToken.card?.last4,
+            expMonth: stripeToken.card?.exp_month,
+            expYear: stripeToken.card?.exp_year,
+            holderName: stripeToken.card?.name,
+            billingPostalCode: stripeToken.card?.address_zip
+          }
+        };
+      }
+
+      const user = await prisma.user.create({
+        data: userData,
         select: {
           id: true,
           name: true,
@@ -732,12 +741,15 @@ class AuthService {
       }
 
       try {
-        const result = await this.requestEmailVerification(normalizedEmail);
+        const result = await otpService.generateOtp(user.id, 'email_verification');
+        if (policy.emailAvailable) {
+          await this.sendVerificationEmail({ to: user.email, name: user.name, code: result.code, expiresAt: result.expiresAt });
+        }
         return {
           user,
           verificationRequired: true,
-          debugCode: result?.debugCode,
-          debugExpiresAt: result?.debugExpiresAt
+          debugCode: policy.emailAvailable ? undefined : result.code,
+          debugExpiresAt: policy.emailAvailable ? undefined : result.expiresAt
         };
       } catch (error) {
         logger.error("Failed to start email verification", { email: normalizedEmail, error: error.message });
@@ -798,6 +810,15 @@ class AuthService {
       if (normalizedEmail !== "demo@forex.app" && !user.emailVerified) {
         logger.warn("Authentication blocked - email not verified", { userId: user.id, email: normalizedEmail });
         throw new Error("Email verification required.");
+      }
+
+      // optional OTP on login
+      const loginOtpRequired = process.env.LOGIN_OTP_REQUIRED === 'true';
+      if (loginOtpRequired) {
+        // issue a one‑time code and ask the client to verify it before issuing JWT
+        const { code, expiresAt } = await otpService.generateOtp(user.id, 'login');
+        await this.sendVerificationEmail({ to: user.email, name: user.name, code, expiresAt });
+        return { otpRequired: true, debugCode: code, debugExpiresAt: expiresAt };
       }
 
       // Check trial status
@@ -924,6 +945,32 @@ class AuthService {
       return { user: updatedUser, token };
     } catch (error) {
       logger.error('Trial activation error', { email, error: error.message });
+      throw error;
+    }
+  }
+
+  // Get user by email (case-insensitive)
+  async getUserByEmail(email) {
+    try {
+      const user = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: 'insensitive' } },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          emailVerified: true,
+          emailVerifiedAt: true,
+          trialActive: true,
+          trialStartedAt: true
+        }
+      });
+      if (!user) {
+        logger.warn('User not found by email', { email });
+        return null;
+      }
+      return user;
+    } catch (error) {
+      logger.error('Failed to fetch user by email', { email, error: error.message });
       throw error;
     }
   }

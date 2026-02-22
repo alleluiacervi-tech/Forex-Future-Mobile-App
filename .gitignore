@@ -8,6 +8,8 @@ pnpm-lock.yaml
 .env
 .env.local
 .env.*.local
+.env.example
+**/.env.example
 **/.env
 
 # Expo
@@ -58,3 +60,6 @@ temp/
 *.sqlite3
 README_AUTH.md
 SAFE_COMMIT_LIST.md
+
+# Documentation
+*.md
