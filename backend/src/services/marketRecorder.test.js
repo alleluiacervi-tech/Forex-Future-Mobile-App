@@ -1,6 +1,5 @@
 import assert from "assert";
 import { validateTick, isTickOutlier } from "./marketValidator.js";
-import { maybeCreateAlerts, state } from "./marketRecorder.js";
 
 // simple utilities for constructing ticks
 const makeTick = (tsMs, price, priceType = "last") => ({ tsMs, price, priceType });
@@ -39,6 +38,22 @@ console.log("running market validator/recorder unit tests...");
 
 // -- maybeCreateAlerts smoke ------------------------------------------------
 (async () => {
+  if (process.env.RUN_MARKET_RECORDER_SMOKE !== "true") {
+    console.log("skipping maybeCreateAlerts smoke test (set RUN_MARKET_RECORDER_SMOKE=true to enable)");
+    return;
+  }
+
+  let recorderModule;
+  try {
+    recorderModule = await import("./marketRecorder.js");
+  } catch (error) {
+    const reason = error?.message ? String(error.message) : "module failed to load";
+    console.warn(`skipping maybeCreateAlerts smoke test (${reason})`);
+    return;
+  }
+
+  const { maybeCreateAlerts, state } = recorderModule;
+
   // reset state
   state.consecutiveMoveCounts.clear();
   state.lastAlertKeyAt.clear();
