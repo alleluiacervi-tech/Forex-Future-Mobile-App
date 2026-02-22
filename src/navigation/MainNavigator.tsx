@@ -19,6 +19,7 @@ import ProfileScreen from '../screens/Profile';
 import CurrencyDetailScreen from '../screens/CurrencyDetail';
 import AboutScreen from '../screens/About';
 import WelcomeScreen from '../screens/Welcome';
+import LoginOtpScreen from '../screens/LoginOtp';
 import VerifyEmailScreen from '../screens/VerifyEmail';
 import ForgotPasswordScreen from '../screens/ForgotPassword';
 import ResetPasswordScreen from '../screens/ResetPassword';
@@ -43,6 +44,7 @@ const linking: LinkingOptions<RootStackParamList> = {
     screens: {
       Landing: '',
       Welcome: 'welcome',
+      LoginOtp: 'login-otp',
       VerifyEmail: 'verify-email',
       ForgotPassword: 'forgot-password',
       ResetPassword: 'reset-password',
@@ -119,6 +121,11 @@ export default function MainNavigator() {
         <Stack.Screen
           name="Welcome"
           component={WelcomeScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="LoginOtp"
+          component={LoginOtpScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

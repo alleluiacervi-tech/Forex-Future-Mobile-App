@@ -30,41 +30,58 @@ export default function ResetPasswordScreen() {
   const theme = useTheme();
   const { resetPassword, isLoading } = useAuth();
 
-  const [token, setToken] = useState(route.params?.token ?? '');
+  const [email, setEmail] = useState(route.params?.email ?? '');
+  const [code, setCode] = useState(route.params?.code ?? route.params?.debugCode ?? '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [touched, setTouched] = useState({ token: false, newPassword: false, confirmPassword: false });
+  const [touched, setTouched] = useState({ email: false, code: false, newPassword: false, confirmPassword: false });
 
   useEffect(() => {
-    const applyToken = (value?: string) => {
+    const applyCode = (value?: string) => {
       if (!value || !value.trim()) return;
-      setToken((current) => (current.trim() ? current : value.trim()));
+      setCode((current) => (current.trim() ? current : value.trim()));
     };
 
-    applyToken(route.params?.token);
+    const applyEmail = (value?: string) => {
+      if (!value || !value.trim()) return;
+      setEmail((current) => (current.trim() ? current : value.trim()));
+    };
+
+    applyEmail(route.params?.email);
+    applyCode(route.params?.code ?? route.params?.debugCode);
 
     const applyFromUrl = (url: string | null) => {
       if (!url) return;
       const parsed = Linking.parse(url);
       const path = parsed.path || '';
       if (!path.includes('reset-password')) return;
-      applyToken(getStringParam(parsed.queryParams?.token));
+      applyEmail(getStringParam(parsed.queryParams?.email));
+      applyCode(getStringParam(parsed.queryParams?.code));
     };
 
     void Linking.getInitialURL().then(applyFromUrl).catch(() => {});
     const subscription = Linking.addEventListener('url', ({ url }) => applyFromUrl(url));
 
     return () => subscription.remove();
-  }, [route.params?.token]);
+  }, [route.params?.code, route.params?.debugCode, route.params?.email]);
 
-  const tokenError = useMemo(() => {
-    if (!touched.token) return undefined;
-    if (!token.trim()) return 'Token is required';
-    if (token.trim().length < 20) return 'Token looks too short';
+  const emailError = useMemo(() => {
+    if (!touched.email) return undefined;
+    if (!email.trim()) return 'Email is required';
+    const normalized = email.trim().toLowerCase();
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+    return ok ? undefined : 'Enter a valid email address';
+  }, [email, touched.email]);
+
+  const codeError = useMemo(() => {
+    if (!touched.code) return undefined;
+    const cleaned = code.replace(/\s+/g, '');
+    if (!cleaned) return 'Reset code is required';
+    if (cleaned.length < 4) return 'Code looks too short';
     return undefined;
-  }, [token, touched.token]);
+  }, [code, touched.code]);
 
   const passwordError = useMemo(() => {
     if (!touched.newPassword) return undefined;
@@ -83,17 +100,17 @@ export default function ResetPasswordScreen() {
     return undefined;
   }, [confirmPassword, newPassword, touched.confirmPassword]);
 
-  const canSubmit = !tokenError && !passwordError && !confirmError && token && newPassword && confirmPassword;
+  const canSubmit = !emailError && !codeError && !passwordError && !confirmError && email && code && newPassword && confirmPassword;
 
   const handleSubmit = async () => {
-    setTouched({ token: true, newPassword: true, confirmPassword: true });
+    setTouched({ email: true, code: true, newPassword: true, confirmPassword: true });
     if (!canSubmit) {
       Alert.alert('Validation error', 'Please fix the errors and try again.');
       return;
     }
 
     try {
-      const result = await resetPassword(token.trim(), newPassword);
+      const result = await resetPassword(email.trim().toLowerCase(), code.replace(/\s+/g, ''), newPassword);
       const message =
         typeof result?.message === 'string' && result.message
           ? result.message
@@ -131,18 +148,31 @@ export default function ResetPasswordScreen() {
         <View style={styles.content}>
           <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
             <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.subtitle}>
-              Paste the token from your email and choose a new password.
+              Enter your email, reset code, and choose a new password.
             </Text>
 
             <Input
-              label="Reset Token"
-              value={token}
+              label="Email"
+              value={email}
               onChangeText={(value) => {
-                setToken(value);
-                if (!touched.token) setTouched((p) => ({ ...p, token: true }));
+                setEmail(value);
+                if (!touched.email) setTouched((p) => ({ ...p, email: true }));
               }}
-              placeholder="eyJhbGciOi..."
-              error={tokenError}
+              placeholder="trader@example.com"
+              keyboardType="email-address"
+              error={emailError}
+            />
+
+            <Input
+              label="Reset Code"
+              value={code}
+              onChangeText={(value) => {
+                setCode(value);
+                if (!touched.code) setTouched((p) => ({ ...p, code: true }));
+              }}
+              placeholder="123456"
+              keyboardType="numeric"
+              error={codeError}
             />
 
             <Input
@@ -210,10 +240,10 @@ export default function ResetPasswordScreen() {
               activeOpacity={0.7}
               style={styles.secondaryLink}
             >
-              <Text variant="bodySmall" style={{ color: theme.colors.primary }}>
-                Need a new token?
-              </Text>
-            </TouchableOpacity>
+                <Text variant="bodySmall" style={{ color: theme.colors.primary }}>
+                  Need a new code?
+                </Text>
+              </TouchableOpacity>
           </Card>
         </View>
       </LinearGradient>

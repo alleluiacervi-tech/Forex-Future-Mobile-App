@@ -260,7 +260,7 @@ router.post("/password/forgot", async (req, res) => {
   const now = Date.now();
   if (now - lastAt < resetThrottleMs) {
     return res.json({
-      message: "If an account exists for that email, you'll receive password reset instructions shortly."
+      message: "If an account exists for that email, you'll receive a password reset code shortly."
     });
   }
   resetThrottle.set(key, now);
@@ -272,18 +272,18 @@ router.post("/password/forgot", async (req, res) => {
     }
 
     const response = {
-      message: "If an account exists for that email, you'll receive password reset instructions shortly."
+      message: "If an account exists for that email, you'll receive a password reset code shortly."
     };
 
-    if (result?.debugToken || result?.debugLink) {
-      return res.json({ ...response, debugToken: result.debugToken, debugLink: result.debugLink });
+    if (result?.debugCode || result?.debugExpiresAt) {
+      return res.json({ ...response, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt });
     }
 
     return res.json(response);
   } catch (err) {
     logger.error("Forgot-password endpoint error", { email: normalizedEmail, error: err?.message });
     return res.json({
-      message: "If an account exists for that email, you'll receive password reset instructions shortly."
+      message: "If an account exists for that email, you'll receive a password reset code shortly."
     });
   }
 });

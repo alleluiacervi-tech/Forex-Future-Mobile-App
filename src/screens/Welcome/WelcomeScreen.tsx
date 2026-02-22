@@ -47,7 +47,15 @@ export default function WelcomeScreen() {
     }
 
     try {
-      await login(email.trim().toLowerCase(), password);
+      const result = await login(email.trim().toLowerCase(), password);
+      if (result?.otpRequired) {
+        navigation.navigate('LoginOtp', {
+          email: email.trim().toLowerCase(),
+          debugCode: result.debugCode,
+          debugExpiresAt: result.debugExpiresAt,
+        });
+        return;
+      }
       navigation.replace('Main');
     } catch (error) {
       const verificationRequired =

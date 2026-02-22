@@ -6,6 +6,14 @@ export type RootStackParamList = {
   TradeDetail: { pair: string };
   About: undefined;
   Welcome: undefined;
+  LoginOtp:
+    | undefined
+    | {
+        email?: string;
+        code?: string;
+        debugCode?: string;
+        debugExpiresAt?: string;
+      };
   VerifyEmail:
     | undefined
     | {
@@ -25,7 +33,9 @@ export type RootStackParamList = {
     | undefined
     | {
         email?: string;
-        token?: string;
+        code?: string;
+        debugCode?: string;
+        debugExpiresAt?: string;
       };
   Subscription: undefined;
   Settings: undefined;

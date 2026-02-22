@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import authService from '../services/auth';
+import type { AuthLoginOtpChallenge, AuthLoginResult } from '../services/auth';
 
 export interface User {
   id: string;
@@ -24,7 +25,7 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthLoginOtpChallenge | void>;
   register: (
     name: string,
     email: string,
@@ -33,10 +34,12 @@ interface AuthContextType {
   startTrial: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  verifyLoginOtp: (email: string, code: string) => Promise<void>;
+  resendLoginOtp: (email: string) => Promise<{ ok?: boolean; message?: string; debugCode?: string; debugExpiresAt?: string }>;
   verifyEmail: (email: string, code: string) => Promise<{ ok?: boolean; alreadyVerified?: boolean }>;
   resendEmailVerification: (email: string) => Promise<{ message?: string; debugCode?: string; debugExpiresAt?: string }>;
-  requestPasswordReset: (email: string) => Promise<{ message?: string; debugToken?: string; debugLink?: string }>;
-  resetPassword: (token: string, newPassword: string) => Promise<{ message?: string }>;
+  requestPasswordReset: (email: string) => Promise<{ message?: string; debugCode?: string; debugExpiresAt?: string }>;
+  resetPassword: (email: string, code: string, newPassword: string) => Promise<{ message?: string }>;
   refreshUser: () => Promise<void>;
 }
 
@@ -74,12 +77,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const { user: userData, token: authToken } = await authService.login(email, password);
-      setUser(userData);
-      setToken(authToken);
-      console.log('[AuthProvider] User logged in:', userData.email);
+      const result: AuthLoginResult = await authService.login(email, password);
+
+      if ('otpRequired' in result && result.otpRequired) {
+        return result;
+      }
+
+      setUser(result.user);
+      setToken(result.token);
+      console.log('[AuthProvider] User logged in:', result.user.email);
     } catch (error) {
       console.error('[AuthProvider] Login failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const verifyLoginOtp = useCallback(async (email: string, code: string) => {
+    try {
+      setIsLoading(true);
+      const { user: userData, token: authToken } = await authService.verifyLoginOtp(email, code);
+      setUser(userData);
+      setToken(authToken);
+      console.log('[AuthProvider] Login OTP verified:', userData.email);
+    } catch (error) {
+      console.error('[AuthProvider] Verify login OTP failed:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const resendLoginOtp = useCallback(async (email: string) => {
+    try {
+      setIsLoading(true);
+      return await authService.resendLoginOtp(email);
+    } catch (error) {
+      console.error('[AuthProvider] Resend login OTP failed:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -189,10 +224,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const resetPassword = useCallback(async (token: string, newPassword: string) => {
+  const resetPassword = useCallback(async (email: string, code: string, newPassword: string) => {
     try {
       setIsLoading(true);
-      const data = await authService.resetPassword(token, newPassword);
+      const data = await authService.resetPassword(email, code, newPassword);
       return data;
     } catch (error) {
       console.error('[AuthProvider] Password reset failed:', error);
@@ -223,6 +258,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     startTrial,
     logout,
     changePassword,
+    verifyLoginOtp,
+    resendLoginOtp,
     verifyEmail,
     resendEmailVerification,
     requestPasswordReset,

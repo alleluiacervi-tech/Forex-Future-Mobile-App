@@ -18,14 +18,36 @@ type AuthLoginResponse = {
   token: string;
 };
 
+export type AuthLoginOtpChallenge = {
+  otpRequired: true;
+  email: string;
+  debugCode?: string;
+  debugExpiresAt?: string;
+};
+
+export type AuthLoginResult = AuthLoginResponse | AuthLoginOtpChallenge;
+
 type AuthForgotPasswordResponse = {
   message?: string;
-  debugToken?: string;
-  debugLink?: string;
+  debugCode?: string;
+  debugExpiresAt?: string;
 };
 
 type AuthMessageResponse = {
   message?: string;
+};
+
+type OtpVerifyResponse = {
+  ok?: boolean;
+  token?: string;
+  message?: string;
+};
+
+type OtpRequestResponse = {
+  ok?: boolean;
+  message?: string;
+  debugCode?: string;
+  debugExpiresAt?: string;
 };
 
 type VerifyEmailResponse = {
@@ -43,6 +65,9 @@ type ResendVerificationResponse = {
 type ErrorResponse = {
   error?: string;
   verificationRequired?: boolean;
+  otpRequired?: boolean;
+  debugCode?: string;
+  debugExpiresAt?: string;
 };
 
 const getErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -84,6 +109,9 @@ class AuthApiError extends Error {
 
 const isVerificationRequired = (data: unknown) =>
   Boolean(data && typeof data === 'object' && (data as ErrorResponse).verificationRequired);
+
+const isOtpRequired = (data: unknown) =>
+  Boolean(data && typeof data === 'object' && (data as ErrorResponse).otpRequired);
 
 class AuthService {
   private authBaseUrl: string;
@@ -175,7 +203,7 @@ class AuthService {
     }
   }
 
-  async login(email: string, password: string): Promise<AuthLoginResponse> {
+  async login(email: string, password: string): Promise<AuthLoginResult> {
     try {
       const response = await fetch(`${this.authBaseUrl}/login`, {
         method: 'POST',
@@ -185,14 +213,33 @@ class AuthService {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<AuthLoginResponse> & ErrorResponse;
+      const data = (await response.json().catch(() => ({}))) as Partial<AuthLoginResponse> &
+        Partial<AuthLoginOtpChallenge> &
+        ErrorResponse;
 
       if (!response.ok) {
         const message = pickError(data, 'Login failed');
         if (isVerificationRequired(data)) {
           throw new AuthApiError(message, { verificationRequired: true });
         }
+        if (isOtpRequired(data)) {
+          return {
+            otpRequired: true,
+            email,
+            debugCode: data.debugCode,
+            debugExpiresAt: data.debugExpiresAt,
+          };
+        }
         throw new Error(message);
+      }
+
+      if (data.otpRequired) {
+        return {
+          otpRequired: true,
+          email,
+          debugCode: data.debugCode,
+          debugExpiresAt: data.debugExpiresAt,
+        };
       }
 
       if (!data.user || !data.token) {
@@ -208,6 +255,64 @@ class AuthService {
     } catch (error) {
       const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/login`);
       console.error('[AuthService] Login error:', getErrorMessage(enrichedError));
+      throw enrichedError;
+    }
+  }
+
+  async verifyLoginOtp(email: string, code: string): Promise<AuthLoginResponse> {
+    try {
+      const response = await fetch(`${this.authBaseUrl}/otp/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, purpose: 'login', code }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as Partial<OtpVerifyResponse> & ErrorResponse;
+
+      if (!response.ok) {
+        throw new Error(pickError(data, 'OTP verification failed'));
+      }
+
+      const token = typeof data.token === 'string' ? data.token : '';
+      if (!token) {
+        throw new Error('OTP verification failed');
+      }
+
+      const me = await this.fetchMeWithToken(token);
+      await this.storeAuth(me.user, token);
+
+      return {
+        user: me.user,
+        account: me.account,
+        token,
+      };
+    } catch (error) {
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/otp/verify`);
+      console.error('[AuthService] Verify login OTP error:', getErrorMessage(enrichedError));
+      throw enrichedError;
+    }
+  }
+
+  async resendLoginOtp(email: string): Promise<OtpRequestResponse> {
+    try {
+      const response = await fetch(`${this.authBaseUrl}/otp/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, purpose: 'login' }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as Partial<OtpRequestResponse> & ErrorResponse;
+      if (!response.ok) {
+        throw new Error(pickError(data, 'Unable to resend login code'));
+      }
+      return data as OtpRequestResponse;
+    } catch (error) {
+      const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/otp/request`);
+      console.error('[AuthService] Resend login OTP error:', getErrorMessage(enrichedError));
       throw enrichedError;
     }
   }
@@ -305,14 +410,14 @@ class AuthService {
     }
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<AuthMessageResponse> {
+  async resetPassword(email: string, code: string, newPassword: string): Promise<AuthMessageResponse> {
     try {
       const response = await fetch(`${this.authBaseUrl}/password/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ token, newPassword }),
+        body: JSON.stringify({ email, code, newPassword }),
       });
 
       const data = (await response.json().catch(() => ({}))) as Partial<AuthMessageResponse> & ErrorResponse;
@@ -336,23 +441,7 @@ class AuthService {
         throw new Error('No authentication token found');
       }
 
-      const response = await fetch(`${this.authBaseUrl}/me`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = (await response.json().catch(() => ({}))) as Partial<{ user: User; account?: User['account'] }> &
-        ErrorResponse;
-
-      if (!response.ok) {
-        throw new Error(pickError(data, 'Failed to fetch user'));
-      }
-
-      if (!data.user) {
-        throw new Error('Failed to fetch user');
-      }
+      const data = await this.fetchMeWithToken(token);
 
       console.log('[AuthService] User data retrieved:', data.user.email);
 
@@ -365,6 +454,28 @@ class AuthService {
       console.error('[AuthService] Get user error:', getErrorMessage(enrichedError));
       throw enrichedError;
     }
+  }
+
+  private async fetchMeWithToken(token: string): Promise<{ user: User; account?: User['account'] }> {
+    const response = await fetch(`${this.authBaseUrl}/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    const data = (await response.json().catch(() => ({}))) as Partial<{ user: User; account?: User['account'] }> &
+      ErrorResponse;
+
+    if (!response.ok) {
+      throw new Error(pickError(data, 'Failed to fetch user'));
+    }
+
+    if (!data.user) {
+      throw new Error('Failed to fetch user');
+    }
+
+    return data as { user: User; account?: User['account'] };
   }
 
   async storeAuth(user: User, token: string): Promise<void> {

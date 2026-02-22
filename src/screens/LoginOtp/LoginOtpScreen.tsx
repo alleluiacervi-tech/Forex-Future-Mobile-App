@@ -12,55 +12,77 @@ import { RootStackParamList } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-type ScreenRouteProp = RouteProp<RootStackParamList, 'ForgotPassword'>;
+type ScreenRouteProp = RouteProp<RootStackParamList, 'LoginOtp'>;
 
-export default function ForgotPasswordScreen() {
+export default function LoginOtpScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRouteProp>();
   const theme = useTheme();
-  const { requestPasswordReset, isLoading } = useAuth();
+  const { verifyLoginOtp, resendLoginOtp, isLoading } = useAuth();
 
   const [email, setEmail] = useState(route.params?.email ?? '');
-  const [touched, setTouched] = useState(false);
+  const [code, setCode] = useState(route.params?.code ?? route.params?.debugCode ?? '');
+  const [touched, setTouched] = useState({ email: false, code: false });
 
   const emailError = useMemo(() => {
-    if (!touched) return undefined;
+    if (!touched.email) return undefined;
     if (!email.trim()) return 'Email is required';
     const normalized = email.trim().toLowerCase();
     const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
     return ok ? undefined : 'Enter a valid email address';
-  }, [email, touched]);
+  }, [email, touched.email]);
 
-  const handleSubmit = async () => {
-    setTouched(true);
+  const codeError = useMemo(() => {
+    if (!touched.code) return undefined;
+    const cleaned = code.replace(/\s+/g, '');
+    if (!cleaned) return 'Verification code is required';
+    if (cleaned.length < 4) return 'Code looks too short';
+    return undefined;
+  }, [code, touched.code]);
+
+  const canSubmit = !emailError && !codeError && email.trim() && code.trim();
+
+  const handleVerify = async () => {
+    setTouched({ email: true, code: true });
+    if (!canSubmit) {
+      Alert.alert('Validation error', 'Please fix the errors and try again.');
+      return;
+    }
+
+    const normalized = email.trim().toLowerCase();
+    const cleaned = code.replace(/\s+/g, '');
+
+    try {
+      await verifyLoginOtp(normalized, cleaned);
+      navigation.replace('Main');
+    } catch (error) {
+      Alert.alert('Verification failed', error instanceof Error ? error.message : 'Unable to verify code');
+    }
+  };
+
+  const handleResend = async () => {
+    setTouched((p) => ({ ...p, email: true }));
     if (emailError) {
       Alert.alert('Invalid email', emailError);
       return;
     }
 
     const normalized = email.trim().toLowerCase();
-
     try {
-      const result = await requestPasswordReset(normalized);
-      const message =
+      const result = await resendLoginOtp(normalized);
+      Alert.alert(
+        'Code sent',
         typeof result?.message === 'string' && result.message
           ? result.message
-          : "If an account exists for that email, you'll receive a reset code shortly.";
-
-      Alert.alert('Check your email', message);
+          : 'If the account exists, a new login code will be sent shortly.',
+      );
 
       if (result?.debugCode) {
+        setCode(result.debugCode);
         Alert.alert('Dev code (debug)', result.debugCode);
       }
-
-      navigation.navigate('ResetPassword', {
-        email: normalized,
-        code: result?.debugCode,
-        debugCode: result?.debugCode,
-        debugExpiresAt: result?.debugExpiresAt,
-      });
     } catch (error) {
-      Alert.alert('Request failed', error instanceof Error ? error.message : 'Unable to request reset');
+      Alert.alert('Request failed', error instanceof Error ? error.message : 'Unable to resend code');
     }
   };
 
@@ -77,7 +99,7 @@ export default function ForgotPasswordScreen() {
             <Icon name="arrow-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text variant="h3" style={styles.title}>
-            Forgot Password
+            Enter Login Code
           </Text>
           <View style={styles.headerSpacer} />
         </View>
@@ -85,7 +107,7 @@ export default function ForgotPasswordScreen() {
         <View style={styles.content}>
           <Card style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
             <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.subtitle}>
-              Enter your email and we will send a one-time reset code.
+              Enter the 6-digit OTP sent to your email to complete sign in.
             </Text>
 
             <Input
@@ -93,16 +115,28 @@ export default function ForgotPasswordScreen() {
               value={email}
               onChangeText={(value) => {
                 setEmail(value);
-                if (!touched) setTouched(true);
+                if (!touched.email) setTouched((p) => ({ ...p, email: true }));
               }}
               placeholder="trader@example.com"
               keyboardType="email-address"
               error={emailError}
             />
 
+            <Input
+              label="Login code"
+              value={code}
+              onChangeText={(value) => {
+                setCode(value);
+                if (!touched.code) setTouched((p) => ({ ...p, code: true }));
+              }}
+              placeholder="123456"
+              keyboardType="numeric"
+              error={codeError}
+            />
+
             <Button
-              title="Send reset code"
-              onPress={handleSubmit}
+              title="Verify and continue"
+              onPress={handleVerify}
               variant="primary"
               size="large"
               loading={isLoading}
@@ -110,15 +144,11 @@ export default function ForgotPasswordScreen() {
               style={styles.submit}
             />
 
-            <TouchableOpacity
-              onPress={() => navigation.navigate('ResetPassword')}
-              activeOpacity={0.7}
-              style={styles.secondaryLink}
-            >
-                <Text variant="bodySmall" style={{ color: theme.colors.primary }}>
-                  I already have a code
-                </Text>
-              </TouchableOpacity>
+            <TouchableOpacity onPress={handleResend} activeOpacity={0.7} style={styles.secondaryLink}>
+              <Text variant="bodySmall" style={{ color: theme.colors.primary }}>
+                Resend code
+              </Text>
+            </TouchableOpacity>
           </Card>
         </View>
       </LinearGradient>
