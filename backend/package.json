@@ -19,7 +19,6 @@
   "dependencies": {
     "@arcjet/inspect": "^1.1.0",
     "@arcjet/node": "^1.1.0",
-    "@prisma/client": "5.22.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -34,8 +33,9 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@prisma/client": "^7.4.1",
     "eslint": "^9.9.0",
     "eslint-config-prettier": "^9.1.0",
-    "prisma": "5.22.0"
+    "prisma": "^7.4.1"
   }
 }
