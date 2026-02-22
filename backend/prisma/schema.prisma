@@ -153,6 +153,7 @@ model PaymentMethod {
   user              User     @relation(fields: [userId], references: [id])
   userId            String
   provider          String   @default("card")
+  fingerprint       String?
   brand             String?
   last4             String
   expMonth          Int
@@ -165,6 +166,7 @@ model PaymentMethod {
   updatedAt         DateTime @updatedAt
 
   @@index([userId])
+  @@index([fingerprint])
 }
 
 model MarketCandle {

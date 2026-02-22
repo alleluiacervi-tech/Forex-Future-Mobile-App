@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import crypto from 'crypto';
 import Logger from '../utils/logger.js';
 
 const logger = new Logger('PaymentService');
@@ -6,6 +7,13 @@ const logger = new Logger('PaymentService');
 // initialize stripe client if key provided
 const stripeKey = process.env.STRIPE_SECRET_KEY || '';
 const stripe = stripeKey ? new Stripe(stripeKey, { apiVersion: '2022-11-15' }) : null;
+const cardFingerprintSalt = process.env.CARD_FINGERPRINT_SALT || 'forex-future-card-fingerprint';
+
+const buildCardFingerprint = (cardNumber) => {
+  const digits = String(cardNumber || '').replace(/\D/g, '');
+  if (!digits) return null;
+  return crypto.createHash('sha256').update(`${cardFingerprintSalt}|${digits}`).digest('hex');
+};
 
 class PaymentService {
   /**
@@ -14,6 +22,8 @@ class PaymentService {
    * Returns the token object from Stripe (or a fake stub in dev).
    */
   async tokenizeCard(card) {
+    const fallbackFingerprint = buildCardFingerprint(card?.cardNumber);
+
     if (!stripe) {
       logger.warn('Stripe not configured; returning mock token');
       // never store real card info in db; here we simulate
@@ -25,7 +35,8 @@ class PaymentService {
           exp_month: card.cardExpMonth,
           exp_year: card.cardExpYear,
           name: card.name,
-          address_zip: card.billingPostalCode || null
+          address_zip: card.billingPostalCode || null,
+          fingerprint: fallbackFingerprint
         }
       };
     }
@@ -42,7 +53,18 @@ class PaymentService {
         }
       });
 
-      return token;
+      return {
+        id: token.id,
+        card: {
+          brand: token.card?.brand,
+          last4: token.card?.last4,
+          exp_month: token.card?.exp_month,
+          exp_year: token.card?.exp_year,
+          name: token.card?.name || card.name,
+          address_zip: token.card?.address_zip || card.billingPostalCode || null,
+          fingerprint: token.card?.fingerprint || fallbackFingerprint
+        }
+      };
     } catch (error) {
       logger.error('Stripe tokenization error', { error: error.message });
       throw new Error('Failed to tokenize card');

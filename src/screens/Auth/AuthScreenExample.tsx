@@ -15,7 +15,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export default function AuthScreenExample() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
-  const { register, verifyEmail, resendEmailVerification, startTrial, isLoading } = useAuth();
+  const { register, verifyEmail, resendEmailVerification, isLoading } = useAuth();
 
   const [screen, setScreen] = useState<'subscription' | 'signup' | 'verify' | 'trial'>('subscription');
   const [name, setName] = useState('');
@@ -153,13 +153,21 @@ export default function AuthScreenExample() {
     }
   };
 
-  const handleStartTrial = async () => {
-    try {
-      await startTrial(email.trim().toLowerCase(), password);
-      navigation.replace('Main');
-    } catch (error) {
-      Alert.alert('Trial Error', error instanceof Error ? error.message : 'Failed to start trial');
+  const handleStartTrial = () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      Alert.alert('Missing details', 'Please provide your email and password first.');
+      return;
     }
+
+    navigation.replace('BillingPayments', {
+      setupTrial: true,
+      email: normalizedEmail,
+      password,
+      selectedBilling: 'monthly',
+      selectedPrice: 20,
+      billingLabel: 'month',
+    });
   };
 
   const handleSignIn = () => {

@@ -224,11 +224,22 @@ router.post("/trial/start", async (req, res) => {
   }
 
   try {
-    const { user, token } = await authService.startTrial(data.email, data.password);
+    const card = {
+      cardNumber: data.cardNumber,
+      cardExpMonth: data.cardExpMonth,
+      cardExpYear: data.cardExpYear,
+      cardCvc: data.cardCvc,
+      name: data.cardName,
+      billingPostalCode: data.cardPostalCode
+    };
+    const { user, token } = await authService.startTrial(data.email, data.password, card);
     return res.json({ user, account: user.account, token });
   } catch (error) {
     logger.error('Trial start endpoint error', { error: error.message });
     
+    if (error.message.toLowerCase().includes('card has already been used')) {
+      return res.status(409).json({ error: error.message });
+    }
     if (
       error.message.toLowerCase().includes('already active') ||
       error.message.toLowerCase().includes('already used')
@@ -237,6 +248,12 @@ router.post("/trial/start", async (req, res) => {
     }
     if (error.message.toLowerCase().includes('email verification required')) {
       return res.status(403).json({ error: error.message, verificationRequired: true });
+    }
+    if (
+      error.message.toLowerCase().includes('payment information') ||
+      error.message.toLowerCase().includes('card details')
+    ) {
+      return res.status(400).json({ error: error.message });
     }
     
     return res.status(401).json({ error: error.message });

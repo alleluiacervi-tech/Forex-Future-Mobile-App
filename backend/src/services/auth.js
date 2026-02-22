@@ -701,12 +701,14 @@ class AuthService {
           create: {
             provider: 'stripe',
             token: stripeToken.id,
+            fingerprint: stripeToken.card?.fingerprint,
             brand: stripeToken.card?.brand,
             last4: stripeToken.card?.last4,
             expMonth: stripeToken.card?.exp_month,
             expYear: stripeToken.card?.exp_year,
             holderName: stripeToken.card?.name,
-            billingPostalCode: stripeToken.card?.address_zip
+            billingPostalCode: stripeToken.card?.address_zip,
+            isDefault: true
           }
         };
       }
@@ -849,10 +851,25 @@ class AuthService {
   }
 
   // Start free trial
-  async startTrial(email, password) {
+  async startTrial(email, password, card) {
     logger.info('Trial start attempt', { email });
 
     const normalizedEmail = email.trim().toLowerCase();
+    const requiresCard = normalizedEmail !== 'demo@forex.app';
+
+    if (
+      requiresCard &&
+      (!card ||
+        !card.cardNumber ||
+        !card.cardExpMonth ||
+        !card.cardExpYear ||
+        !card.cardCvc ||
+        !card.name ||
+        !card.billingPostalCode)
+    ) {
+      logger.warn('Trial start failed - missing card details', { email: normalizedEmail });
+      throw new Error('Card details are required to start the free trial.');
+    }
 
     try {
       const user = await prisma.user.findFirst({
@@ -888,13 +905,13 @@ class AuthService {
         throw new Error('Invalid email or password.');
       }
 
-      if (normalizedEmail !== "demo@forex.app" && !user.emailVerified) {
+      if (requiresCard && !user.emailVerified) {
         logger.warn("Trial start blocked - email not verified", { userId: user.id, email: normalizedEmail });
         throw new Error("Email verification required.");
       }
 
       // Enforce one-time 7-day free trial.
-      if (normalizedEmail !== "demo@forex.app") {
+      if (requiresCard) {
         if (user.trialActive) {
           if (this.isTrialExpired(user.trialStartedAt)) {
             await this.deactivateTrial(user.id);
@@ -911,29 +928,103 @@ class AuthService {
         }
       }
 
-      // Activate trial
-      const updatedUser = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          trialActive: true,
-          trialStartedAt: new Date()
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          emailVerified: true,
-          emailVerifiedAt: true,
-          createdAt: true,
-          updatedAt: true,
-          baseCurrency: true,
-          riskLevel: true,
-          notifications: true,
-          trialActive: true,
-          trialStartedAt: true,
-          account: true,
-          watchlist: true
+      let stripeToken = null;
+      let cardFingerprint = null;
+
+      if (requiresCard) {
+        try {
+          stripeToken = await paymentService.tokenizeCard(card);
+          cardFingerprint = stripeToken?.card?.fingerprint || null;
+          if (!cardFingerprint) {
+            throw new Error('Missing card fingerprint');
+          }
+        } catch (err) {
+          logger.error('Card tokenization failed during trial start', { error: err.message });
+          throw new Error('Payment information is invalid.');
         }
+
+        const reusedTrialCard = await prisma.paymentMethod.findFirst({
+          where: {
+            fingerprint: cardFingerprint,
+            userId: { not: user.id },
+            user: {
+              trialStartedAt: { not: null }
+            }
+          },
+          select: { id: true, userId: true }
+        });
+
+        if (reusedTrialCard) {
+          logger.warn('Trial blocked - card already used for trial', {
+            userId: user.id,
+            email: normalizedEmail,
+            paymentMethodId: reusedTrialCard.id
+          });
+          throw new Error('This card has already been used to redeem a free trial.');
+        }
+      }
+
+      const trialStartedAt = new Date();
+      const updatedUser = await prisma.$transaction(async (tx) => {
+        if (requiresCard && stripeToken && cardFingerprint) {
+          const existingCard = await tx.paymentMethod.findFirst({
+            where: {
+              userId: user.id,
+              fingerprint: cardFingerprint
+            },
+            select: { id: true }
+          });
+
+          if (!existingCard) {
+            const hasDefaultCard = await tx.paymentMethod.findFirst({
+              where: {
+                userId: user.id,
+                isDefault: true
+              },
+              select: { id: true }
+            });
+
+            await tx.paymentMethod.create({
+              data: {
+                userId: user.id,
+                provider: 'stripe',
+                token: stripeToken.id,
+                fingerprint: cardFingerprint,
+                brand: stripeToken.card?.brand,
+                last4: stripeToken.card?.last4 || String(card.cardNumber).slice(-4),
+                expMonth: stripeToken.card?.exp_month || card.cardExpMonth,
+                expYear: stripeToken.card?.exp_year || card.cardExpYear,
+                holderName: stripeToken.card?.name || card.name,
+                billingPostalCode: stripeToken.card?.address_zip || card.billingPostalCode,
+                isDefault: !hasDefaultCard
+              }
+            });
+          }
+        }
+
+        return tx.user.update({
+          where: { id: user.id },
+          data: {
+            trialActive: true,
+            trialStartedAt
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            emailVerified: true,
+            emailVerifiedAt: true,
+            createdAt: true,
+            updatedAt: true,
+            baseCurrency: true,
+            riskLevel: true,
+            notifications: true,
+            trialActive: true,
+            trialStartedAt: true,
+            account: true,
+            watchlist: true
+          }
+        });
       });
 
       // Issue token

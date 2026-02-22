@@ -109,8 +109,36 @@ export default function BillingPaymentsScreen() {
       return;
     }
 
+    const cardNumberDigits = formattedCardNumber.replace(/\s/g, '');
+    const [expMonthRaw, expYearRaw] = formattedExpiry.split('/');
+    const expMonth = Number(expMonthRaw);
+    const expYearTwoDigits = Number(expYearRaw);
+    const expYear = Number.isFinite(expYearTwoDigits) ? 2000 + expYearTwoDigits : NaN;
+    const cvcDigits = cvc.replace(/\D/g, '');
+    const cardNameValue = cardName.trim();
+    const cardPostalCodeValue = postalCode.trim();
+
+    if (
+      !cardNumberDigits ||
+      !Number.isInteger(expMonth) ||
+      !Number.isInteger(expYear) ||
+      !cvcDigits ||
+      !cardNameValue ||
+      !cardPostalCodeValue
+    ) {
+      Alert.alert('Payment details missing', 'Please complete your card information to continue.');
+      return;
+    }
+
     try {
-      await startTrial(email, password);
+      await startTrial(email, password, {
+        cardNumber: cardNumberDigits,
+        cardExpMonth: expMonth,
+        cardExpYear: expYear,
+        cardCvc: cvcDigits,
+        cardName: cardNameValue,
+        cardPostalCode: cardPostalCodeValue,
+      });
       navigation.reset({
         index: 0,
         routes: [{ name: 'Main' as never }],

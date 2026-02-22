@@ -30,7 +30,13 @@ const loginSchema = z.object({
 
 const trialStartSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6)
+  password: z.string().min(6),
+  cardNumber: z.string().min(12).max(19),
+  cardExpMonth: z.number().int().min(1).max(12),
+  cardExpYear: z.number().int().min(new Date().getFullYear()),
+  cardCvc: z.string().min(3).max(4),
+  cardName: z.string().min(2),
+  cardPostalCode: z.string().min(3)
 });
 
 const forgotPasswordSchema = z.object({
