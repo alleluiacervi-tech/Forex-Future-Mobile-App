@@ -4,7 +4,7 @@
 // with no external dependencies beyond built-in modules.
 
 import { pipSizeForPair, decimalsForPair } from "./marketValidator.js";
-import { v4 as uuidv4 } from "uuid";
+import crypto from "crypto";
 
 // -----------------------------------------------------------------------------
 // configuration object – all thresholds and tunables live here so they can be
@@ -681,7 +681,7 @@ class AlertManager {
   }
 
   buildAlert(pair, price, bid, ask, velocityAlert, instSignals, confluence) {
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     const timestamp = new Date().toISOString();
     const detectionLatencyMs = nowMs() - price.tsMs;
     // pick primary velocity signal if exists otherwise derive direction from inst

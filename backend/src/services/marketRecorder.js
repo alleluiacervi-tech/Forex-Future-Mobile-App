@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { v4 as uuidv4 } from "uuid";
+import crypto from "crypto";
 import prisma from "../db/prisma.js";
 import { marketEvents } from "./marketCache.js";
 import { symbolToPair } from "./marketSymbols.js";

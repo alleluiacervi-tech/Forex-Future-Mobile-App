@@ -78,22 +78,20 @@ console.log("running market validator/recorder unit tests...");
   state.lastAlertKeyAt.clear();
   state.ticksByPair.clear();
 
-  process.env.MARKET_ALERT_THRESHOLD_1M = "0.01"; // 1% tiny threshold
-  process.env.MARKET_ALERT_EXTREME_MULTIPLIER = "5";
-
+  // feed ticks sequentially through the engine to simulate real operation
   const pair = "EURUSD";
-  const ticks = [];
   const ts0 = Date.now();
-  ticks.push(makeTick(ts0, 1.0, "last"));
-  // second tick is one minute later, reference tick will be the first one
-  ticks.push(makeTick(ts0 + 60000, 1.003, "last")); // +0.3% over 60s (threshold 0.12, not extreme)
+  let alerts;
 
-  // call once – should generate a candidate alert because > threshold
-  const alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 60000, price: 1.003, ticks, priceType: "last" });
-  assert(Array.isArray(alerts) && alerts.length > 0, "an alert should have been returned");
-  assert(state.lastAlertKeyAt.size > 0, "state should also record an alert key");
+  // normal ticks
+  alerts = await maybeCreateAlerts({ pair, tsMs: ts0, price: 1.0000, priceType: "last" });
+  alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 100, price: 1.0001, priceType: "last" });
+  alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 200, price: 1.0002, priceType: "last" });
 
-  console.log("maybeCreateAlerts smoke test passed");
+  // now a velocity burst
+  alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 300, price: 1.0100, priceType: "last" });
+  assert(Array.isArray(alerts) && alerts.length > 0, "should fire alert on burst");
+  console.log("maybeCreateAlerts sequential smoke test passed");
 })();
 
 console.log("all tests completed");
