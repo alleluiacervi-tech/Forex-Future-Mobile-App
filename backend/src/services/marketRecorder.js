@@ -468,7 +468,7 @@ const startMarketRecorder = () => {
       recordIntoCandle({ pair, interval: "4h", tsMs, price, volume });
       recordIntoCandle({ pair, interval: "1d", tsMs, price, volume });
 
-      void maybeCreateAlerts({ pair, tsMs, price, ticks, priceType });
+      void maybeCreateAlerts({ pair, tsMs, price, ticks, priceType, bid: trade.bid, ask: trade.ask, volume });
     } catch (_e) {
       // swallow to ensure recorder cannot crash the process
     }

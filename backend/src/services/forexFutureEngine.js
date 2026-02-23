@@ -294,7 +294,7 @@ class VelocityEngine {
             signal: "SUSTAINED_SURGE",
             pipsPerSecond: Math.abs(fastest.velocity),
             accelerationRatio: fastest.acceleration,
-            windowDetected: `${fastest.windowMs}ms",
+            windowDetected: `${fastest.windowMs}ms`,
             direction: fastest.velocity > 0 ? "BUY" : "SELL",
             percentageEarly: CONFIG.earlyPercent[fastest.windowMs] || 30
           });

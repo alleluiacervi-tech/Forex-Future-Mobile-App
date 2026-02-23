@@ -36,9 +36,14 @@ console.log("running forexFutureEngine unit tests...");
 (() => {
   const buf = new TickBuffer("EURUSD");
   const ve = new VelocityEngine();
-  // create a micro burst
-  for (let i = 0; i < 6; i++) {
-    buf.addTick({ tsMs: i * 100, price: 1.0 + i * 0.0005 });
+  // seed with a slow movement to create a previous velocity
+  buf.addTick({ tsMs: 0, price: 1.0 });
+  buf.addTick({ tsMs: 500, price: 1.0001 }); // 1 pip in 0.5s -> 2 pips/sec
+  ve.analyze("EURUSD", buf); // record previous velocity value
+  // now add a rapid burst over 500ms (25 pips move)
+  const start = buf.buffer[buf.buffer.length - 1].tsMs;
+  for (let i = 1; i <= 5; i++) {
+    buf.addTick({ tsMs: start + i * 100, price: 1.0001 + i * 0.0005 });
   }
   const res = ve.analyze("EURUSD", buf);
   assert(res.some((r) => r.signal === "MICRO_BURST"), "should detect micro burst");
