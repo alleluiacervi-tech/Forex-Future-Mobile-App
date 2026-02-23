@@ -347,7 +347,7 @@ class SmartMoneyEngine {
     return b;
   }
 
-  processTick(pair, tick) {
+  processTick(pair, tick, tickBuffer = null) {
     const builder = this._ensureBuilder(pair);
     builder.addTick(tick);
     const signals = [];
@@ -363,8 +363,11 @@ class SmartMoneyEngine {
     signals.push(...this._detectBOS(pair));
     signals.push(...this._detectCHOCH(pair));
     signals.push(...this._detectVolumeAnomaly(pair));
-    signals.push(...this._detectSpreadSpike(pair, tick));
+    signals.push(...this._detectSpreadSpike(pair, tickBuffer, tick));
     signals.push(...this._detectEqualHighsLows(pair));
+
+    // cleanup memory stores based on current price movement
+    this._cleanupMemory(pair, tick.price);
 
     return signals;
   }
@@ -540,9 +543,23 @@ class SmartMoneyEngine {
   }
 
   // 7. Spread spike detection using tick buffer contents
-  _detectSpreadSpike(pair, tick) {
-    // this will be handled by passing tickBuffer separately; placeholder here
-    return [];
+  _detectSpreadSpike(pair, tickBuffer, tick) {
+    const results = [];
+    if (!tickBuffer || !tick) return results;
+    const avgSpread = tickBuffer.averageSpread();
+    if (avgSpread == null) return results;
+    const curSpread = tick.ask != null && tick.bid != null ? tick.ask - tick.bid : null;
+    if (curSpread == null) return results;
+    if (avgSpread > 0 && curSpread >= avgSpread * 3) {
+      results.push({
+        signal: "SPREAD_SPIKE",
+        multiplier: curSpread / avgSpread,
+        details: { current: curSpread, average: avgSpread }
+      });
+    }
+    // additional check for spike then quick tighten could be implemented by
+    // storing state, but for now we only alert on widening.
+    return results;
   }
 
   // 8. Equal highs/lows detection
@@ -572,6 +589,30 @@ class SmartMoneyEngine {
       }
     }
     return results;
+  }
+
+  // after each tick we may need to purge order blocks or FVGs that have been
+  // consumed by price movement to avoid unbounded growth.
+  _cleanupMemory(pair, currentPrice) {
+    // order blocks: remove if price closes beyond zone by 1 pip
+    const obs = this.orderBlocks.get(pair) || [];
+    const pip = getPipSize(pair);
+    const remaining = obs.filter((ob) => {
+      if (ob.type === "BULLISH") {
+        return currentPrice <= ob.top + pip;
+      } else {
+        return currentPrice >= ob.bottom - pip;
+      }
+    });
+    this.orderBlocks.set(pair, remaining);
+
+    // FVGs: remove if price enters the gap zone
+    const fvgs = this.fvgs.get(pair) || [];
+    const fvRemain = fvgs.filter((f) => {
+      const { low, high } = f.zone;
+      return !(currentPrice >= low && currentPrice <= high);
+    });
+    this.fvgs.set(pair, fvRemain);
   }
 }
 
@@ -737,6 +778,9 @@ class ForexFutureEngine {
     this.alertManager = new AlertManager();
     // allow user to set a callback
     this.onAlert = null;
+
+    // periodic garbage collection to prune old ticks / memory stores
+    this.gcTimer = setInterval(() => this._garbageCollect(), CONFIG.cleanupIntervalMs);
   }
 
   _ensureBuffer(pair) {
@@ -752,8 +796,8 @@ class ForexFutureEngine {
     const buf = this._ensureBuffer(pair);
     const tick = { tsMs, price, priceType, bid: extra.bid, ask: extra.ask, volume: extra.volume };
     buf.addTick(tick);
-    // update candles and institutional engine
-    const instSignals = this.smartMoneyEngine.processTick(pair, tick);
+    // update candles and institutional engine (provide buffer for spread spike)
+    const instSignals = this.smartMoneyEngine.processTick(pair, tick, buf);
     // run velocity detection
     const velAlerts = this.velocityEngine.analyze(pair, buf);
 
@@ -783,6 +827,17 @@ class ForexFutureEngine {
       }
     }
     return alertsToEmit;
+  }
+
+  // prune old data from buffers to keep memory under control
+  _garbageCollect() {
+    const cutoff = nowMs() - 60 * 60 * 1000; // keep last 1h of ticks
+    this.tickBuffers.forEach((buf) => {
+      while (buf.buffer.length && buf.buffer[0].tsMs < cutoff) {
+        buf.buffer.shift();
+      }
+    });
+    // optionally clean candle builders or other state if idle
   }
 
   // synthetic tick generator for test mode – returns an array of alerts that were

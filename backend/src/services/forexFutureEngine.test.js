@@ -61,6 +61,21 @@ console.log("running forexFutureEngine unit tests...");
   console.log("SmartMoneyEngine smoke (no errors) passed");
 })();
 
+// Spread spike detection test
+(() => {
+  const buf = new TickBuffer("EURUSD");
+  const sm = new SmartMoneyEngine();
+  // feed 60 ticks with normal spread 0.0001
+  for (let i = 0; i < 60; i++) {
+    buf.addTick({ tsMs: i * 1000, price: 1.1, bid: 1.1, ask: 1.1001 });
+  }
+  // now sudden spread spike
+  const tick = { tsMs: 61000, price: 1.1, bid: 1.1, ask: 1.1005 };
+  const signals = sm._detectSpreadSpike("EURUSD", buf, tick);
+  assert(signals.some((s) => s.signal === "SPREAD_SPIKE"), "spread spike should be detected");
+  console.log("Spread spike detection test passed");
+})();
+
 // Full engine test with synthetic data
 (() => {
   const engine = new ForexFutureEngine();
