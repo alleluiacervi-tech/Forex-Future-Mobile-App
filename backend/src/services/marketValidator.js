@@ -6,6 +6,9 @@ const isJpyPair = (pair) => String(pair).includes("JPY");
 const decimalsForPair = (pair) => (isJpyPair(pair) ? 3 : 5);
 const pipSizeForPair = (pair) => (isJpyPair(pair) ? 0.01 : 0.0001);
 
+// export helpers for external modules (e.g. velocity engine)
+export { decimalsForPair, pipSizeForPair };
+
 // configuration helpers (environment variables can override defaults)
 const MAX_TICK_RETURN_PERCENT = Number(process.env.MARKET_ALERT_MAX_TICK_RETURN_PERCENT || 0.005); // 0.5% per tick
 const OUTLIER_ZSCORE = Number(process.env.MARKET_ALERT_OUTLIER_ZSCORE || 5);

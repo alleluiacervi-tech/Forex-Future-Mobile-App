@@ -4,6 +4,17 @@ import prisma from "../db/prisma.js";
 import { marketEvents } from "./marketCache.js";
 import { symbolToPair } from "./marketSymbols.js";
 import { validateTick, isTickOutlier, logDiagnostic } from "./marketValidator.js";
+import { ForexFutureEngine } from "./forexFutureEngine.js";
+
+// create a single shared engine instance used by the recorder
+const forexEngine = new ForexFutureEngine();
+// hook the engine into our existing alert event infrastructure so that
+// any alert produced internally is treated exactly the same as the old
+// maybeCreateAlerts alerts.
+forexEngine.onAlert = (alert) => {
+  try { pushRecentAlert(alert); } catch {}
+  try { alertEvents.emit("marketAlert", alert); } catch {}
+};
 
 const alertEvents = new EventEmitter();
 const recentAlerts = [];
@@ -259,7 +270,7 @@ const cleanupPersistedAlerts = async (nowMs = Date.now()) => {
   } catch {}
 };
 
-const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType }) => {
+const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask, volume }) => {
   const nowMs = Date.now();
   const retentionFloorMs = nowMs - marketAlertRetentionMs;
   if (!Number.isFinite(Number(tsMs)) || tsMs < retentionFloorMs) {
@@ -270,117 +281,22 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType }) => {
   pruneRecentAlerts(nowMs);
   await cleanupPersistedAlerts(nowMs);
 
+  // hand off to the new high-performance engine
+  const engineAlerts = forexEngine.processTick(pair, price, priceType, tsMs, { bid, ask, volume });
   const createdAlerts = [];
-  const windows = [1, 15, 60, 240, 1440];
-  for (const windowMinutes of windows) {
-    const threshold = alertThresholds[windowMinutes];
-    if (!Number.isFinite(threshold)) continue;
-
-    const windowMs = windowMinutes * 60 * 1000;
-    const ref = findPriceAtOrBefore(ticks, tsMs - windowMs, priceType);
-    if (!ref || !Number.isFinite(ref.price) || ref.price === 0) {
-      logDiagnostic({ pair, tsMs, price, priceType, windowMinutes, note: "no-reference" });
-      continue;
-    }
-    const fromPrice = ref.price;
-    const ageDelta = tsMs - ref.tsMs;
-    if (ageDelta - windowMs > REF_TICK_TOLERANCE_MS) {
-      logDiagnostic({ pair, tsMs, price, priceType, windowMinutes, refTsMs: ref.tsMs, note: "reference-stale" });
-      continue;
-    }
-    const changePercent = ((price - fromPrice) / fromPrice) * 100;
-    const abs = Math.abs(changePercent);
-
-    // diagnostic log for each candidate (even if below threshold)
-    logDiagnostic({
-      pair,
-      tsMs,
-      price,
-      priceType,
-      windowMinutes,
-      referencePrice: fromPrice,
-      referenceTsMs: ref.tsMs,
-      tsDelta: tsMs - ref.tsMs,
-      changePercent,
-      threshold,
-      validation: abs >= threshold ? "candidate" : "ignored"
-    });
-
-    if (abs < threshold) {
-      // reset any consecutive counter – move too small to care
-      state.consecutiveMoveCounts.delete(`${pair}|${windowMinutes}|${priceType}`);
-      continue;
-    }
-
-    // guard against impossibly large moves (institutional sanity check)
-    const impossibleCap = MAX_MOVE_CAPS[windowMinutes] || Infinity;
-    if (abs > impossibleCap) {
-      logDiagnostic({
-        pair,
-        tsMs,
-        price,
-        priceType,
-        windowMinutes,
-        changePercent,
-        cap: impossibleCap,
-        note: "beyond-impossible"
-      });
-      // do not treat as alert; require external investigation
-      continue;
-    }
-
-    // enforce outlier confirmation if move is extremely large relative to threshold
-    const extremeMultiplier = Number(process.env.MARKET_ALERT_EXTREME_MULTIPLIER || 5);
-    const isExtreme = abs > threshold * extremeMultiplier;
-    const confirmKey = `${pair}|${windowMinutes}|${priceType}`;
-    if (isExtreme) {
-      const prev = state.consecutiveMoveCounts.get(confirmKey) || 0;
-      if (prev < 1) {
-        // first extreme tick, quarantine it and increment counter
-        state.consecutiveMoveCounts.set(confirmKey, prev + 1);
-        logDiagnostic({ pair, tsMs, price, priceType, windowMinutes, changePercent, note: "extreme-first" });
-        // mark this tick as outlier so it won't be used as a reference
-        const lastTick = ticks[ticks.length - 1];
-        if (lastTick && lastTick.tsMs === tsMs && lastTick.price === price && lastTick.priceType === priceType) {
-          lastTick.outlier = true;
-        }
-        continue;
-      }
-      // second consecutive extreme, clear counter and proceed with alert
-      state.consecutiveMoveCounts.delete(confirmKey);
-    }
-
-    const key = `${pair}|${windowMinutes}|${priceType}`;
-    const lastAt = state.lastAlertKeyAt.get(key) || 0;
-    if (tsMs - lastAt < alertCooldownMs) continue;
-    state.lastAlertKeyAt.set(key, tsMs);
-
-    const severity = severityFor(abs, windowMinutes);
-
-    const memoryAlert = {
-      id: uuidv4(),
-      pair,
-      windowMinutes,
-      fromPrice,
-      toPrice: price,
-      changePercent,
-      severity,
-      triggeredAt: new Date(tsMs),
-      createdAt: new Date(tsMs)
-    };
-
-    let emitted = memoryAlert;
+  for (const alert of engineAlerts) {
+    let emitted = alert;
     if (prisma.marketAlert) {
       try {
         emitted = await prisma.marketAlert.create({
           data: {
-            pair,
-            windowMinutes,
-            fromPrice,
-            toPrice: price,
-            changePercent,
-            severity,
-            triggeredAt: new Date(tsMs)
+            pair: alert.pair,
+            windowMinutes: null,
+            fromPrice: null,
+            toPrice: alert.currentPrice,
+            changePercent: null,
+            severity: null,
+            triggeredAt: new Date(alert.timestamp)
           }
         });
       } catch {}
