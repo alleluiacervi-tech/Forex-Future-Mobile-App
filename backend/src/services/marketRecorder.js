@@ -8,6 +8,11 @@ import { validateTick, isTickOutlier, logDiagnostic } from "./marketValidator.js
 const alertEvents = new EventEmitter();
 const recentAlerts = [];
 const maxRecentAlerts = Number(process.env.MARKET_ALERT_BUFFER_MAX || 500);
+const marketAlertRetentionMs = 24 * 60 * 60 * 1000;
+const marketAlertCleanupIntervalMs = Math.max(
+  60 * 1000,
+  Number(process.env.MARKET_ALERT_CLEANUP_INTERVAL_MS || 15 * 60 * 1000)
+);
 
 const toTimeMs = (value) => {
   if (value instanceof Date) return value.getTime();
@@ -15,7 +20,29 @@ const toTimeMs = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const pruneRecentAlerts = (nowMs = Date.now()) => {
+  const cutoffMs = nowMs - marketAlertRetentionMs;
+  const retained = recentAlerts.filter((alert) => {
+    const tsMs = toTimeMs(alert?.triggeredAt) ?? toTimeMs(alert?.createdAt);
+    if (!Number.isFinite(tsMs)) return false;
+    return tsMs >= cutoffMs;
+  });
+
+  recentAlerts.splice(0, recentAlerts.length, ...retained);
+  if (recentAlerts.length > maxRecentAlerts) {
+    recentAlerts.splice(maxRecentAlerts, recentAlerts.length - maxRecentAlerts);
+  }
+};
+
 const pushRecentAlert = (alert) => {
+  const nowMs = Date.now();
+  const cutoffMs = nowMs - marketAlertRetentionMs;
+  const tsMs = toTimeMs(alert?.triggeredAt) ?? toTimeMs(alert?.createdAt) ?? nowMs;
+
+  // Ignore stale alerts outside the retention window.
+  if (tsMs < cutoffMs) return;
+
+  pruneRecentAlerts(nowMs);
   recentAlerts.unshift(alert);
   if (recentAlerts.length > maxRecentAlerts) {
     recentAlerts.splice(maxRecentAlerts, recentAlerts.length - maxRecentAlerts);
@@ -23,14 +50,19 @@ const pushRecentAlert = (alert) => {
 };
 
 const getRecentMarketAlerts = ({ pair = null, limit = 50, since = null } = {}) => {
+  pruneRecentAlerts();
+
   const resolvedLimit = Math.max(1, Math.min(200, Number(limit) || 50));
-  const sinceMs = since ? toTimeMs(since) : null;
+  const retentionFloorMs = Date.now() - marketAlertRetentionMs;
+  const requestedSinceMs = since ? toTimeMs(since) : null;
+  const sinceMs = Number.isFinite(requestedSinceMs)
+    ? Math.max(retentionFloorMs, requestedSinceMs)
+    : retentionFloorMs;
 
   const filtered = recentAlerts.filter((alert) => {
     if (pair && alert?.pair !== pair) return false;
-    if (!sinceMs) return true;
     const tsMs = toTimeMs(alert?.triggeredAt) ?? toTimeMs(alert?.createdAt);
-    return Number.isFinite(tsMs) ? tsMs >= sinceMs : true;
+    return Number.isFinite(tsMs) ? tsMs >= sinceMs : false;
   });
 
   return filtered.slice(0, resolvedLimit);
@@ -75,6 +107,7 @@ const state = {
   ticksByPair: new Map(),
   lastAlertKeyAt: new Map(),
   consecutiveMoveCounts: new Map(),
+  lastAlertCleanupAt: 0,
   maxTickWindowMs: Number(process.env.MARKET_ALERT_TICK_WINDOW_MS || 26 * 60 * 60 * 1000)
 };
 
@@ -211,7 +244,32 @@ const severityFor = (absChangePercent, windowMinutes) => {
   return "medium";
 };
 
+const cleanupPersistedAlerts = async (nowMs = Date.now()) => {
+  if (!prisma.marketAlert) return;
+  if (nowMs - state.lastAlertCleanupAt < marketAlertCleanupIntervalMs) return;
+
+  state.lastAlertCleanupAt = nowMs;
+  const cutoffDate = new Date(nowMs - marketAlertRetentionMs);
+  try {
+    await prisma.marketAlert.deleteMany({
+      where: {
+        triggeredAt: { lt: cutoffDate }
+      }
+    });
+  } catch {}
+};
+
 const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType }) => {
+  const nowMs = Date.now();
+  const retentionFloorMs = nowMs - marketAlertRetentionMs;
+  if (!Number.isFinite(Number(tsMs)) || tsMs < retentionFloorMs) {
+    // Never emit stale alerts older than the 24h retention window.
+    return [];
+  }
+
+  pruneRecentAlerts(nowMs);
+  await cleanupPersistedAlerts(nowMs);
+
   const createdAlerts = [];
   const windows = [1, 15, 60, 240, 1440];
   for (const windowMinutes of windows) {
@@ -447,6 +505,8 @@ const startMarketRecorder = () => {
     return { started: true, enabled: state.enabled, disabledReason: state.disabledReason };
   }
   state.started = true;
+  pruneRecentAlerts();
+  void cleanupPersistedAlerts();
 
   const onTrade = (trade) => {
     try {
@@ -520,4 +580,12 @@ const startMarketRecorder = () => {
   };
 };
 
-export { startMarketRecorder, alertEvents, getMarketWindowSnapshot, getRecentMarketAlerts, maybeCreateAlerts, state };
+export {
+  startMarketRecorder,
+  alertEvents,
+  getMarketWindowSnapshot,
+  getRecentMarketAlerts,
+  maybeCreateAlerts,
+  marketAlertRetentionMs,
+  state
+};

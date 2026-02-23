@@ -1,7 +1,7 @@
 import express from "express";
 import prisma from "../db/prisma.js";
 import { buildFootprintSummary } from "../services/footprints.js";
-import { getRecentMarketAlerts } from "../services/marketRecorder.js";
+import { getRecentMarketAlerts, marketAlertRetentionMs } from "../services/marketRecorder.js";
 import { getHistoricalRates, getLiveRates, getPriceForPair } from "../services/rates.js";
 import { getForexMarketStatus } from "../services/marketSession.js";
 import { symbolToPair } from "../services/marketSymbols.js";
@@ -45,6 +45,12 @@ router.get("/alerts", async (req, res) => {
   const pair = rawPair ? normalizePair(rawPair) : null;
   const limit = Number.isFinite(Number(req.query.limit)) ? Number(req.query.limit) : 50;
   const since = typeof req.query.since === "string" ? req.query.since : null;
+  const retentionFloorDate = new Date(Date.now() - marketAlertRetentionMs);
+  const requestedSinceDate = since ? new Date(since) : null;
+  const effectiveSinceDate =
+    requestedSinceDate && Number.isFinite(requestedSinceDate.getTime()) && requestedSinceDate > retentionFloorDate
+      ? requestedSinceDate
+      : retentionFloorDate;
 
   try {
     if (!prisma.marketAlert) {
@@ -54,7 +60,7 @@ router.get("/alerts", async (req, res) => {
 
     const where = {};
     if (pair) where.pair = pair;
-    if (since) where.triggeredAt = { gte: new Date(since) };
+    where.triggeredAt = { gte: effectiveSinceDate };
 
     const alerts = await prisma.marketAlert.findMany({
       where,
