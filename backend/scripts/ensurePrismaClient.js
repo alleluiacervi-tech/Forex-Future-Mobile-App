@@ -52,7 +52,18 @@ if (result.error) {
 }
 
 if (result.status !== 0) {
-  process.exit(result.status ?? 1);
+  const strictMode = process.env.PRISMA_STRICT_GENERATE === "true";
+  if (strictMode) {
+    process.exit(result.status ?? 1);
+  }
+
+  // Non-strict mode keeps startup unblocked for environments where
+  // generation cannot run (for example offline installs or Prisma 7 adapter
+  // migration in progress). Runtime code handles unavailable DB clients.
+  console.warn(
+    `[prisma] prisma generate failed with exit code ${result.status ?? 1}. Continuing startup because PRISMA_STRICT_GENERATE is not enabled.`
+  );
+  process.exit(0);
 }
 
 const regeneratedClientPkg = readJson(generatedClientPkgPath);
