@@ -63,22 +63,22 @@ const buildArcjetClient = () => {
   }
 
   const base = arcjet(options);
-  const auth = base.withRule([
+  const auth = base.withRule(
     tokenBucket({
       mode: config.arcjet.mode,
       refillRate: authBucket.refillRate,
       interval: authBucket.interval,
       capacity: authBucket.capacity
     })
-  ]);
-  const admin = base.withRule([
+  );
+  const admin = base.withRule(
     tokenBucket({
       mode: config.arcjet.mode,
       refillRate: adminBucket.refillRate,
       interval: adminBucket.interval,
       capacity: adminBucket.capacity
     })
-  ]);
+  );
 
   logger.info("Arcjet protection enabled.", {
     mode: config.arcjet.mode,

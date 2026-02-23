@@ -35,6 +35,7 @@ const DEFAULTS = {
   // Demo key keeps local/dev startup simple; override with your paid key in env.
   fcsApiKey: process.env.FCS_API_KEY || "fcs_socket_demo",
   fcsTimeframe: String(process.env.FCS_WS_TIMEFRAME || "60"),
+  upstreamHeartbeatMs: Number(process.env.FCS_WS_HEARTBEAT_MS || 25000),
   upstreamReconnectMs: Number(
     process.env.MARKET_WS_UPSTREAM_RECONNECT_MS || process.env.FCS_WS_RECONNECT_MS || 5000
   ),
@@ -221,6 +222,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   // Upstream FCS connection
   let upstream = null;
   let upstreamReconnectTimer = null;
+  let upstreamHeartbeatTimer = null;
   let lastUpstreamDataAt = 0;
 
   const pendingUpstreamMessages = [];
@@ -304,8 +306,44 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     }, config.upstreamReconnectMs);
   };
 
+  const stopUpstreamHeartbeat = () => {
+    if (!upstreamHeartbeatTimer) return;
+    clearInterval(upstreamHeartbeatTimer);
+    upstreamHeartbeatTimer = null;
+  };
+
+  const startUpstreamHeartbeat = () => {
+    const intervalMs =
+      Number.isFinite(Number(config.upstreamHeartbeatMs)) && Number(config.upstreamHeartbeatMs) > 0
+        ? Number(config.upstreamHeartbeatMs)
+        : 25000;
+
+    stopUpstreamHeartbeat();
+    upstreamHeartbeatTimer = setInterval(() => {
+      if (!upstream || upstream.readyState !== WebSocket.OPEN) return;
+
+      // Keep both WS-level and JSON-level heartbeats for FCS compatibility.
+      try {
+        upstream.ping();
+      } catch {}
+
+      try {
+        upstream.send(
+          safeJson({
+            type: "ping",
+            timestamp: Date.now()
+          })
+        );
+      } catch {}
+    }, intervalMs);
+
+    upstreamHeartbeatTimer.unref?.();
+  };
+
   const connectUpstream = () => {
     if (!config.upstreamUrl) return;
+
+    stopUpstreamHeartbeat();
 
     try {
       upstream = new WebSocket(config.upstreamUrl);
@@ -322,6 +360,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
         console.log("FCS upstream WS connected.");
       }
 
+      startUpstreamHeartbeat();
       flushUpstreamQueue();
       resubscribeAllSymbols();
 
@@ -361,6 +400,18 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
       if (payload?.type === "error") {
         console.error("FCS upstream error:", payload);
+      }
+
+      if (payload?.type === "ping") {
+        try {
+          upstream?.send(
+            safeJson({
+              type: "pong",
+              timestamp: Date.now()
+            })
+          );
+        } catch {}
+        return;
       }
 
       if (config.logUpstreamMessages) {
@@ -432,6 +483,8 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
 
     upstream.on("close", () => {
+      stopUpstreamHeartbeat();
+
       if (config.logConnections) {
         console.log("FCS upstream WS disconnected. Reconnecting...");
       }
@@ -444,6 +497,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
 
     upstream.on("error", (error) => {
+      stopUpstreamHeartbeat();
       console.error("FCS upstream WS error:", error.message);
     });
   };
@@ -602,6 +656,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     clearInterval(pingInterval);
     clearInterval(marketStatusInterval);
     if (upstreamReconnectTimer) clearTimeout(upstreamReconnectTimer);
+    stopUpstreamHeartbeat();
     stopSyntheticTicks();
     try {
       upstream?.close();
@@ -613,6 +668,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     clearInterval(pingInterval);
     clearInterval(marketStatusInterval);
     if (upstreamReconnectTimer) clearTimeout(upstreamReconnectTimer);
+    stopUpstreamHeartbeat();
     stopSyntheticTicks();
     try {
       upstream?.close();
