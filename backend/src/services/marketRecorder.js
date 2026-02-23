@@ -503,5 +503,7 @@ export {
   getRecentMarketAlerts,
   maybeCreateAlerts,
   marketAlertRetentionMs,
-  state
+  state,
+  // new export for direct access
+  forexEngine
 };

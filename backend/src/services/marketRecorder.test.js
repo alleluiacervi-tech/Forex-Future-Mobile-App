@@ -1,5 +1,6 @@
 import assert from "assert";
 import { validateTick, isTickOutlier } from "./marketValidator.js";
+import { maybeCreateAlerts, state } from "./marketRecorder.js";
 
 // simple utilities for constructing ticks
 const makeTick = (tsMs, price, priceType = "last") => ({ tsMs, price, priceType });
@@ -34,6 +35,24 @@ console.log("running market validator/recorder unit tests...");
   assert(wild, "big jump should be flagged as outlier");
 
   console.log("isTickOutlier tests passed");
+})();
+
+// -- maybeCreateAlerts engine integration smoke --------------------------------
+(async () => {
+  // clear state
+  state.ticksByPair.clear();
+  state.lastAlertKeyAt.clear();
+  const pair = "EURUSD";
+  const ticks = [];
+  const ts0 = Date.now();
+  // two ticks to prime velocity
+  ticks.push(makeTick(ts0, 1.0, "last"));
+  ticks.push(makeTick(ts0 + 500, 1.0001, "last"));
+  // burst
+  ticks.push(makeTick(ts0 + 1000, 1.005, "last"));
+  const alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 1000, price: 1.005, ticks, priceType: "last" });
+  assert(Array.isArray(alerts), "engine should return array");
+  console.log("maybeCreateAlerts engine integration smoke passed");
 })();
 
 // -- maybeCreateAlerts smoke ------------------------------------------------
