@@ -1,7 +1,11 @@
 import { WebSocket, WebSocketServer } from "ws";
-import { recordQuote, recordTrade, clearLiveRatesCache } from "./marketCache.js";
+import Logger from "../utils/logger.js";
+import { clearLiveRatesCache, recordQuote, recordTrade } from "./marketCache.js";
+import { publishMarketStream, subscribeMarketAlerts, subscribeMarketStream } from "./marketPubSub.js";
 import { basePrices, supportedSymbols, symbolToPair } from "./marketSymbols.js";
 import { getForexMarketStatus, isForexMarketOpen } from "./marketSession.js";
+
+const logger = new Logger("MarketSocket");
 
 /**
  * Professional WS Market Stream
@@ -9,36 +13,38 @@ import { getForexMarketStatus, isForexMarketOpen } from "./marketSession.js";
  *
  * Features:
  * - Upstream FCS WebSocket relay
+ * - Circuit breaker around upstream connectivity
  * - Server-side ping/pong heartbeat (detect dead clients)
  * - Backpressure protection (skip sends if buffer is high)
- * - Clean interval lifecycle
+ * - Redis-backed pub/sub fan-out for high client concurrency
  * - Baseline + ref-counted upstream subscriptions
  */
 
 const DEFAULTS = {
   path: "/ws/market",
-  pingMs: 15000, // ping frequency
-  clientTimeoutMs: 30000, // terminate if no pong within this window
-  maxBufferedBytes: 1_000_000, // ~1MB backpressure threshold
+  pingMs: 15000,
+  clientTimeoutMs: 30000,
+  maxBufferedBytes: 1_000_000,
   maxPendingUpstreamMessages: Number(process.env.WS_MAX_PENDING_UPSTREAM_MESSAGES || 1000),
-  // Synthetic ticks are permanently disabled: only real upstream WS market data is allowed.
   enableSyntheticTicks: false,
   forceSyntheticTicks: false,
   syntheticTickMs: Number(process.env.MARKET_WS_SYNTHETIC_MS || 1000),
   upstreamSilentMs: Number(process.env.MARKET_WS_UPSTREAM_SILENT_MS || 15000),
   marketHoursEnforced: process.env.MARKET_HOURS_ENFORCED !== "false",
-  // In local/dev, allow running without upstream WS to avoid startup crashes.
   allowNoUpstream:
     process.env.ALLOW_NO_FCS_WS === "true" ||
     (process.env.NODE_ENV && process.env.NODE_ENV !== "production"),
   fcsUrl: process.env.FCS_WS_URL || "wss://ws-v4.fcsapi.com/ws",
-  // Demo key keeps local/dev startup simple; override with your paid key in env.
   fcsApiKey: process.env.FCS_API_KEY || "fcs_socket_demo",
   fcsTimeframe: String(process.env.FCS_WS_TIMEFRAME || "60"),
   upstreamHeartbeatMs: Number(process.env.FCS_WS_HEARTBEAT_MS || 25000),
   upstreamReconnectMs: Number(
     process.env.MARKET_WS_UPSTREAM_RECONNECT_MS || process.env.FCS_WS_RECONNECT_MS || 5000
   ),
+  breakerFailureThreshold: Number(process.env.MARKET_WS_BREAKER_FAILURE_THRESHOLD || 4),
+  breakerCooldownMs: Number(process.env.MARKET_WS_BREAKER_COOLDOWN_MS || 15000),
+  breakerMaxCooldownMs: Number(process.env.MARKET_WS_BREAKER_MAX_COOLDOWN_MS || 120000),
+  breakerHalfOpenSuccesses: Number(process.env.MARKET_WS_BREAKER_HALF_OPEN_SUCCESSES || 1),
   logConnections: true,
   logUpstreamMessages:
     process.env.MARKET_WS_DEBUG === "true" || process.env.WS_LOG_UPSTREAM_MESSAGES === "true",
@@ -101,6 +107,100 @@ const normalizeFcsPrice = (payload) => {
   };
 };
 
+const createCircuitBreaker = ({
+  failureThreshold,
+  cooldownMs,
+  maxCooldownMs,
+  halfOpenSuccesses
+}) => {
+  const settings = {
+    failureThreshold: Math.max(1, Number(failureThreshold) || 4),
+    cooldownMs: Math.max(1000, Number(cooldownMs) || 15000),
+    maxCooldownMs: Math.max(2000, Number(maxCooldownMs) || 120000),
+    halfOpenSuccesses: Math.max(1, Number(halfOpenSuccesses) || 1)
+  };
+
+  const state = {
+    status: "CLOSED",
+    failures: 0,
+    openedAt: 0,
+    currentCooldownMs: settings.cooldownMs,
+    halfOpenPasses: 0
+  };
+
+  const open = () => {
+    state.status = "OPEN";
+    state.openedAt = Date.now();
+    state.halfOpenPasses = 0;
+    state.currentCooldownMs = Math.min(state.currentCooldownMs * 2, settings.maxCooldownMs);
+  };
+
+  return {
+    canRequest() {
+      if (state.status === "CLOSED") return true;
+      if (state.status === "HALF_OPEN") return true;
+
+      const elapsed = Date.now() - state.openedAt;
+      if (elapsed >= state.currentCooldownMs) {
+        state.status = "HALF_OPEN";
+        state.halfOpenPasses = 0;
+        return true;
+      }
+
+      return false;
+    },
+
+    markSuccess() {
+      if (state.status === "HALF_OPEN") {
+        state.halfOpenPasses += 1;
+        if (state.halfOpenPasses >= settings.halfOpenSuccesses) {
+          state.status = "CLOSED";
+          state.failures = 0;
+          state.currentCooldownMs = settings.cooldownMs;
+          state.halfOpenPasses = 0;
+        }
+        return;
+      }
+
+      state.failures = 0;
+      if (state.status === "OPEN") {
+        state.status = "CLOSED";
+        state.currentCooldownMs = settings.cooldownMs;
+      }
+    },
+
+    markFailure() {
+      state.failures += 1;
+
+      if (state.status === "HALF_OPEN") {
+        open();
+        return;
+      }
+
+      if (state.failures >= settings.failureThreshold) {
+        open();
+      }
+    },
+
+    nextDelayMs(baseDelayMs) {
+      const defaultDelay = Math.max(250, Number(baseDelayMs) || 1000);
+      if (state.status !== "OPEN") return defaultDelay;
+
+      const remaining = state.currentCooldownMs - (Date.now() - state.openedAt);
+      return Math.max(defaultDelay, Math.max(0, remaining));
+    },
+
+    snapshot() {
+      return {
+        status: state.status,
+        failures: state.failures,
+        cooldownMs: state.currentCooldownMs,
+        openedAt: state.openedAt || null
+      };
+    }
+  };
+};
+
 const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   if (!server) throw new Error("initializeSocket: missing { server }");
 
@@ -109,7 +209,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     ...opts
   };
 
-  // Backward compatibility: heartbeatMs retained.
   if (Number.isFinite(Number(heartbeatMs)) && Number(heartbeatMs) > 0) {
     config.pingMs = Number(heartbeatMs);
   }
@@ -125,19 +224,15 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
   const isMarketOpenNow = () =>
     config.marketHoursEnforced ? isForexMarketOpen(new Date()) : true;
 
-  // Track subscriptions per client and aggregate symbol counts
   const clientState = new WeakMap();
+  const connectedClients = new Set();
   const symbolCounts = new Map();
   const defaultSymbols = supportedSymbols;
-  // Always keep a baseline subscription so REST endpoints still receive updates
   const alwaysSubscribedSymbols = new Set(defaultSymbols);
 
   const sendJson = (ws, messageObj) => {
     if (ws.readyState !== WebSocket.OPEN) return;
-
-    // Backpressure guard: if client is slow, skip sending to avoid memory buildup
     if (ws.bufferedAmount > config.maxBufferedBytes) return;
-
     ws.send(safeJson(messageObj));
   };
 
@@ -147,7 +242,76 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     ws.send(rawMessage);
   };
 
-  // Synthetic ticks (dev fallback)
+  let broadcastQueue = [];
+  let broadcastScheduled = false;
+
+  const flushBroadcastQueue = () => {
+    broadcastScheduled = false;
+    if (broadcastQueue.length === 0) return;
+
+    const batch = broadcastQueue;
+    broadcastQueue = [];
+
+    for (const raw of batch) {
+      for (const ws of connectedClients) {
+        sendRaw(ws, raw);
+      }
+    }
+  };
+
+  const enqueueBroadcast = (payload) => {
+    const raw = typeof payload === "string" ? payload : safeJson(payload);
+    broadcastQueue.push(raw);
+
+    if (!broadcastScheduled) {
+      broadcastScheduled = true;
+      setImmediate(flushBroadcastQueue);
+    }
+  };
+
+  const processTradeFrame = (frame) => {
+    if (!frame || frame.type !== "trade" || !Array.isArray(frame.data)) return;
+
+    frame.data.forEach((entry) => {
+      const symbol = entry?.s;
+      const pair = symbolToPair[symbol];
+      const price = Number(entry?.p);
+      const timestampMs = Number(entry?.t);
+      const volume = Number(entry?.v);
+      const bid = Number(entry?.b);
+      const ask = Number(entry?.a);
+
+      if (!pair || !Number.isFinite(price)) return;
+
+      recordTrade({
+        symbol,
+        price,
+        timestampMs: Number.isFinite(timestampMs) ? timestampMs : Date.now(),
+        volume: Number.isFinite(volume) ? volume : 0,
+        bid: Number.isFinite(bid) ? bid : null,
+        ask: Number.isFinite(ask) ? ask : null
+      });
+
+      if (Number.isFinite(bid) && Number.isFinite(ask)) {
+        recordQuote({
+          symbol,
+          bid,
+          ask,
+          timestampMs: Number.isFinite(timestampMs) ? timestampMs : Date.now()
+        });
+      }
+    });
+  };
+
+  const unsubscribeStream = subscribeMarketStream((payload) => {
+    processTradeFrame(payload);
+    enqueueBroadcast(payload);
+  });
+
+  const unsubscribeAlerts = subscribeMarketAlerts((alert) => {
+    enqueueBroadcast({ type: "marketAlert", data: alert });
+  });
+
   let syntheticTimer = null;
   const syntheticPriceBySymbol = new Map();
 
@@ -169,7 +333,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     const meanRevert = Number.isFinite(base) ? (base - current) * pull : 0;
     const next = Number.isFinite(current) ? current + drift + meanRevert : base;
 
-    // keep within a sane range in case basePrices are stale
     const min = Number.isFinite(base) ? base * 0.7 : -Infinity;
     const max = Number.isFinite(base) ? base * 1.3 : Infinity;
     const clamped = clamp(next, min, max);
@@ -188,7 +351,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       : 1000;
 
     if (config.logConnections) {
-      console.warn(`Market WS: starting synthetic ticks (${reason || "fallback"}) every ${tickMs}ms`);
+      logger.warn("Starting synthetic market ticks", { reason: reason || "fallback", tickMs });
     }
 
     syntheticTimer = setInterval(() => {
@@ -197,14 +360,9 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
         const price = nextSyntheticPrice(symbol);
         if (!Number.isFinite(price)) return;
 
-        recordTrade({ symbol, price, timestampMs: ts, volume: 0 });
-
-        const payload = safeJson({
+        publishMarketStream({
           type: "trade",
           data: [{ s: symbol, p: price, t: ts, v: 0 }]
-        });
-        wss.clients.forEach((ws) => {
-          sendRaw(ws, payload);
         });
       });
     }, tickMs);
@@ -215,33 +373,40 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     clearInterval(syntheticTimer);
     syntheticTimer = null;
     if (config.logConnections) {
-      console.warn("Market WS: stopped synthetic ticks (upstream resumed).");
+      logger.info("Stopped synthetic market ticks");
     }
   };
 
-  // Upstream FCS connection
   let upstream = null;
   let upstreamReconnectTimer = null;
   let upstreamHeartbeatTimer = null;
   let lastUpstreamDataAt = 0;
+  let isShuttingDown = false;
+
+  const circuitBreaker = createCircuitBreaker({
+    failureThreshold: config.breakerFailureThreshold,
+    cooldownMs: config.breakerCooldownMs,
+    maxCooldownMs: config.breakerMaxCooldownMs,
+    halfOpenSuccesses: config.breakerHalfOpenSuccesses
+  });
 
   const pendingUpstreamMessages = [];
   const maxPendingUpstreamMessages =
     Number.isFinite(Number(config.maxPendingUpstreamMessages)) && Number(config.maxPendingUpstreamMessages) > 0
       ? Number(config.maxPendingUpstreamMessages)
       : 1000;
+
   let warnedPendingQueueOverflow = false;
 
   const enqueueUpstreamPayload = (payload) => {
     pendingUpstreamMessages.push(payload);
     if (pendingUpstreamMessages.length > maxPendingUpstreamMessages) {
-      // Drop oldest to prevent unbounded memory growth during upstream outages.
       pendingUpstreamMessages.splice(0, pendingUpstreamMessages.length - maxPendingUpstreamMessages);
       if (!warnedPendingQueueOverflow && config.logUpstreamMessages) {
         warnedPendingQueueOverflow = true;
-        console.warn(
-          `Upstream WS: pending message queue overflow (capped at ${maxPendingUpstreamMessages}). Dropping oldest messages.`
-        );
+        logger.warn("Upstream payload queue overflow", {
+          maxPendingUpstreamMessages
+        });
       }
     }
   };
@@ -296,14 +461,24 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
   };
 
-  const scheduleUpstreamReconnect = () => {
-    if (!config.upstreamUrl) return;
+  const scheduleUpstreamReconnect = (reason = "retry") => {
+    if (!config.upstreamUrl || isShuttingDown) return;
     if (upstreamReconnectTimer) return;
+
+    const delayMs = circuitBreaker.nextDelayMs(config.upstreamReconnectMs);
 
     upstreamReconnectTimer = setTimeout(() => {
       upstreamReconnectTimer = null;
-      connectUpstream();
-    }, config.upstreamReconnectMs);
+      connectUpstream("scheduled");
+    }, delayMs);
+
+    upstreamReconnectTimer.unref?.();
+
+    logger.warn("Scheduled upstream reconnect", {
+      reason,
+      delayMs,
+      breaker: circuitBreaker.snapshot()
+    });
   };
 
   const stopUpstreamHeartbeat = () => {
@@ -322,7 +497,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     upstreamHeartbeatTimer = setInterval(() => {
       if (!upstream || upstream.readyState !== WebSocket.OPEN) return;
 
-      // Keep both WS-level and JSON-level heartbeats for FCS compatibility.
       try {
         upstream.ping();
       } catch {}
@@ -340,24 +514,55 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     upstreamHeartbeatTimer.unref?.();
   };
 
-  const connectUpstream = () => {
-    if (!config.upstreamUrl) return;
+  const connectUpstream = (trigger = "manual") => {
+    if (!config.upstreamUrl || isShuttingDown) return;
+    if (upstream && (upstream.readyState === WebSocket.CONNECTING || upstream.readyState === WebSocket.OPEN)) {
+      return;
+    }
+
+    if (!circuitBreaker.canRequest()) {
+      scheduleUpstreamReconnect("circuit-open");
+      return;
+    }
 
     stopUpstreamHeartbeat();
+
+    let failed = false;
 
     try {
       upstream = new WebSocket(config.upstreamUrl);
     } catch (error) {
-      console.error("Failed to create FCS upstream WS:", error.message);
-      scheduleUpstreamReconnect();
+      failed = true;
+      circuitBreaker.markFailure();
+      logger.error("Failed to create upstream WebSocket", {
+        trigger,
+        error: error?.message,
+        breaker: circuitBreaker.snapshot()
+      });
+      scheduleUpstreamReconnect("constructor-error");
       return;
     }
 
+    const markFailure = (event, error) => {
+      if (failed) return;
+      failed = true;
+      circuitBreaker.markFailure();
+      logger.warn("Upstream connection failure", {
+        event,
+        error: error?.message,
+        breaker: circuitBreaker.snapshot()
+      });
+    };
+
     upstream.on("open", () => {
       lastUpstreamDataAt = 0;
+      circuitBreaker.markSuccess();
 
       if (config.logConnections) {
-        console.log("FCS upstream WS connected.");
+        logger.info("FCS upstream connected", {
+          trigger,
+          breaker: circuitBreaker.snapshot()
+        });
       }
 
       startUpstreamHeartbeat();
@@ -373,16 +578,13 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
             : 15000;
 
         setTimeout(() => {
-          // If upstream never emits prices soon after connect, it often means
-          // invalid symbols, plan limitations, or invalid credentials.
           if (!upstream || upstream.readyState !== WebSocket.OPEN) return;
           if (lastUpstreamDataAt) return;
 
           if (config.logConnections) {
-            console.warn(
-              `FCS upstream WS: connected but no prices received after ${silentMs}ms. ` +
-                `Set WS_LOG_UPSTREAM_MESSAGES=true to inspect payloads.`
-            );
+            logger.warn("FCS upstream connected but no price frames received", {
+              silentMs
+            });
           }
 
           startSyntheticTicks("upstream silent");
@@ -399,7 +601,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       }
 
       if (payload?.type === "error") {
-        console.error("FCS upstream error:", payload);
+        logger.warn("FCS upstream payload error", { payload });
       }
 
       if (payload?.type === "ping") {
@@ -415,9 +617,10 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       }
 
       if (config.logUpstreamMessages) {
-        try {
-          console.log(`[FCS] ${payload?.type} ${payload?.symbol || ""}`.trim());
-        } catch {}
+        logger.debug("FCS upstream frame", {
+          type: payload?.type,
+          symbol: payload?.symbol
+        });
       }
 
       const normalized = normalizeFcsPrice(payload);
@@ -430,91 +633,70 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
         lastUpstreamDataAt = Date.now();
         stopSyntheticTicks();
 
-        recordTrade({
-          symbol: normalized.symbol,
-          price: normalized.price,
-          timestampMs: normalized.timestampMs,
-          volume: normalized.volume
-        });
-
-        if (Number.isFinite(normalized.bid) && Number.isFinite(normalized.ask)) {
-          recordQuote({
-            symbol: normalized.symbol,
-            bid: normalized.bid,
-            ask: normalized.ask,
-            timestampMs: normalized.timestampMs
-          });
-        }
-
-        const relayPayload = safeJson({
+        publishMarketStream({
           type: "trade",
           data: [
             {
               s: normalized.symbol,
               p: normalized.price,
               t: normalized.timestampMs,
-              v: normalized.volume
+              v: normalized.volume,
+              b: normalized.bid,
+              a: normalized.ask
             }
           ]
         });
 
         if (config.logUpstreamSamples) {
-          try {
-            console.log(
-              `[price] ${normalized.symbol}: ${normalized.price} @ ${new Date(normalized.timestampMs).toISOString()}`
-            );
-          } catch {}
+          logger.debug("Normalized upstream price", {
+            symbol: normalized.symbol,
+            price: normalized.price,
+            timestamp: new Date(normalized.timestampMs).toISOString()
+          });
         }
-
-        wss.clients.forEach((ws) => {
-          sendRaw(ws, relayPayload);
-        });
 
         return;
       }
 
-      // Relay upstream status/error frames as-is for diagnostics.
       if (payload?.type === "welcome" || payload?.type === "message" || payload?.type === "error") {
-        const msg = safeJson(payload);
-        wss.clients.forEach((ws) => {
-          sendRaw(ws, msg);
-        });
+        publishMarketStream(payload);
       }
     });
 
-    upstream.on("close", () => {
+    upstream.on("close", (code, reasonBuffer) => {
       stopUpstreamHeartbeat();
+      const reason = Buffer.isBuffer(reasonBuffer) ? reasonBuffer.toString("utf8") : String(reasonBuffer || "");
 
       if (config.logConnections) {
-        console.log("FCS upstream WS disconnected. Reconnecting...");
+        logger.warn("FCS upstream disconnected", { code, reason });
       }
 
-      if (config.enableSyntheticTicks && isMarketOpenNow() && wss.clients.size > 0) {
+      markFailure("close", new Error(`upstream closed (${code})`));
+
+      if (config.enableSyntheticTicks && isMarketOpenNow() && connectedClients.size > 0) {
         startSyntheticTicks("upstream disconnected");
       }
 
-      scheduleUpstreamReconnect();
+      scheduleUpstreamReconnect("close");
     });
 
     upstream.on("error", (error) => {
       stopUpstreamHeartbeat();
-      console.error("FCS upstream WS error:", error.message);
+      markFailure("error", error);
     });
   };
 
   if (config.upstreamUrl) {
-    connectUpstream();
+    connectUpstream("startup");
   } else if (config.logConnections) {
-    console.warn("FCS upstream WS disabled. Set FCS_API_KEY/FCS_WS_URL or ALLOW_NO_FCS_WS=true.");
+    logger.warn("FCS upstream disabled. Set FCS_API_KEY/FCS_WS_URL or ALLOW_NO_FCS_WS=true.");
   }
 
-  // Heartbeat ping/pong
   const pingInterval = setInterval(() => {
-    wss.clients.forEach((ws) => {
+    connectedClients.forEach((ws) => {
       const state = clientState.get(ws);
       const lastPongAt = state?.lastPongAt ?? 0;
 
-      // If too long since last pong -> terminate
       if (Date.now() - lastPongAt > config.clientTimeoutMs) {
         try {
           ws.terminate();
@@ -540,11 +722,10 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     if (marketOpen === previousMarketOpen) return;
 
     if (marketOpen && !previousMarketOpen) {
-      // Start a fresh session from real opening ticks only.
       clearLiveRatesCache();
 
       if (!upstream || upstream.readyState === WebSocket.CLOSED || upstream.readyState === WebSocket.CLOSING) {
-        connectUpstream();
+        connectUpstream("market-open");
       } else if (upstream.readyState === WebSocket.OPEN) {
         resubscribeAllSymbols();
       }
@@ -552,20 +733,18 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
     previousMarketOpen = marketOpen;
 
-    const payload = safeJson({
+    publishMarketStream({
       type: "marketStatus",
       data: {
         ...status,
         enforced: config.marketHoursEnforced
       }
     });
-
-    wss.clients.forEach((ws) => {
-      sendRaw(ws, payload);
-    });
   }, 30_000);
 
   wss.on("connection", (ws) => {
+    connectedClients.add(ws);
+
     const initialSubscriptions = new Set(defaultSymbols);
     clientState.set(ws, {
       connectedAt: Date.now(),
@@ -579,7 +758,6 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
 
     ws.on("message", (raw) => {
-      // Only ping supported; symbol subscriptions are managed server-side.
       let msg;
       try {
         msg = JSON.parse(raw.toString());
@@ -593,11 +771,12 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
         return;
       }
 
-      // Unknown message type
       sendJson(ws, { type: "error", ts: nowIso(), message: "Unsupported message type." });
     });
 
     ws.on("close", () => {
+      connectedClients.delete(ws);
+
       const state = clientState.get(ws);
       if (!state) return;
 
@@ -612,17 +791,20 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
           symbolCounts.set(symbol, next);
         }
       });
+
+      if (config.logConnections) {
+        logger.info("Market client disconnected", { activeClients: connectedClients.size });
+      }
     });
 
     ws.on("error", () => {
-      // Avoid crashing the server due to a client socket error
+      connectedClients.delete(ws);
     });
 
     if (config.logConnections) {
-      console.log(`Client connected. Active: ${wss.clients.size}`);
+      logger.info("Market client connected", { activeClients: connectedClients.size });
     }
 
-    // Welcome + initial snapshot
     defaultSymbols.forEach((symbol) => {
       const current = symbolCounts.get(symbol) || 0;
       symbolCounts.set(symbol, current + 1);
@@ -643,39 +825,34 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
         enforced: config.marketHoursEnforced
       }
     });
-
-    ws.on("close", () => {
-      if (config.logConnections) {
-        console.log(`Client disconnected. Active: ${wss.clients.size}`);
-      }
-    });
   });
 
-  // Cleanup on server close (wss "close" event means the WS server was closed)
-  wss.on("close", () => {
+  const cleanup = () => {
+    isShuttingDown = true;
     clearInterval(pingInterval);
     clearInterval(marketStatusInterval);
     if (upstreamReconnectTimer) clearTimeout(upstreamReconnectTimer);
     stopUpstreamHeartbeat();
     stopSyntheticTicks();
+    unsubscribeStream();
+    unsubscribeAlerts();
+
     try {
       upstream?.close();
     } catch {}
-  });
+  };
 
-  // Allow caller to close cleanly
+  wss.on("close", cleanup);
+
   wss.closeGracefully = () => {
-    clearInterval(pingInterval);
-    clearInterval(marketStatusInterval);
-    if (upstreamReconnectTimer) clearTimeout(upstreamReconnectTimer);
-    stopUpstreamHeartbeat();
-    stopSyntheticTicks();
-    try {
-      upstream?.close();
-    } catch {}
+    cleanup();
     try {
       wss.close();
     } catch {}
+  };
+
+  wss.publish = (payload) => {
+    publishMarketStream(payload);
   };
 
   return wss;
