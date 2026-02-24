@@ -37,76 +37,70 @@ console.log("running market validator/recorder unit tests...");
   console.log("isTickOutlier tests passed");
 })();
 
-// -- maybeCreateAlerts engine integration smoke --------------------------------
+// aggregate asynchronous tests sequentially to avoid state races
 (async () => {
-  // clear state
+  // -- maybeCreateAlerts engine integration smoke --------------------------------
   state.ticksByPair.clear();
   state.lastAlertKeyAt.clear();
-  const pair = "EURUSD";
-  const ticks = [];
-  const ts0 = Date.now();
-  // two ticks to prime velocity
-  ticks.push(makeTick(ts0, 1.0, "last"));
-  ticks.push(makeTick(ts0 + 500, 1.0001, "last"));
-  // burst
-  ticks.push(makeTick(ts0 + 1000, 1.005, "last"));
-  const alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 1000, price: 1.005, ticks, priceType: "last" });
-  assert(Array.isArray(alerts), "engine should return array");
-  console.log("maybeCreateAlerts engine integration smoke passed");
-})();
+  {
+    const pair = "EURUSD";
+    const ticks = [];
+    const ts0 = Date.now();
+    // two ticks to prime velocity
+    ticks.push(makeTick(ts0, 1.0, "last"));
+    ticks.push(makeTick(ts0 + 500, 1.0001, "last"));
+    // burst
+    ticks.push(makeTick(ts0 + 1000, 1.005, "last"));
+    const alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 1000, price: 1.005, ticks, priceType: "last" });
+    assert(Array.isArray(alerts), "engine should return array");
+    console.log("maybeCreateAlerts engine integration smoke passed");
+  }
 
-// ensure fromPrice from engine propagates through recorder wrapper by
-// feeding ticks sequentially since the engine maintains internal state.
-(async () => {
+  // ensure fromPrice from engine propagates through recorder wrapper by
+  // feeding ticks sequentially since the engine maintains internal state.
   state.ticksByPair.clear();
   state.lastAlertKeyAt.clear();
-  const pair = "EURUSD";
-  const ts0 = Date.now();
-  // feed three ticks as in engine unit tests
-  await maybeCreateAlerts({ pair, tsMs: ts0, price: 1.0, priceType: "last" });
-  await maybeCreateAlerts({ pair, tsMs: ts0 + 500, price: 1.0001, priceType: "last" });
-  const alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 1000, price: 1.005, priceType: "last" });
-  assert(alerts.length > 0 && alerts[0].fromPrice != null, "recorder should surface fromPrice");
-  console.log("maybeCreateAlerts fromPrice propagation test passed");
-})();
+  {
+    const pair = "EURUSD";
+    const ts0 = Date.now();
+    const a1 = await maybeCreateAlerts({ pair, tsMs: ts0, price: 1.0, priceType: "last" });
+    const a2 = await maybeCreateAlerts({ pair, tsMs: ts0 + 500, price: 1.0001, priceType: "last" });
+    const a3 = await maybeCreateAlerts({ pair, tsMs: ts0 + 1000, price: 1.005, priceType: "last" });
+    const alerts = [...(a1 || []), ...(a2 || []), ...(a3 || [])];
+    assert(alerts.length > 0 && alerts[0].fromPrice != null, "recorder should surface fromPrice");
+    console.log("maybeCreateAlerts fromPrice propagation test passed");
+  }
 
-// -- maybeCreateAlerts smoke ------------------------------------------------
-(async () => {
+  // -- maybeCreateAlerts smoke ------------------------------------------------
   if (process.env.RUN_MARKET_RECORDER_SMOKE !== "true") {
     console.log("skipping maybeCreateAlerts smoke test (set RUN_MARKET_RECORDER_SMOKE=true to enable)");
-    return;
+  } else {
+    let recorderModule;
+    try {
+      recorderModule = await import("./marketRecorder.js");
+    } catch (error) {
+      const reason = error?.message ? String(error.message) : "module failed to load";
+      console.warn(`skipping maybeCreateAlerts smoke test (${reason})`);
+    }
+
+    if (recorderModule) {
+      const { maybeCreateAlerts, state } = recorderModule;
+      state.consecutiveMoveCounts.clear();
+      state.lastAlertKeyAt.clear();
+      state.ticksByPair.clear();
+
+      const pair = "EURUSD";
+      const ts0 = Date.now();
+      let alerts;
+
+      alerts = await maybeCreateAlerts({ pair, tsMs: ts0, price: 1.0000, priceType: "last" });
+      alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 100, price: 1.0001, priceType: "last" });
+      alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 200, price: 1.0002, priceType: "last" });
+      alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 300, price: 1.0100, priceType: "last" });
+      assert(Array.isArray(alerts) && alerts.length > 0, "should fire alert on burst");
+      console.log("maybeCreateAlerts sequential smoke test passed");
+    }
   }
 
-  let recorderModule;
-  try {
-    recorderModule = await import("./marketRecorder.js");
-  } catch (error) {
-    const reason = error?.message ? String(error.message) : "module failed to load";
-    console.warn(`skipping maybeCreateAlerts smoke test (${reason})`);
-    return;
-  }
-
-  const { maybeCreateAlerts, state } = recorderModule;
-
-  // reset state
-  state.consecutiveMoveCounts.clear();
-  state.lastAlertKeyAt.clear();
-  state.ticksByPair.clear();
-
-  // feed ticks sequentially through the engine to simulate real operation
-  const pair = "EURUSD";
-  const ts0 = Date.now();
-  let alerts;
-
-  // normal ticks
-  alerts = await maybeCreateAlerts({ pair, tsMs: ts0, price: 1.0000, priceType: "last" });
-  alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 100, price: 1.0001, priceType: "last" });
-  alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 200, price: 1.0002, priceType: "last" });
-
-  // now a velocity burst
-  alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 300, price: 1.0100, priceType: "last" });
-  assert(Array.isArray(alerts) && alerts.length > 0, "should fire alert on burst");
-  console.log("maybeCreateAlerts sequential smoke test passed");
+  console.log("all tests completed");
 })();
-
-console.log("all tests completed");
