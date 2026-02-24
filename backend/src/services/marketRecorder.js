@@ -294,7 +294,14 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask
         const data = {
           pair: alert.pair,
           windowMinutes: isEngine ? 0 : alert.windowMinutes,
-          fromPrice: isEngine ? alert.currentPrice : alert.fromPrice,
+          // for engine alerts use the explicit fromPrice if provided, otherwise
+          // fall back to the price itself.  this allows downstream callers to
+          // compute accurate move percentages.
+          fromPrice: isEngine
+            ? alert.fromPrice != null
+              ? alert.fromPrice
+              : alert.currentPrice
+            : alert.fromPrice,
           toPrice: alert.currentPrice,
           changePercent: isEngine ? 0 : alert.changePercent,
           severity: isEngine ? alert.confidence?.label || "" : alert.severity,

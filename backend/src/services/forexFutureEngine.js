@@ -762,6 +762,10 @@ class AlertManager {
     // increment daily count
     this.alertsToday.set(pair, (this.alertsToday.get(pair) || 0) + 1);
 
+    // determine fromPrice for tracking moves; if we had a velocity signal include the
+    // price at the beginning of the window, otherwise default to current price.
+    const fromPrice = velocity && velocity.startPrice != null ? velocity.startPrice : price.price;
+
     return {
       id,
       pair,
@@ -775,6 +779,7 @@ class AlertManager {
       },
       direction,
       currentPrice: price.price,
+      fromPrice,
       bid: bid || null,
       ask: ask || null,
       spread: bid != null && ask != null ? ask - bid : null,

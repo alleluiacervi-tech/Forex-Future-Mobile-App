@@ -55,6 +55,21 @@ console.log("running market validator/recorder unit tests...");
   console.log("maybeCreateAlerts engine integration smoke passed");
 })();
 
+// ensure fromPrice from engine propagates through recorder wrapper by
+// feeding ticks sequentially since the engine maintains internal state.
+(async () => {
+  state.ticksByPair.clear();
+  state.lastAlertKeyAt.clear();
+  const pair = "EURUSD";
+  const ts0 = Date.now();
+  // feed three ticks as in engine unit tests
+  await maybeCreateAlerts({ pair, tsMs: ts0, price: 1.0, priceType: "last" });
+  await maybeCreateAlerts({ pair, tsMs: ts0 + 500, price: 1.0001, priceType: "last" });
+  const alerts = await maybeCreateAlerts({ pair, tsMs: ts0 + 1000, price: 1.005, priceType: "last" });
+  assert(alerts.length > 0 && alerts[0].fromPrice != null, "recorder should surface fromPrice");
+  console.log("maybeCreateAlerts fromPrice propagation test passed");
+})();
+
 // -- maybeCreateAlerts smoke ------------------------------------------------
 (async () => {
   if (process.env.RUN_MARKET_RECORDER_SMOKE !== "true") {
