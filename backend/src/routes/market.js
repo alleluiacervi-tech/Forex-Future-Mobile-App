@@ -54,7 +54,7 @@ router.get("/alerts", async (req, res) => {
 
   try {
     if (!prisma.marketAlert) {
-      const alerts = getRecentMarketAlerts({ pair, limit, since });
+      const alerts = await getRecentMarketAlerts({ pair, limit, since });
       return res.json({ alerts });
     }
 
@@ -70,7 +70,7 @@ router.get("/alerts", async (req, res) => {
 
     return res.json({ alerts });
   } catch (_error) {
-    const alerts = getRecentMarketAlerts({ pair, limit, since });
+    const alerts = await getRecentMarketAlerts({ pair, limit, since });
     return res.json({ alerts });
   }
 });

@@ -1,7 +1,9 @@
 import express from "express";
 import { getRecentMarketAlerts } from "../services/marketRecorder.js";
+import Logger from "../utils/logger.js";
 
 const router = express.Router();
+const logger = new Logger("AdminRoutes");
 
 // return a single dashboard payload containing all data needed by the admin screen
 router.get("/dashboard", async (req, res) => {
@@ -64,7 +66,7 @@ router.get("/dashboard", async (req, res) => {
       { name: "Annual", population: 27, color: "#2196F3" },
     ];
 
-    const alerts = getRecentMarketAlerts({ limit: 6 });
+    const alerts = await getRecentMarketAlerts({ limit: 6 });
 
     const ws = {
       provider: "FCS API",
@@ -113,7 +115,7 @@ router.get("/dashboard", async (req, res) => {
       revenueMetrics,
     });
   } catch (err) {
-    console.error(err);
+    logger.error("Failed to build dashboard payload", { error: err?.message });
     res.status(500).json({ error: "Unable to build dashboard payload." });
   }
 });

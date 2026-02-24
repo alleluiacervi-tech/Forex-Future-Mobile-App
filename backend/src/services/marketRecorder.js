@@ -58,9 +58,27 @@ const pushRecentAlert = (alert) => {
   if (recentAlerts.length > maxRecentAlerts) {
     recentAlerts.splice(maxRecentAlerts, recentAlerts.length - maxRecentAlerts);
   }
+
+  const persistRecentAlert = async () => {
+    const redis = await getRedisClient();
+    if (!redis) return;
+
+    try {
+      const serialized = JSON.stringify(alert);
+      const pipeline = redis.pipeline();
+      pipeline.lpush(redisRecentAlertsKey, serialized);
+      pipeline.ltrim(redisRecentAlertsKey, 0, maxRecentAlerts - 1);
+      pipeline.expire(redisRecentAlertsKey, Math.ceil(marketAlertRetentionMs / 1000));
+      await pipeline.exec();
+    } catch (error) {
+      logger.warn("Failed to persist recent alert to Redis", { error: error?.message });
+    }
+  };
+
+  void persistRecentAlert();
 };
 
-const getRecentMarketAlerts = ({ pair = null, limit = 50, since = null } = {}) => {
+const getRecentMarketAlerts = async ({ pair = null, limit = 50, since = null } = {}) => {
   pruneRecentAlerts();
 
   const resolvedLimit = Math.max(1, Math.min(200, Number(limit) || 50));
@@ -70,13 +88,40 @@ const getRecentMarketAlerts = ({ pair = null, limit = 50, since = null } = {}) =
     ? Math.max(retentionFloorMs, requestedSinceMs)
     : retentionFloorMs;
 
-  const filtered = recentAlerts.filter((alert) => {
-    if (pair && alert?.pair !== pair) return false;
-    const tsMs = toTimeMs(alert?.triggeredAt) ?? toTimeMs(alert?.createdAt);
-    return Number.isFinite(tsMs) ? tsMs >= sinceMs : false;
-  });
+  const filterAlerts = (alerts) =>
+    alerts
+      .filter((alert) => {
+        if (pair && alert?.pair !== pair) return false;
+        const tsMs = toTimeMs(alert?.triggeredAt) ?? toTimeMs(alert?.createdAt);
+        return Number.isFinite(tsMs) ? tsMs >= sinceMs : false;
+      })
+      .slice(0, resolvedLimit);
 
-  return filtered.slice(0, resolvedLimit);
+  const redis = await getRedisClient();
+  if (redis) {
+    try {
+      const values = await redis.lrange(redisRecentAlertsKey, 0, Math.max(maxRecentAlerts - 1, resolvedLimit - 1));
+      if (Array.isArray(values) && values.length > 0) {
+        const parsed = values
+          .map((entry) => {
+            try {
+              return JSON.parse(entry);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
+
+        if (parsed.length > 0) {
+          return filterAlerts(parsed);
+        }
+      }
+    } catch (error) {
+      logger.warn("Failed reading recent alerts from Redis", { error: error?.message });
+    }
+  }
+
+  return filterAlerts(recentAlerts);
 };
 
 const parseIntervalMs = (interval) => {
@@ -142,15 +187,10 @@ const warnDbConnectivity = (error) => {
   const now = Date.now();
   if (now - state.lastDbWarningAt < 30000) return;
   state.lastDbWarningAt = now;
-  try {
-    console.warn(
-      "[MarketRecorder] Database temporarily unavailable. Will retry on next flush.",
-      {
-        code: error?.code,
-        message: error?.message
-      }
-    );
-  } catch {}
+  logger.warn("Database temporarily unavailable. Market recorder will retry.", {
+    code: error?.code,
+    message: error?.message
+  });
 };
 
 const ensureTicks = (pair) => {
