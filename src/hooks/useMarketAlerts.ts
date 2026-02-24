@@ -10,9 +10,14 @@ type ApiMarketAlert = {
   fromPrice: number;
   toPrice: number;
   changePercent: number;
+  currentPrice?: number;
   severity?: string;
   triggeredAt: string;
   createdAt?: string;
+  confidence?: { score: number; label: string; factors?: string[] };
+  velocity?: { signal: string; pipsPerSecond: number; accelerationRatio: number; windowDetected: string; direction: string };
+  levels?: { entry: number; stopLoss: number; takeProfit: number; slPips: number; tpPips: number; riskReward: number };
+  direction?: 'BUY' | 'SELL';
 };
 
 type ApiMarketAlertsResponse = {
@@ -43,11 +48,20 @@ const minutesAgoFromIso = (iso: string) => {
 };
 
 const mapApiAlert = (alert: ApiMarketAlert): MarketAlert => {
-  const window = windowLabel(alert.windowMinutes);
+  const isVelocity = alert.velocity && alert.windowMinutes === 0;
+  const window = isVelocity ? alert.velocity.windowDetected : windowLabel(alert.windowMinutes);
   const change = Number(alert.changePercent);
   const sign = change >= 0 ? '+' : '';
   const abs = Math.abs(change);
-  const direction = change >= 0 ? 'up' : 'down';
+  const pxDir = alert.direction === 'BUY' ? 'up' : 'down';
+
+  const title = isVelocity && alert.velocity
+    ? `⚡ ${alert.pair} — ${alert.velocity.signal} ${alert.direction || 'SIGNAL'}`
+    : `Big move: ${alert.pair} ${sign}${abs.toFixed(2)}% (${window})`;
+
+  const msg = isVelocity && alert.velocity && alert.levels
+    ? `${alert.pair} moving ${alert.velocity.pipsPerSecond.toFixed(2)} pips/sec. Entry: ${formatPairPrice(alert.pair, alert.levels.entry)}, SL: ${formatPairPrice(alert.pair, alert.levels.stopLoss)}, TP: ${formatPairPrice(alert.pair, alert.levels.takeProfit)} (RR: ${alert.levels.riskReward.toFixed(1)}). Confidence: ${alert.confidence?.label || 'UNKNOWN'}.`
+    : `${alert.pair} moved ${pxDir} from ${formatPairPrice(alert.pair, alert.fromPrice)} to ${formatPairPrice(alert.pair, alert.toPrice)} (${sign}${abs.toFixed(2)}%) in ${window}.`;
 
   return {
     id: alert.id,
@@ -55,11 +69,18 @@ const mapApiAlert = (alert: ApiMarketAlert): MarketAlert => {
     type: 'VOLATILITY',
     timeframe: window,
     changePercent: change,
-    severity: alert.severity,
+    severity: alert.severity || alert.confidence?.label?.toLowerCase() || 'medium',
     triggeredAt: alert.triggeredAt,
     minutesAgo: minutesAgoFromIso(alert.triggeredAt),
-    title: `Big move: ${alert.pair} ${sign}${abs.toFixed(2)}% (${window})`,
-    message: `${alert.pair} moved ${direction} from ${formatPairPrice(alert.pair, alert.fromPrice)} to ${formatPairPrice(alert.pair, alert.toPrice)} (${sign}${abs.toFixed(2)}%) in ${window}.`,
+    title,
+    message: msg,
+    fromPrice: alert.fromPrice,
+    toPrice: alert.toPrice,
+    currentPrice: alert.currentPrice || alert.toPrice,
+    confidence: alert.confidence,
+    velocity: alert.velocity,
+    levels: alert.levels,
+    direction: alert.direction,
   };
 };
 
