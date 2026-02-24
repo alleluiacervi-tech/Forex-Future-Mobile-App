@@ -294,22 +294,22 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask
         const data = {
           pair: alert.pair,
           windowMinutes: isEngine ? 0 : alert.windowMinutes,
-          // for engine alerts use the explicit fromPrice if provided, otherwise
-          // fall back to the price itself.  this allows downstream callers to
-          // compute accurate move percentages.
+          // fromPrice could be provided by the engine if we detected a velocity
+          // signal; otherwise it might be undefined.  record whatever we have so
+          // front‑end can compute meaningful pct moves.
           fromPrice: isEngine
             ? alert.fromPrice != null
               ? alert.fromPrice
               : alert.currentPrice
             : alert.fromPrice,
           toPrice: alert.currentPrice,
-          currentPrice: alert.currentPrice,
           changePercent: isEngine ? 0 : alert.changePercent,
           severity: isEngine ? alert.confidence?.label || "" : alert.severity,
+          currentPrice: alert.currentPrice || null,
           direction: alert.direction || null,
-          velocity: isEngine && alert.velocity ? alert.velocity : null,
-          confidence: isEngine && alert.confidence ? alert.confidence : null,
-          levels: isEngine && alert.levels ? alert.levels : null,
+          velocity: alert.velocity || null,
+          confidence: alert.confidence || null,
+          levels: alert.levels || null,
           triggeredAt: new Date(alert.timestamp)
         };
         record = await prisma.marketAlert.create({ data });
