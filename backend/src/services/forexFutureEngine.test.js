@@ -90,6 +90,48 @@ console.log("running forexFutureEngine unit tests...");
   console.log("baseline coverage test passed");
 })();
 
+// ensure constant price never triggers an alert
+(() => {
+  const engine = new ForexFutureEngine();
+  const pair = "EURUSD";
+  const now = Date.now();
+  let total = 0;
+  for (let i = 0; i < 20; i++) {
+    const a = engine.processTick(pair, 1.2, "last", now + i * 100);
+    total += a.length;
+  }
+  assert(total === 0, "no alerts should fire when price is flat");
+  console.log("flat price no-alert test passed");
+})();
+
+// pair cooldown should prevent back-to-back alerts
+(() => {
+  const engine = new ForexFutureEngine();
+  const pair = "EURUSD";
+  const now = Date.now();
+  // mimic earlier manual example that produced a micro burst
+  engine.processTick(pair, 1.1000, "last", now);
+  engine.processTick(pair, 1.1001, "last", now + 500);
+  const first = engine.processTick(pair, 1.1021, "last", now + 1100);
+  assert(first.length > 0, "first alert should fire");
+  // second move within cooldown should be suppressed
+  const second = engine.processTick(pair, 1.1041, "last", now + 1200);
+  assert(second.length === 0, "second alert should be suppressed by pair cooldown");
+  console.log("pair cooldown test passed");
+})();
+
+// verify fromPrice is set when velocity signal present
+(() => {
+  const engine = new ForexFutureEngine();
+  const pair = "EURUSD";
+  const now = Date.now();
+  engine.processTick(pair, 1.0, "last", now);
+  engine.processTick(pair, 1.001, "last", now + 500);
+  const alerts = engine.processTick(pair, 1.003, "last", now + 1000);
+  assert(alerts.length > 0 && alerts[0].fromPrice !== undefined, "alert should include fromPrice");
+  console.log("fromPrice assignment test passed");
+})();
+
 // Full engine test with synthetic data
 (() => {
   const engine = new ForexFutureEngine();

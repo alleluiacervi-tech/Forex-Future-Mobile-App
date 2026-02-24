@@ -165,7 +165,8 @@ class TickBuffer {
     const prev = this.lastVelocities.get(windowMs) || null;
     const accel = prev && prev > 0 ? velocity / prev : 1;
     this.lastVelocities.set(windowMs, velocity);
-    return { velocity, acceleration: accel, windowMs };
+    // include start price and time for alert plumbing
+    return { velocity, acceleration: accel, windowMs, startPrice: earliest.price, startTsMs: earliest.tsMs };
   }
 
   averageSpread() {
@@ -251,10 +252,11 @@ class VelocityEngine {
   analyze(pair, tickBuffer) {
     const results = [];
     const baseline = CONFIG.velocity.baseline[pair] || 0.1;
+    const minVel = CONFIG.minVelocity || 0.001; // require at least tiny movement
     const windows = CONFIG.velocity.windows;
     const velData = windows
       .map((w) => tickBuffer.getVelocity(w.ms))
-      .filter((v) => v && Number.isFinite(v.velocity));
+      .filter((v) => v && Number.isFinite(v.velocity) && Math.abs(v.velocity) >= minVel);
 
     // map by window for easy lookup
     const byWindow = new Map();
@@ -264,14 +266,19 @@ class VelocityEngine {
     const microData = byWindow.get(500);
     if (microData) {
       const mult = Math.abs(microData.velocity) / baseline;
-      if (mult >= CONFIG.velocityMultipliers.microBurst && microData.acceleration >= CONFIG.accelerationThresholds.microBurst) {
+      if (
+        mult >= CONFIG.velocityMultipliers.microBurst &&
+        microData.acceleration >= CONFIG.accelerationThresholds.microBurst
+      ) {
         results.push({
           signal: "MICRO_BURST",
           pipsPerSecond: Math.abs(microData.velocity),
           accelerationRatio: microData.acceleration,
           windowDetected: "500ms",
           direction: microData.velocity > 0 ? "BUY" : "SELL",
-          percentageEarly: CONFIG.earlyPercent[500]
+          percentageEarly: CONFIG.earlyPercent[500],
+          startPrice: microData.startPrice,
+          startTsMs: microData.startTsMs
         });
       }
     }
@@ -286,7 +293,9 @@ class VelocityEngine {
           accelerationRatio: d.acceleration,
           windowDetected: `${d.windowMs}ms`,
           direction: d.velocity > 0 ? "BUY" : "SELL",
-          percentageEarly: CONFIG.earlyPercent[d.windowMs] || 30
+          percentageEarly: CONFIG.earlyPercent[d.windowMs] || 30,
+          startPrice: d.startPrice,
+          startTsMs: d.startTsMs
         });
       }
     });
@@ -313,7 +322,9 @@ class VelocityEngine {
             accelerationRatio: fastest.acceleration,
             windowDetected: `${fastest.windowMs}ms`,
             direction: fastest.velocity > 0 ? "BUY" : "SELL",
-            percentageEarly: CONFIG.earlyPercent[fastest.windowMs] || 30
+            percentageEarly: CONFIG.earlyPercent[fastest.windowMs] || 30,
+            startPrice: fastest.startPrice,
+            startTsMs: fastest.startTsMs
           });
           break; // only one sustained signal per tick
         }
@@ -329,7 +340,9 @@ class VelocityEngine {
           accelerationRatio: d.acceleration,
           windowDetected: `${d.windowMs}ms`,
           direction: d.velocity > 0 ? "BUY" : "SELL",
-          percentageEarly: CONFIG.earlyPercent[d.windowMs] || 30
+          percentageEarly: CONFIG.earlyPercent[d.windowMs] || 30,
+          startPrice: d.startPrice,
+          startTsMs: d.startTsMs
         });
       }
     });
@@ -700,19 +713,27 @@ class ConfluenceEngine {
 class AlertManager {
   constructor() {
     this.lastAlert = new Map(); // pair|signal -> timestamp
+    this.lastPairAlert = new Map(); // pair -> timestamp
     this.alertsToday = new Map(); // pair -> count
   }
 
   canSend(pair, signal) {
     const now = nowMs();
+    const pairLast = this.lastPairAlert.get(pair) || 0;
+    const pairCooldown = signal === "MICRO_BURST" ? CONFIG.cooldowns.micro : CONFIG.cooldowns.base;
+    if (!(signal === "CRASH" && CONFIG.cooldowns.crashBypass)) {
+      if (now - pairLast < pairCooldown) return false;
+    }
     const key = `${pair}|${signal}`;
     const last = this.lastAlert.get(key) || 0;
     if (signal === "CRASH" && CONFIG.cooldowns.crashBypass) {
-      return true;
+      // bypass per-signal as well
+    } else {
+      const cooldown = signal === "MICRO_BURST" ? CONFIG.cooldowns.micro : CONFIG.cooldowns.base;
+      if (now - last < cooldown) return false;
     }
-    const cooldown = signal === "MICRO_BURST" ? CONFIG.cooldowns.micro : CONFIG.cooldowns.base;
-    if (now - last < cooldown) return false;
     this.lastAlert.set(key, now);
+    this.lastPairAlert.set(pair, now);
     return true;
   }
 
