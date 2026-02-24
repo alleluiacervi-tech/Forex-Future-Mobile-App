@@ -9,6 +9,7 @@ import {
   ForexFutureEngine,
   CONFIG
 } from "./forexFutureEngine.js";
+import { supportedPairs } from "./marketSymbols.js";
 
 console.log("running forexFutureEngine unit tests...");
 
@@ -74,6 +75,19 @@ console.log("running forexFutureEngine unit tests...");
   const signals = sm._detectSpreadSpike("EURUSD", buf, tick);
   assert(signals.some((s) => s.signal === "SPREAD_SPIKE"), "spread spike should be detected");
   console.log("Spread spike detection test passed");
+})();
+
+// verify baseline map includes every supported pair
+(() => {
+  const { velocity } = CONFIG;
+  const norm = (p) => p.replace(/\//g, "").toUpperCase();
+  const keys = new Set(Object.keys(velocity.baseline));
+  supportedPairs.forEach((p) => {
+    const key = norm(p);
+    assert(keys.has(key), `baseline missing for ${p}`);
+  });
+  assert(keys.has("XAUUSD"), "baseline must include gold XAUUSD");
+  console.log("baseline coverage test passed");
 })();
 
 // Full engine test with synthetic data

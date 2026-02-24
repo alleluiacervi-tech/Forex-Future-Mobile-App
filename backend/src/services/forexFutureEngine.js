@@ -4,7 +4,8 @@
 // with no external dependencies beyond built-in modules.
 
 import { pipSizeForPair, decimalsForPair } from "./marketValidator.js";
-import crypto from "crypto";
+import { supportedPairs } from "./marketSymbols.js";
+import { v4 as uuidv4 } from "uuid";
 
 // -----------------------------------------------------------------------------
 // configuration object – all thresholds and tunables live here so they can be
@@ -24,6 +25,7 @@ const CONFIG = {
       { name: "slow", ms: 30000 },
       { name: "trend", ms: 60000 }
     ],
+    // we will populate this dynamically below to include every supported pair
     baseline: {
       EURUSD: 0.15,
       GBPUSD: 0.20,
@@ -92,6 +94,18 @@ const CONFIG = {
   ],
   cleanupIntervalMs: 60000
 };
+
+// ensure baseline contains every supported pair (XAU/USD etc) with a default
+{
+  const DEFAULT_BASELINE = 0.15; // pips/sec during quiet market
+  const norm = (p) => p.replace(/\//g, "").toUpperCase();
+  const full = {};
+  supportedPairs.forEach((p) => {
+    const key = norm(p);
+    full[key] = CONFIG.velocity.baseline[key] || DEFAULT_BASELINE;
+  });
+  CONFIG.velocity.baseline = full;
+}
 
 // utils //////////////////////////////////////////////////////////////////////
 const nowMs = () => Date.now();
