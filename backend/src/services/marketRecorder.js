@@ -289,18 +289,19 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask
     let record = alert;
     if (prisma.marketAlert) {
       try {
-        record = await prisma.marketAlert.create({
-          data: {
-            pair: alert.pair,
-            windowMinutes: null,
-            fromPrice: null,
-            toPrice: alert.currentPrice,
-            changePercent: null,
-            severity: null,
-            triggeredAt: new Date(alert.timestamp)
-          }
-        });
-      } catch {
+        // engine alerts do not include traditional fields; supply safe defaults
+        const isEngine = alert.windowMinutes == null;
+        const data = {
+          pair: alert.pair,
+          windowMinutes: isEngine ? 0 : alert.windowMinutes,
+          fromPrice: isEngine ? alert.currentPrice : alert.fromPrice,
+          toPrice: alert.currentPrice,
+          changePercent: isEngine ? 0 : alert.changePercent,
+          severity: isEngine ? alert.confidence?.label || "" : alert.severity,
+          triggeredAt: new Date(alert.timestamp)
+        };
+        record = await prisma.marketAlert.create({ data });
+      } catch (e) {
         // ignore persistence errors; keep original alert
         record = alert;
       }
