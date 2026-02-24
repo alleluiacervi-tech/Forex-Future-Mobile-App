@@ -40,6 +40,7 @@ const buildArcjetClient = () => {
 
   const apiBucket = normalizeBucket(config.arcjet.rateLimits.api);
   const authBucket = normalizeBucket(config.arcjet.rateLimits.auth);
+  const marketBucket = normalizeBucket(config.arcjet.rateLimits.market);
   const adminBucket = normalizeBucket(config.arcjet.rateLimits.admin);
 
   const options = {
@@ -48,13 +49,7 @@ const buildArcjetClient = () => {
     rules: [
       shield({ mode: config.arcjet.mode }),
       // Search engine bots are allowed while other known bots are denied.
-      detectBot({ mode: config.arcjet.mode, allow: ["CATEGORY:SEARCH_ENGINE"] }),
-      tokenBucket({
-        mode: config.arcjet.mode,
-        refillRate: apiBucket.refillRate,
-        interval: apiBucket.interval,
-        capacity: apiBucket.capacity
-      })
+      detectBot({ mode: config.arcjet.mode, allow: ["CATEGORY:SEARCH_ENGINE"] })
     ]
   };
 
@@ -63,12 +58,29 @@ const buildArcjetClient = () => {
   }
 
   const base = arcjet(options);
+  const api = base.withRule(
+    tokenBucket({
+      mode: config.arcjet.mode,
+      refillRate: apiBucket.refillRate,
+      interval: apiBucket.interval,
+      capacity: apiBucket.capacity
+    })
+  );
+
   const auth = base.withRule(
     tokenBucket({
       mode: config.arcjet.mode,
       refillRate: authBucket.refillRate,
       interval: authBucket.interval,
       capacity: authBucket.capacity
+    })
+  );
+  const market = base.withRule(
+    tokenBucket({
+      mode: config.arcjet.mode,
+      refillRate: marketBucket.refillRate,
+      interval: marketBucket.interval,
+      capacity: marketBucket.capacity
     })
   );
   const admin = base.withRule(
@@ -86,10 +98,11 @@ const buildArcjetClient = () => {
     trustedProxies: config.arcjet.trustedProxies.length,
     apiBucket,
     authBucket,
+    marketBucket,
     adminBucket
   });
 
-  return { base, auth, admin };
+  return { base, api, auth, market, admin };
 };
 
 const clients = buildArcjetClient();
@@ -201,5 +214,7 @@ const createArcjetMiddleware = (client, scope) => {
 };
 
 export const arcjetApiProtection = createArcjetMiddleware(clients?.base, "api");
+export const arcjetRateLimitApiProtection = createArcjetMiddleware(clients?.api, "api-rate-limit");
 export const arcjetAuthProtection = createArcjetMiddleware(clients?.auth, "auth");
+export const arcjetMarketProtection = createArcjetMiddleware(clients?.market, "market");
 export const arcjetAdminProtection = createArcjetMiddleware(clients?.admin, "admin");

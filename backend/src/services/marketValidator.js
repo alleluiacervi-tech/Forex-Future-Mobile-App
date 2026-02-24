@@ -1,5 +1,8 @@
 
 // Utility helpers for tick validation, outlier detection, and diagnostics
+import Logger from "../utils/logger.js";
+
+const logger = new Logger("MarketValidator");
 
 // determine decimal precision based on JPY vs non-JPY pairs (same logic as marketCache)
 const isJpyPair = (pair) => String(pair).includes("JPY");
@@ -81,7 +84,5 @@ export const isTickOutlier = (ticks, newTick) => {
 export const logDiagnostic = (data) => {
   // only output when environment variable enabled; default off
   if (process.env.MARKET_ALERT_DIAGNOSTICS !== "true") return;
-  try {
-    console.debug("[MarketRecorder][diag]", JSON.stringify(data));
-  } catch {}
+  logger.debug("Market recorder diagnostic", { diagnostic: data });
 };

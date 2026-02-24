@@ -1,3 +1,7 @@
+import Logger from "../utils/logger.js";
+
+const logger = new Logger("Prisma");
+
 const DEFAULT_ERROR_MESSAGE =
   "Database client is unavailable. Prisma initialization failed; install compatible Prisma dependencies or provide a Prisma 7 adapter.";
 
@@ -58,7 +62,7 @@ try {
 } catch (error) {
   prismaInitError = error;
   const reason = error?.message ? String(error.message) : DEFAULT_ERROR_MESSAGE;
-  console.warn(`[Prisma] disabled: ${reason}`);
+  logger.warn("Prisma client disabled", { reason });
   prisma = createUnavailablePrisma(reason);
 }
 
