@@ -303,8 +303,13 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask
               : alert.currentPrice
             : alert.fromPrice,
           toPrice: alert.currentPrice,
+          currentPrice: alert.currentPrice,
           changePercent: isEngine ? 0 : alert.changePercent,
           severity: isEngine ? alert.confidence?.label || "" : alert.severity,
+          direction: alert.direction || null,
+          velocity: isEngine && alert.velocity ? alert.velocity : null,
+          confidence: isEngine && alert.confidence ? alert.confidence : null,
+          levels: isEngine && alert.levels ? alert.levels : null,
           triggeredAt: new Date(alert.timestamp)
         };
         record = await prisma.marketAlert.create({ data });
