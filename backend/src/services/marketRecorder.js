@@ -1,5 +1,4 @@
 import { EventEmitter } from "events";
-import crypto from "crypto";
 import prisma from "../db/prisma.js";
 import { marketEvents } from "./marketCache.js";
 import { symbolToPair } from "./marketSymbols.js";
@@ -8,13 +7,9 @@ import { ForexFutureEngine } from "./forexFutureEngine.js";
 
 // create a single shared engine instance used by the recorder
 const forexEngine = new ForexFutureEngine();
-// hook the engine into our existing alert event infrastructure so that
-// any alert produced internally is treated exactly the same as the old
-// maybeCreateAlerts alerts.
-forexEngine.onAlert = (alert) => {
-  try { pushRecentAlert(alert); } catch {}
-  try { alertEvents.emit("marketAlert", alert); } catch {}
-};
+// We emit alerts after optional DB persistence in maybeCreateAlerts().
+// Keep callback disabled to avoid duplicate marketAlert broadcasts.
+forexEngine.onAlert = null;
 
 const alertEvents = new EventEmitter();
 const recentAlerts = [];
@@ -103,6 +98,10 @@ const toBucketStartMs = (timestampMs, interval) => {
 };
 
 const candleKey = (pair, interval, bucketStartMs) => `${pair}|${interval}|${bucketStartMs}`;
+const positiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
 
 const state = {
   started: false,
@@ -111,6 +110,8 @@ const state = {
   dirtyKeys: new Set(),
   flushTimer: null,
   flushMs: Number(process.env.MARKET_RECORDER_FLUSH_MS || 5000),
+  flushBatchSize: positiveInt(process.env.MARKET_RECORDER_FLUSH_BATCH_SIZE, 250),
+  flushConcurrency: positiveInt(process.env.MARKET_RECORDER_FLUSH_CONCURRENCY, 8),
   flushing: false,
   disabledReason: null,
   lastDbWarningAt: 0,
@@ -283,12 +284,12 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask
 
   // hand off to the new high-performance engine
   const engineAlerts = forexEngine.processTick(pair, price, priceType, tsMs, { bid, ask, volume });
-  const createdAlerts = [];
+  // persist each alert if DB available and also emit/store in-memory
   for (const alert of engineAlerts) {
-    let emitted = alert;
+    let record = alert;
     if (prisma.marketAlert) {
       try {
-        emitted = await prisma.marketAlert.create({
+        record = await prisma.marketAlert.create({
           data: {
             pair: alert.pair,
             windowMinutes: null,
@@ -299,19 +300,22 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask
             triggeredAt: new Date(alert.timestamp)
           }
         });
-      } catch {}
+      } catch {
+        // ignore persistence errors; keep original alert
+        record = alert;
+      }
     }
 
     try {
-      pushRecentAlert(emitted);
+      pushRecentAlert(record);
     } catch {}
 
     try {
-      alertEvents.emit("marketAlert", emitted);
+      alertEvents.emit("marketAlert", record);
     } catch {}
-    createdAlerts.push(emitted);
   }
-  return createdAlerts;
+  // always return engine alerts so caller sees them
+  return engineAlerts;
 };
 
 const recordIntoCandle = ({ pair, interval, tsMs, price, volume }) => {
@@ -384,30 +388,44 @@ const flush = async () => {
   state.flushing = true;
   try {
     const keys = Array.from(state.dirtyKeys.values());
-    for (const key of keys) {
-      const candle = state.activeCandles.get(key);
-      if (!candle) {
-        state.dirtyKeys.delete(key);
-        continue;
-      }
+    const batchKeys = keys.slice(0, state.flushBatchSize);
+    let stopFlush = false;
 
-      try {
+    for (let i = 0; i < batchKeys.length && !stopFlush; i += state.flushConcurrency) {
+      const chunk = batchKeys.slice(i, i + state.flushConcurrency);
+      const chunkPromises = chunk.map(async (key) => {
+        const candle = state.activeCandles.get(key);
+        if (!candle) return;
         await upsertCandle(candle);
-        state.dirtyKeys.delete(key);
-      } catch (error) {
+      });
+      const settled = await Promise.allSettled(chunkPromises);
+
+      for (let idx = 0; idx < settled.length; idx += 1) {
+        const result = settled[idx];
+        const key = chunk[idx];
+
+        if (result.status === "fulfilled") {
+          state.dirtyKeys.delete(key);
+          continue;
+        }
+
+        const error = result.reason;
         if (isRetryableDbError(error)) {
           state.disabledReason = error?.message || "database temporarily unavailable";
           state.dbRetryAt = Date.now() + 30000;
           warnDbConnectivity(error);
+          stopFlush = true;
           break;
         }
 
         state.enabled = false;
         state.disabledReason = error?.message || "market recorder flush failed";
         state.dbRetryAt = 0;
+        stopFlush = true;
         break;
       }
     }
+
     if (!state.dirtyKeys.size) {
       state.dbRetryAt = 0;
     }

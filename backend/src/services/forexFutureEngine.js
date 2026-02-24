@@ -180,6 +180,7 @@ class CandleBuilder {
   // tick: {tsMs, price, volume}
   addTick(tick) {
     const { tsMs, price, volume } = tick;
+    const closedIntervals = new Set();
     for (const ms of this.intervals) {
       const bucketStart = Math.floor(tsMs / ms) * ms;
       const entry = this.data.get(ms);
@@ -188,6 +189,7 @@ class CandleBuilder {
         if (entry.current) {
           entry.history.push(entry.current);
           if (entry.history.length > CONFIG.candleHistorySize) entry.history.shift();
+          closedIntervals.add(ms);
         }
         // start new candle
         entry.current = {
@@ -206,6 +208,7 @@ class CandleBuilder {
         if (volume) entry.current.volume += volume;
       }
     }
+    return closedIntervals;
   }
 
   // helper to get last n closed candles for an interval (ms)
@@ -349,22 +352,26 @@ class SmartMoneyEngine {
 
   processTick(pair, tick, tickBuffer = null) {
     const builder = this._ensureBuilder(pair);
-    builder.addTick(tick);
+    const closedIntervals = builder.addTick(tick);
     const signals = [];
+    const closed5m = closedIntervals.has(5 * 60000);
+    const closed15m = closedIntervals.has(15 * 60000);
 
-    // we run detection on every tick but most signals only evaluate when a
-    // relevant candle closes.  for simplicity we will just examine the history
-    // during each call and fire if conditions are met (this is efficient as
-    // history arrays are small).
+    // Run expensive structural detection only when a relevant candle closes.
+    // Keep zone-touch/spread checks on every tick for responsiveness.
+    if (closed5m) {
+      signals.push(...this._detectLiquiditySweep(pair));
+      signals.push(...this._detectFVG(pair));
+      signals.push(...this._detectVolumeAnomaly(pair));
+      signals.push(...this._detectEqualHighsLows(pair));
+    }
+    if (closed15m) {
+      signals.push(...this._detectBOS(pair));
+      signals.push(...this._detectCHOCH(pair));
+    }
 
-    signals.push(...this._detectLiquiditySweep(pair));
-    signals.push(...this._detectOrderBlock(pair, tick.price));
-    signals.push(...this._detectFVG(pair));
-    signals.push(...this._detectBOS(pair));
-    signals.push(...this._detectCHOCH(pair));
-    signals.push(...this._detectVolumeAnomaly(pair));
+    signals.push(...this._detectOrderBlock(pair, tick.price, closed5m));
     signals.push(...this._detectSpreadSpike(pair, tickBuffer, tick));
-    signals.push(...this._detectEqualHighsLows(pair));
 
     // cleanup memory stores based on current price movement
     this._cleanupMemory(pair, tick.price);
@@ -409,28 +416,43 @@ class SmartMoneyEngine {
   }
 
   // 2. Order block detection
-  _detectOrderBlock(pair, currentPrice) {
-    const ms = 5 * 60000;
-    const candles = this._ensureBuilder(pair).getHistory(ms, 50);
+  _detectOrderBlock(pair, currentPrice, shouldDiscover = false) {
     const results = [];
-    if (candles.length < 2) return results;
-    // find last impulse >15 pips
-    for (let i = candles.length - 2; i >= 0; i--) {
-      const cand = candles[i];
-      const next = candles[i + 1];
-      const diff = priceToPips(next.close - cand.close, pair);
-      if (Math.abs(diff) >= 15) {
-        // cand is order block
-        const type = diff > 0 ? "BULLISH" : "BEARISH";
-        const top = type === "BULLISH" ? cand.open : cand.close;
-        const bottom = type === "BULLISH" ? cand.close : cand.open;
-        // store for monitoring
-        const list = this.orderBlocks.get(pair) || [];
-        list.push({ type, top, bottom });
-        this.orderBlocks.set(pair, list);
-        break;
+    if (shouldDiscover) {
+      const ms = 5 * 60000;
+      const candles = this._ensureBuilder(pair).getHistory(ms, 50);
+      if (candles.length >= 2) {
+        // find last impulse >15 pips
+        for (let i = candles.length - 2; i >= 0; i--) {
+          const cand = candles[i];
+          const next = candles[i + 1];
+          const diff = priceToPips(next.close - cand.close, pair);
+          if (Math.abs(diff) >= 15) {
+            // cand is order block
+            const type = diff > 0 ? "BULLISH" : "BEARISH";
+            const top = type === "BULLISH" ? cand.open : cand.close;
+            const bottom = type === "BULLISH" ? cand.close : cand.open;
+            const tolerance = pipsToPrice(1, pair);
+
+            // de-duplicate nearly identical zones to prevent memory growth
+            const list = this.orderBlocks.get(pair) || [];
+            const hasNearDuplicate = list.some(
+              (ob) =>
+                ob.type === type &&
+                Math.abs(ob.top - top) <= tolerance &&
+                Math.abs(ob.bottom - bottom) <= tolerance
+            );
+
+            if (!hasNearDuplicate) {
+              list.push({ type, top, bottom });
+              this.orderBlocks.set(pair, list);
+            }
+            break;
+          }
+        }
       }
     }
+
     // test returns to zone
     const list = this.orderBlocks.get(pair) || [];
     list.forEach((ob) => {
