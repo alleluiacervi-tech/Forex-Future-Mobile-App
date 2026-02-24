@@ -1,60 +1,102 @@
-import fs from 'fs';
-import path from 'path';
+import fs from "fs";
+import path from "path";
+import pino from "pino";
 
-// Create logs directory if it doesn't exist
-const logsDir = path.join(process.cwd(), 'logs');
+const logsDir = path.join(process.cwd(), "logs");
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-// Simple file-based logger
-class Logger {
-  constructor(name) {
-    this.name = name;
-    this.logFile = path.join(logsDir, 'app.log');
-    this.errorLogFile = path.join(logsDir, 'error.log');
+const normalizeLevel = (value, fallback) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["fatal", "error", "warn", "info", "debug", "trace", "silent"].includes(normalized)) {
+    return normalized;
   }
+  return fallback;
+};
 
-  getTimestamp() {
-    return new Date().toISOString();
-  }
+const appLevel = normalizeLevel(
+  process.env.LOG_LEVEL,
+  process.env.NODE_ENV === "production" ? "info" : "debug"
+);
 
-  write(level, message, meta = {}) {
-    const log = {
-      timestamp: this.getTimestamp(),
-      level,
-      logger: this.name,
-      message,
-      ...meta,
+const stream = pino.multistream([
+  { level: appLevel, stream: pino.destination(1) },
+  { level: "info", stream: pino.destination({ dest: path.join(logsDir, "app.log"), sync: false }) },
+  { level: "warn", stream: pino.destination({ dest: path.join(logsDir, "error.log"), sync: false }) }
+]);
+
+const rootLogger = pino(
+  {
+    level: appLevel,
+    timestamp: pino.stdTimeFunctions.isoTime,
+    base: {
+      service: "forex-backend",
+      env: process.env.NODE_ENV || "development"
+    },
+    redact: {
+      paths: [
+        "req.headers.authorization",
+        "req.headers.cookie",
+        "req.body.password",
+        "req.body.cardNumber",
+        "req.body.cardCvc",
+        "req.body.token"
+      ],
+      remove: true
+    }
+  },
+  stream
+);
+
+const normalizeMeta = (meta) => {
+  if (meta === null || meta === undefined) return {};
+  if (meta instanceof Error) {
+    return {
+      error: {
+        name: meta.name,
+        message: meta.message,
+        stack: meta.stack
+      }
     };
+  }
+  if (typeof meta === "object") return meta;
+  return { meta };
+};
 
-    const logStr = JSON.stringify(log);
-    console.log(`[${log.timestamp}] [${level}] [${this.name}] ${message}`, meta);
-
-    // Append to log file
-    const targetFile = level === 'ERROR' || level === 'WARN' ? this.errorLogFile : this.logFile;
-    fs.appendFile(targetFile, logStr + '\n', (err) => {
-      if (err) console.error('Failed to write to log file:', err);
-    });
+class Logger {
+  constructor(name = "App") {
+    this.logger = rootLogger.child({ component: name });
   }
 
   info(message, meta) {
-    this.write('INFO', message, meta);
+    this.logger.info(normalizeMeta(meta), message);
   }
 
   error(message, meta) {
-    this.write('ERROR', message, meta);
+    this.logger.error(normalizeMeta(meta), message);
   }
 
   warn(message, meta) {
-    this.write('WARN', message, meta);
+    this.logger.warn(normalizeMeta(meta), message);
   }
 
   debug(message, meta) {
-    if (process.env.NODE_ENV !== 'production') {
-      this.write('DEBUG', message, meta);
-    }
+    this.logger.debug(normalizeMeta(meta), message);
+  }
+
+  trace(message, meta) {
+    this.logger.trace(normalizeMeta(meta), message);
+  }
+
+  child(bindings = {}) {
+    const childLogger = Object.create(Logger.prototype);
+    childLogger.logger = this.logger.child(bindings);
+    return childLogger;
   }
 }
+
+export const appLogger = rootLogger;
+export const getLogger = (name) => new Logger(name);
 
 export default Logger;
