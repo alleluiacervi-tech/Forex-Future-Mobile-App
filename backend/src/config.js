@@ -100,9 +100,14 @@ const config = {
         capacity: parseNumber(process.env.ARCJET_API_CAPACITY, 60, { min: 1, integer: true })
       },
       auth: {
-        refillRate: parseNumber(process.env.ARCJET_AUTH_REFILL_RATE, 2, { min: 1, integer: true }),
+        refillRate: parseNumber(process.env.ARCJET_AUTH_REFILL_RATE, 1, { min: 1, integer: true }),
         interval: parseNumber(process.env.ARCJET_AUTH_INTERVAL_SECONDS, 60, { min: 1, integer: true }),
-        capacity: parseNumber(process.env.ARCJET_AUTH_CAPACITY, 8, { min: 1, integer: true })
+        capacity: parseNumber(process.env.ARCJET_AUTH_CAPACITY, 5, { min: 1, integer: true })
+      },
+      market: {
+        refillRate: parseNumber(process.env.ARCJET_MARKET_REFILL_RATE, 120, { min: 1, integer: true }),
+        interval: parseNumber(process.env.ARCJET_MARKET_INTERVAL_SECONDS, 10, { min: 1, integer: true }),
+        capacity: parseNumber(process.env.ARCJET_MARKET_CAPACITY, 300, { min: 1, integer: true })
       },
       admin: {
         refillRate: parseNumber(process.env.ARCJET_ADMIN_REFILL_RATE, 5, { min: 1, integer: true }),
