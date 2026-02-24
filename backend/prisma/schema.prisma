@@ -193,6 +193,11 @@ model MarketAlert {
   toPrice       Float
   changePercent Float
   severity      String
+  currentPrice  Float?
+  direction     String?
+  velocity      Json?
+  confidence    Json?
+  levels        Json?
   triggeredAt   DateTime @default(now())
   createdAt     DateTime @default(now())
 

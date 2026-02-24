@@ -9,9 +9,18 @@ import type { MarketAlert, MarketAlertType } from '../../types/alerts';
 interface MarketAlertCardProps {
   alert: MarketAlert;
   onPress?: () => void;
+  expanded?: boolean;
 }
 
-export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress }) => {
+const decimalsForPair = (pair: string) => (pair.includes('JPY') ? 3 : 5);
+
+const formatPrice = (pair: string, price: number | undefined) => {
+  if (!Number.isFinite(price)) return 'N/A';
+  const decimals = decimalsForPair(pair);
+  return price.toFixed(decimals);
+};
+
+export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress, expanded = false }) => {
   const theme = useTheme();
 
   const getTypeLabel = (type: MarketAlertType) => {
@@ -53,6 +62,14 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
     }
   };
 
+  const severityColor = (() => {
+    const severity = (alert.severity || 'medium').toLowerCase();
+    if (severity.includes('high') || severity.includes('maximum')) return theme.colors.error;
+    if (severity.includes('very')) return theme.colors.warning;
+    if (severity.includes('moderate')) return theme.colors.warning;
+    return theme.colors.primary;
+  })();
+
   const changeColor =
     typeof alert.changePercent === 'number'
       ? alert.changePercent >= 0
@@ -60,9 +77,123 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
         : theme.colors.error
       : theme.colors.textSecondary;
 
+  const containerStyle = alert.velocity
+    ? [styles.card, { backgroundColor: theme.colors.surface, borderLeftColor: severityColor, borderLeftWidth: 4 }]
+    : [styles.card, { backgroundColor: theme.colors.surface }];
+
+  // Detailed sections (shown expanded)
+  const velocityDisplay = alert.velocity ? (
+    <View style={[styles.section, { borderTopColor: theme.colors.divider }]}>
+      <Text variant="caption" style={styles.sectionLabel}>
+        ⚡ Velocity Metrics
+      </Text>
+      <View style={styles.row}>
+        <Text variant="bodySmall" color={theme.colors.textSecondary}>
+          Signal:{' '}
+          <Text variant="bodySmall" style={{ color: theme.colors.text, fontWeight: '600' }}>
+            {alert.velocity.signal}
+          </Text>
+        </Text>
+        <Text variant="bodySmall" color={theme.colors.textSecondary}>
+          {alert.velocity.pipsPerSecond.toFixed(2)} pips/sec
+        </Text>
+      </View>
+      <View style={styles.row}>
+        <Text variant="bodySmall" color={theme.colors.textSecondary}>
+          Accel:{' '}
+          <Text variant="bodySmall" style={{ color: theme.colors.text, fontWeight: '600' }}>
+            {(alert.velocity.accelerationRatio * 100).toFixed(0)}%
+          </Text>
+        </Text>
+        <Text variant="bodySmall" color={theme.colors.textSecondary}>
+          {alert.velocity.windowDetected}
+        </Text>
+      </View>
+    </View>
+  ) : null;
+
+  const priceDisplay =
+    alert.fromPrice != null || alert.toPrice != null ? (
+      <View style={[styles.section, { borderTopColor: theme.colors.divider }]}>
+        <Text variant="caption" style={styles.sectionLabel}>
+          Price Move
+        </Text>
+        <View style={styles.row}>
+          <Text variant="bodySmall" color={theme.colors.textSecondary}>
+            From:{' '}
+            <Text variant="bodySmall" style={{ color: theme.colors.text, fontWeight: '600' }}>
+              {formatPrice(alert.pair, alert.fromPrice)}
+            </Text>
+          </Text>
+          <Text variant="bodySmall" color={theme.colors.textSecondary}>
+            To:{' '}
+            <Text variant="bodySmall" style={{ color: theme.colors.text, fontWeight: '600' }}>
+              {formatPrice(alert.pair, alert.toPrice)}
+            </Text>
+          </Text>
+        </View>
+      </View>
+    ) : null;
+
+  const levelsDisplay = alert.levels ? (
+    <View style={[styles.section, { borderTopColor: theme.colors.divider }]}>
+      <Text variant="caption" style={styles.sectionLabel}>
+        📊 Trade Levels
+      </Text>
+      <View style={styles.row}>
+        <Text variant="bodySmall" color={theme.colors.textSecondary}>
+          Entry:{' '}
+          <Text variant="bodySmall" style={{ color: theme.colors.text, fontWeight: '600' }}>
+            {formatPrice(alert.pair, alert.levels.entry)}
+          </Text>
+        </Text>
+        <Text variant="bodySmall" color={theme.colors.textSecondary}>
+          SL:{' '}
+          <Text variant="bodySmall" style={{ color: theme.colors.error, fontWeight: '600' }}>
+            {formatPrice(alert.pair, alert.levels.stopLoss)}
+          </Text>
+        </Text>
+      </View>
+      <View style={styles.row}>
+        <Text variant="bodySmall" color={theme.colors.textSecondary}>
+          TP:{' '}
+          <Text variant="bodySmall" style={{ color: theme.colors.success, fontWeight: '600' }}>
+            {formatPrice(alert.pair, alert.levels.takeProfit)}
+          </Text>
+        </Text>
+        <Text variant="bodySmall" color={theme.colors.textSecondary}>
+          R:R:{' '}
+          <Text variant="bodySmall" style={{ color: theme.colors.text, fontWeight: '600' }}>
+            {alert.levels.riskReward.toFixed(1)}:1
+          </Text>
+        </Text>
+      </View>
+    </View>
+  ) : null;
+
+  const confidenceDisplay = alert.confidence ? (
+    <View style={[styles.section, { borderTopColor: theme.colors.divider }]}>
+      <Text variant="caption" style={styles.sectionLabel}>
+        🎯 Confidence: {alert.confidence.label}
+      </Text>
+      <View style={styles.row}>
+        <View style={[styles.scoreBar, { backgroundColor: severityColor }]} />
+        <Text variant="bodySmall" color={theme.colors.textSecondary}>
+          {alert.confidence.score}% confidence
+        </Text>
+      </View>
+      {alert.confidence.factors && alert.confidence.factors.length > 0 ? (
+        <Text variant="caption" color={theme.colors.textSecondary} style={styles.factors}>
+          Factors: {alert.confidence.factors.slice(0, 3).join(', ')}
+          {alert.confidence.factors.length > 3 ? '...' : ''}
+        </Text>
+      ) : null}
+    </View>
+  ) : null;
+
   return (
-    <Card onPress={onPress} style={[styles.card, { backgroundColor: theme.colors.surface }]}
-    >
+    <Card onPress={onPress} style={containerStyle}>
+      {/* Header Section */}
       <View style={styles.headerRow}>
         <View style={styles.leftHeader}>
           <Text variant="h4" style={styles.pairText}>
@@ -110,12 +241,23 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
         ) : null}
       </View>
 
+      {/* Title & Message */}
       <Text variant="body" style={styles.title}>
         {alert.title}
       </Text>
       <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.message}>
         {alert.message}
       </Text>
+
+      {/* Expanded Details (conditional) */}
+      {expanded && (
+        <View>
+          {velocityDisplay}
+          {priceDisplay}
+          {levelsDisplay}
+          {confidenceDisplay}
+        </View>
+      )}
     </Card>
   );
 };
@@ -170,5 +312,31 @@ const styles = StyleSheet.create({
   },
   message: {
     lineHeight: 18,
+    marginBottom: 8,
+  },
+  section: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  sectionLabel: {
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  scoreBar: {
+    width: 6,
+    height: 12,
+    borderRadius: 3,
+    marginRight: 8,
+  },
+  factors: {
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 });
