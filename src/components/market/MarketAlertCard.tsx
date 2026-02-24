@@ -15,9 +15,10 @@ interface MarketAlertCardProps {
 const decimalsForPair = (pair: string) => (pair.includes('JPY') ? 3 : 5);
 
 const formatPrice = (pair: string, price: number | undefined) => {
-  if (!Number.isFinite(price)) return 'N/A';
+  const normalizedPrice = Number(price);
+  if (!Number.isFinite(normalizedPrice)) return 'N/A';
   const decimals = decimalsForPair(pair);
-  return price.toFixed(decimals);
+  return normalizedPrice.toFixed(decimals);
 };
 
 export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress, expanded = false }) => {
@@ -83,7 +84,7 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
 
   // Detailed sections (shown expanded)
   const velocityDisplay = alert.velocity ? (
-    <View style={[styles.section, { borderTopColor: theme.colors.divider }]}>
+    <View style={[styles.section, { borderTopColor: theme.colors.border }]}>
       <Text variant="caption" style={styles.sectionLabel}>
         ⚡ Velocity Metrics
       </Text>
@@ -95,14 +96,14 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
           </Text>
         </Text>
         <Text variant="bodySmall" color={theme.colors.textSecondary}>
-          {alert.velocity.pipsPerSecond.toFixed(2)} pips/sec
+          {Number(alert.velocity.pipsPerSecond ?? 0).toFixed(2)} pips/sec
         </Text>
       </View>
       <View style={styles.row}>
         <Text variant="bodySmall" color={theme.colors.textSecondary}>
           Accel:{' '}
           <Text variant="bodySmall" style={{ color: theme.colors.text, fontWeight: '600' }}>
-            {(alert.velocity.accelerationRatio * 100).toFixed(0)}%
+            {(Number(alert.velocity.accelerationRatio ?? 0) * 100).toFixed(0)}%
           </Text>
         </Text>
         <Text variant="bodySmall" color={theme.colors.textSecondary}>
@@ -114,7 +115,7 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
 
   const priceDisplay =
     alert.fromPrice != null || alert.toPrice != null ? (
-      <View style={[styles.section, { borderTopColor: theme.colors.divider }]}>
+      <View style={[styles.section, { borderTopColor: theme.colors.border }]}>
         <Text variant="caption" style={styles.sectionLabel}>
           Price Move
         </Text>
@@ -136,7 +137,7 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
     ) : null;
 
   const levelsDisplay = alert.levels ? (
-    <View style={[styles.section, { borderTopColor: theme.colors.divider }]}>
+    <View style={[styles.section, { borderTopColor: theme.colors.border }]}>
       <Text variant="caption" style={styles.sectionLabel}>
         📊 Trade Levels
       </Text>
@@ -164,7 +165,7 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
         <Text variant="bodySmall" color={theme.colors.textSecondary}>
           R:R:{' '}
           <Text variant="bodySmall" style={{ color: theme.colors.text, fontWeight: '600' }}>
-            {alert.levels.riskReward.toFixed(1)}:1
+            {Number(alert.levels.riskReward ?? 0).toFixed(1)}:1
           </Text>
         </Text>
       </View>
@@ -172,7 +173,7 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
   ) : null;
 
   const confidenceDisplay = alert.confidence ? (
-    <View style={[styles.section, { borderTopColor: theme.colors.divider }]}>
+    <View style={[styles.section, { borderTopColor: theme.colors.border }]}>
       <Text variant="caption" style={styles.sectionLabel}>
         🎯 Confidence: {alert.confidence.label}
       </Text>

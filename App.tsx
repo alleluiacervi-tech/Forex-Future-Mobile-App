@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View, Image } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { LinearGradient } from 'expo-linear-gradient';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import MainNavigator from './src/navigation';
@@ -11,6 +12,8 @@ import { useTheme } from './src/hooks';
 import { Text } from './src/components/common';
 import TermsScreen from './src/screens/Terms/TermsScreen';
 import { AuthProvider } from './src/context/AuthContext';
+import { ToastProvider } from './src/context/ToastContext';
+import { createQueryClient } from './src/services/queryClient';
 
 const STARTUP_SPLASH_DURATION_MS = 5000;
 
@@ -19,6 +22,7 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 export default function App() {
+  const [queryClient] = useState(createQueryClient);
   const [appIsReady, setAppIsReady] = useState(false);
   const [showStartupSplash, setShowStartupSplash] = useState(true);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -71,20 +75,24 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <View style={styles.container} onLayout={onLayoutRootView}>
-              <StatusBar style="light" />
-              {showStartupSplash ? (
-                <StartupSplash />
-              ) : !acceptedTerms ? (
-                <TermsScreen onAgree={() => setAcceptedTerms(true)} />
-              ) : (
-                <MainNavigator />
-              )}
-            </View>
-          </AuthProvider>
-        </ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <ThemeProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <View style={styles.container} onLayout={onLayoutRootView}>
+                  <StatusBar style="light" />
+                  {showStartupSplash ? (
+                    <StartupSplash />
+                  ) : !acceptedTerms ? (
+                    <TermsScreen onAgree={() => setAcceptedTerms(true)} />
+                  ) : (
+                    <MainNavigator />
+                  )}
+                </View>
+              </AuthProvider>
+            </ToastProvider>
+          </ThemeProvider>
+        </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -1,18 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet } from '../services/api';
+import { subscribeToMarketSocket } from '../services/marketSocket';
 import type { MarketAlert } from '../types/alerts';
-import { useInterval } from './useInterval';
 
 type ApiMarketAlert = {
-  id: string;
-  pair: string;
-  windowMinutes: number;
-  fromPrice: number;
-  toPrice: number;
-  changePercent: number;
+  id?: string;
+  pair?: string;
+  windowMinutes?: number;
+  fromPrice?: number;
+  toPrice?: number;
+  currentPrice?: number;
+  changePercent?: number;
   severity?: string;
-  triggeredAt: string;
+  triggeredAt?: string;
   createdAt?: string;
+  message?: string;
+  velocity?: MarketAlert['velocity'];
+  levels?: MarketAlert['levels'];
+  confidence?: MarketAlert['confidence'];
+  direction?: string;
 };
 
 type ApiMarketAlertsResponse = {
@@ -25,76 +32,159 @@ const windowLabel = (windowMinutes: number) => {
   if (windowMinutes === 60) return '1h';
   if (windowMinutes === 240) return '4h';
   if (windowMinutes === 1440) return '1d';
-  if (windowMinutes % 60 === 0) return `${windowMinutes / 60}h`;
-  return `${windowMinutes}m`;
+  if (windowMinutes > 0 && windowMinutes % 60 === 0) return `${windowMinutes / 60}h`;
+  if (windowMinutes > 0) return `${windowMinutes}m`;
+  return 'live';
 };
 
 const decimalsForPair = (pair: string) => (pair.includes('JPY') ? 3 : 5);
 
-const formatPairPrice = (pair: string, price: number) => {
+const formatPairPrice = (pair: string, price: unknown) => {
+  const n = Number(price);
   const decimals = decimalsForPair(pair);
-  return Number.isFinite(Number(price)) ? Number(price).toFixed(decimals) : String(price);
+  return Number.isFinite(n) ? n.toFixed(decimals) : 'N/A';
 };
 
-const minutesAgoFromIso = (iso: string) => {
+const minutesAgoFromIso = (iso?: string) => {
+  if (!iso) return undefined;
   const ts = Date.parse(iso);
   if (!Number.isFinite(ts)) return undefined;
   return Math.max(0, Math.round((Date.now() - ts) / 60000));
 };
 
-const mapApiAlert = (alert: ApiMarketAlert): MarketAlert => {
-  const window = windowLabel(alert.windowMinutes);
+const normalizeAlert = (alert: ApiMarketAlert): MarketAlert | null => {
+  const pair = typeof alert.pair === 'string' && alert.pair.trim() ? alert.pair : null;
+  if (!pair) return null;
+
+  const triggeredAt =
+    (typeof alert.triggeredAt === 'string' && alert.triggeredAt) ||
+    (typeof alert.createdAt === 'string' && alert.createdAt) ||
+    new Date().toISOString();
+
+  const windowMinutes = Number(alert.windowMinutes);
+  const timeframe = windowLabel(Number.isFinite(windowMinutes) ? windowMinutes : 0);
   const change = Number(alert.changePercent);
-  const sign = change >= 0 ? '+' : '';
-  const abs = Math.abs(change);
-  const direction = change >= 0 ? 'up' : 'down';
+  const normalizedChange = Number.isFinite(change) ? change : undefined;
+
+  const fromPrice = Number(alert.fromPrice);
+  const toPrice = Number(alert.toPrice ?? alert.currentPrice);
+  const hasFromPrice = Number.isFinite(fromPrice);
+  const hasToPrice = Number.isFinite(toPrice);
+
+  const direction =
+    typeof alert.direction === 'string' && alert.direction
+      ? alert.direction
+      : normalizedChange !== undefined
+        ? normalizedChange >= 0
+          ? 'up'
+          : 'down'
+        : undefined;
+
+  const changeSign = normalizedChange !== undefined && normalizedChange >= 0 ? '+' : '';
+  const absoluteChange = normalizedChange !== undefined ? Math.abs(normalizedChange) : undefined;
+
+  const title =
+    normalizedChange !== undefined
+      ? `Big move: ${pair} ${changeSign}${absoluteChange?.toFixed(2)}% (${timeframe})`
+      : `High volatility: ${pair} (${timeframe})`;
+
+  const message =
+    typeof alert.message === 'string' && alert.message.trim()
+      ? alert.message.trim()
+      : hasFromPrice && hasToPrice && normalizedChange !== undefined
+        ? `${pair} moved ${direction || 'up'} from ${formatPairPrice(pair, fromPrice)} to ${formatPairPrice(pair, toPrice)} (${changeSign}${absoluteChange?.toFixed(2)}%) in ${timeframe}.`
+        : hasFromPrice && hasToPrice
+          ? `${pair} moved from ${formatPairPrice(pair, fromPrice)} to ${formatPairPrice(pair, toPrice)} in ${timeframe}.`
+          : `${pair} is showing elevated volatility in ${timeframe}.`;
+
+  const id =
+    (typeof alert.id === 'string' && alert.id) ||
+    `${pair}-${triggeredAt}-${typeof alert.severity === 'string' ? alert.severity : 'alert'}`;
 
   return {
-    id: alert.id,
-    pair: alert.pair,
+    id,
+    pair,
     type: 'VOLATILITY',
-    timeframe: window,
-    changePercent: change,
-    severity: alert.severity,
-    triggeredAt: alert.triggeredAt,
-    minutesAgo: minutesAgoFromIso(alert.triggeredAt),
-    title: `Big move: ${alert.pair} ${sign}${abs.toFixed(2)}% (${window})`,
-    message: `${alert.pair} moved ${direction} from ${formatPairPrice(alert.pair, alert.fromPrice)} to ${formatPairPrice(alert.pair, alert.toPrice)} (${sign}${abs.toFixed(2)}%) in ${window}.`,
+    timeframe,
+    title,
+    message,
+    fromPrice: hasFromPrice ? fromPrice : undefined,
+    toPrice: hasToPrice ? toPrice : undefined,
+    currentPrice: hasToPrice ? toPrice : undefined,
+    changePercent: normalizedChange,
+    severity: typeof alert.severity === 'string' ? alert.severity.toLowerCase() : undefined,
+    triggeredAt,
+    minutesAgo: minutesAgoFromIso(triggeredAt),
+    velocity: alert.velocity,
+    levels: alert.levels,
+    confidence: alert.confidence,
+    direction,
   };
 };
+
+const queryKeyFor = (pair: string | undefined, limit: number) =>
+  ['marketAlerts', pair || 'all', limit] as const;
 
 export const useMarketAlerts = (
   opts: { pair?: string; limit?: number; pollMs?: number | null } = {},
 ) => {
-  const { pair, limit = 50, pollMs = 15000 } = opts;
+  const { pair, limit = 50 } = opts;
   const resolvedLimit = useMemo(() => clamp(Number(limit) || 50, 1, 200), [limit]);
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(() => queryKeyFor(pair, resolvedLimit), [pair, resolvedLimit]);
 
-  const [alerts, setAlerts] = useState<MarketAlert[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchAlerts = useCallback(async () => {
-    try {
-      setError(null);
-      if (alerts.length === 0) setLoading(true);
+  const alertsQuery = useQuery({
+    queryKey,
+    queryFn: async (): Promise<MarketAlert[]> => {
       const query = `limit=${encodeURIComponent(String(resolvedLimit))}${pair ? `&pair=${encodeURIComponent(pair)}` : ''}`;
       const response = await apiGet<ApiMarketAlertsResponse>(`/api/market/alerts?${query}`);
-      const mapped = (response.alerts || []).map(mapApiAlert);
-      setAlerts(mapped);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load alerts');
-    } finally {
-      setLoading(false);
-    }
-  }, [alerts.length, pair, resolvedLimit]);
+      const source = Array.isArray(response?.alerts) ? response.alerts : [];
+
+      return source
+        .map(normalizeAlert)
+        .filter((alert): alert is MarketAlert => Boolean(alert))
+        .slice(0, resolvedLimit);
+    },
+    staleTime: 15000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: false,
+  });
 
   useEffect(() => {
-    fetchAlerts();
-  }, [fetchAlerts]);
+    const unsubscribe = subscribeToMarketSocket((event) => {
+      if (event.type !== 'marketAlert') return;
 
-  useInterval(() => {
-    fetchAlerts();
-  }, pollMs);
+      const mappedAlert = normalizeAlert(event.data as ApiMarketAlert);
+      if (!mappedAlert) return;
+      if (pair && mappedAlert.pair !== pair) return;
 
-  return { alerts, loading, error, refetch: fetchAlerts };
+      queryClient.setQueryData<MarketAlert[]>(queryKey, (currentAlerts = []) => {
+        const merged = [mappedAlert, ...currentAlerts.filter((item) => item.id !== mappedAlert.id)];
+        return merged.slice(0, resolvedLimit);
+      });
+    });
+
+    return unsubscribe;
+  }, [pair, queryClient, queryKey, resolvedLimit]);
+
+  const alerts = useMemo(
+    () =>
+      (alertsQuery.data || []).map((alert) => ({
+        ...alert,
+        minutesAgo: minutesAgoFromIso(alert.triggeredAt),
+      })),
+    [alertsQuery.data],
+  );
+
+  const refetch = useCallback(async () => {
+    await alertsQuery.refetch();
+  }, [alertsQuery]);
+
+  return {
+    alerts,
+    loading: alertsQuery.isLoading && alerts.length === 0,
+    error: alertsQuery.error instanceof Error ? alertsQuery.error.message : null,
+    refetch,
+  };
 };
