@@ -14,9 +14,9 @@ const resolveOpenSessionMaxAgeMs = () => {
 const getLiveRates = async () => {
   const marketOpen = isForexMarketOpen(new Date());
   if (marketOpen) {
-    return getLiveRatesFromCache({ maxAgeMs: resolveOpenSessionMaxAgeMs() });
+    return await getLiveRatesFromCache({ maxAgeMs: resolveOpenSessionMaxAgeMs() });
   }
-  return getLiveRatesFromCache();
+  return await getLiveRatesFromCache();
 };
 
 const parseIntervalMs = (interval) => {
@@ -91,7 +91,7 @@ const getHistoricalRates = async (pair, points = 60, opts = {}) => {
     }
   }
 
-  return getHistoricalFromCache({ pair, points, interval });
+  return await getHistoricalFromCache({ pair, points, interval });
 };
 
 const getPriceForPair = async (pair) => {

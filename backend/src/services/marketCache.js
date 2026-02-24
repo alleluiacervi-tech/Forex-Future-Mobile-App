@@ -1,9 +1,16 @@
 import { EventEmitter } from "events";
+import Logger from "../utils/logger.js";
+import { buildRedisKey, getRedisClient } from "./redis.js";
 import { basePrices, pairToSymbol, supportedPairs, symbolToPair } from "./marketSymbols.js";
+
+const logger = new Logger("MarketCache");
 
 const liveBySymbol = new Map();
 const historyBySymbol = new Map();
 const MAX_HISTORY_POINTS = 2000;
+
+const LIVE_TTL_SECONDS = Math.max(60, Number(process.env.MARKET_CACHE_LIVE_TTL_SECONDS || 3600));
+const HISTORY_TTL_SECONDS = Math.max(300, Number(process.env.MARKET_CACHE_HISTORY_TTL_SECONDS || 24 * 60 * 60));
 
 const marketEvents = new EventEmitter();
 const logCacheWrites =
@@ -28,45 +35,66 @@ const parseIntervalMs = (interval) => {
   return 60 * 60 * 1000;
 };
 
+const getLiveKey = (symbol) => buildRedisKey("market", "live", symbol);
+const getHistoryKey = (symbol) => buildRedisKey("market", "history", symbol);
+
+const runRedisWrite = (operationName, callback) => {
+  const run = async () => {
+    const redis = await getRedisClient();
+    if (!redis) return;
+
+    try {
+      await callback(redis);
+    } catch (error) {
+      logger.warn("Redis write failed", { operation: operationName, error: error?.message });
+    }
+  };
+
+  void run();
+};
+
+const parseRedisPayload = (rawValue) => {
+  if (!rawValue) return null;
+  try {
+    return JSON.parse(rawValue);
+  } catch {
+    return null;
+  }
+};
+
 const recordTrade = ({ symbol, price, timestampMs, volume, priceType = "last", bid = null, ask = null }) => {
-  // priceType: "last" | "mid" | "bid" | "ask" (we compare like-with-like in alert logic)
   if (!symbolToPair[symbol]) return;
   if (!Number.isFinite(price) || price <= 0) return;
   const ts = Number.isFinite(timestampMs) ? timestampMs : Date.now();
 
-  // Log cache update when price changes (or first write)
   if (logCacheWrites) {
     const previous = liveBySymbol.get(symbol);
-    const prevPrice = previous?.price;
-    try {
-      console.log(
-        "recordTrade: symbol=",
-        symbol,
-        "price=",
-        price,
-        "prev=",
-        prevPrice,
-        "ts=",
-        new Date(ts).toISOString(),
-        "type=",
-        priceType
-      );
-    } catch {}
+    logger.debug("Recorded trade tick", {
+      symbol,
+      price,
+      previousPrice: previous?.price,
+      timestamp: new Date(ts).toISOString(),
+      priceType
+    });
   }
 
-  liveBySymbol.set(symbol, { price, timestampMs: ts, priceType });
+  const livePayload = {
+    symbol,
+    price,
+    timestampMs: ts,
+    priceType,
+    volume: Number.isFinite(Number(volume)) ? Number(volume) : 0,
+    bid: Number.isFinite(Number(bid)) ? Number(bid) : null,
+    ask: Number.isFinite(Number(ask)) ? Number(ask) : null
+  };
+
+  liveBySymbol.set(symbol, livePayload);
 
   try {
     const pair = symbolToPair[symbol];
     marketEvents.emit("trade", {
-      symbol,
-      pair,
-      price,
-      timestampMs: ts,
-      volume: Number.isFinite(Number(volume)) ? Number(volume) : 0,
-      priceType,
-      bid: Number.isFinite(Number(bid)) ? Number(bid) : null,
-      ask: Number.isFinite(Number(ask)) ? Number(ask) : null
+      ...livePayload,
+      pair
     });
   } catch {}
 
@@ -76,6 +104,19 @@ const recordTrade = ({ symbol, price, timestampMs, volume, priceType = "last", b
     history.splice(0, history.length - MAX_HISTORY_POINTS);
   }
   historyBySymbol.set(symbol, history);
+
+  runRedisWrite("recordTrade", async (redis) => {
+    const historyPayload = JSON.stringify({ price, timestampMs: ts });
+    const liveJson = JSON.stringify(livePayload);
+    const historyKey = getHistoryKey(symbol);
+
+    const pipeline = redis.pipeline();
+    pipeline.set(getLiveKey(symbol), liveJson, "EX", LIVE_TTL_SECONDS);
+    pipeline.rpush(historyKey, historyPayload);
+    pipeline.ltrim(historyKey, -MAX_HISTORY_POINTS, -1);
+    pipeline.expire(historyKey, HISTORY_TTL_SECONDS);
+    await pipeline.exec();
+  });
 };
 
 const recordQuote = ({ symbol, bid, ask, timestampMs }) => {
@@ -84,44 +125,69 @@ const recordQuote = ({ symbol, bid, ask, timestampMs }) => {
   const a = Number(ask);
   if (!Number.isFinite(b) || !Number.isFinite(a)) return;
   const mid = (b + a) / 2;
+
   if (logCacheWrites) {
-    try {
-      console.log(
-        "recordQuote: symbol=",
-        symbol,
-        "bid=",
-        b,
-        "ask=",
-        a,
-        "mid=",
-        mid,
-        "ts=",
-        new Date(timestampMs ?? Date.now()).toISOString()
-      );
-    } catch {}
+    logger.debug("Recorded quote tick", {
+      symbol,
+      bid: b,
+      ask: a,
+      mid,
+      timestamp: new Date(timestampMs ?? Date.now()).toISOString()
+    });
   }
 
   recordTrade({ symbol, price: mid, timestampMs, priceType: "mid", bid: b, ask: a });
 };
 
-const buildRateFromPrice = ({ pair, price, timestampMs }) => {
+const buildRateFromTick = ({ pair, price, timestampMs, bid, ask, volume }) => {
   const pip = pipSizeForPair(pair);
   const spread = pip * 1.5;
   const decimals = decimalsForPair(pair);
-  const bid = roundTo(price - spread / 2, decimals);
-  const ask = roundTo(price + spread / 2, decimals);
+
+  const resolvedBid = Number.isFinite(Number(bid)) ? Number(bid) : roundTo(price - spread / 2, decimals);
+  const resolvedAsk = Number.isFinite(Number(ask)) ? Number(ask) : roundTo(price + spread / 2, decimals);
+
   return {
     pair,
-    bid,
-    ask,
+    bid: roundTo(resolvedBid, decimals),
+    ask: roundTo(resolvedAsk, decimals),
     mid: roundTo(price, decimals),
-    spread: roundTo(ask - bid, decimals),
-    volume: 0,
+    spread: roundTo(resolvedAsk - resolvedBid, decimals),
+    volume: Number.isFinite(Number(volume)) ? Number(volume) : 0,
     timestamp: new Date(timestampMs).toISOString()
   };
 };
 
-const getLiveRatesFromCache = ({ includeFallbackBasePrices = false, maxAgeMs = null } = {}) => {
+const filterLiveEntryByAge = (entry, now, enforceMaxAge, maxAgeMs) => {
+  if (!entry) return false;
+  if (!enforceMaxAge) return true;
+  return now - Number(entry.timestampMs || 0) <= Number(maxAgeMs);
+};
+
+const getLiveFromRedis = async () => {
+  const redis = await getRedisClient();
+  if (!redis) return null;
+
+  try {
+    const keys = Object.keys(symbolToPair).map((symbol) => getLiveKey(symbol));
+    const rawEntries = await redis.mget(keys);
+    const bySymbol = new Map();
+
+    rawEntries.forEach((raw, index) => {
+      const parsed = parseRedisPayload(raw);
+      if (!parsed) return;
+      const symbol = Object.keys(symbolToPair)[index];
+      bySymbol.set(symbol, parsed);
+    });
+
+    return bySymbol;
+  } catch (error) {
+    logger.warn("Redis live cache read failed", { error: error?.message });
+    return null;
+  }
+};
+
+const getLiveRatesFromCache = async ({ includeFallbackBasePrices = false, maxAgeMs = null } = {}) => {
   const now = Date.now();
   const enforceMaxAge =
     maxAgeMs !== null &&
@@ -129,12 +195,15 @@ const getLiveRatesFromCache = ({ includeFallbackBasePrices = false, maxAgeMs = n
     Number.isFinite(Number(maxAgeMs)) &&
     Number(maxAgeMs) >= 0;
 
+  const redisLive = await getLiveFromRedis();
+  const sourceMap = redisLive && redisLive.size > 0 ? redisLive : liveBySymbol;
+
   return supportedPairs
     .map((pair) => {
       const symbol = pairToSymbol[pair];
-      const latest = symbol ? liveBySymbol.get(symbol) : null;
+      const latest = symbol ? sourceMap.get(symbol) : null;
 
-      if (latest && enforceMaxAge && now - latest.timestampMs > Number(maxAgeMs)) {
+      if (latest && !filterLiveEntryByAge(latest, now, enforceMaxAge, maxAgeMs)) {
         return null;
       }
 
@@ -144,25 +213,63 @@ const getLiveRatesFromCache = ({ includeFallbackBasePrices = false, maxAgeMs = n
 
       const price = latest?.price ?? basePrices[pair];
       const ts = latest?.timestampMs ?? now;
-      return buildRateFromPrice({ pair, price, timestampMs: ts });
+      return buildRateFromTick({
+        pair,
+        price,
+        timestampMs: ts,
+        bid: latest?.bid,
+        ask: latest?.ask,
+        volume: latest?.volume
+      });
     })
     .filter(Boolean);
 };
 
 const clearLiveRatesCache = () => {
   liveBySymbol.clear();
+
+  runRedisWrite("clearLiveRatesCache", async (redis) => {
+    const keys = Object.keys(symbolToPair).map((symbol) => getLiveKey(symbol));
+    if (keys.length > 0) {
+      await redis.del(...keys);
+    }
+  });
 };
 
-const getHistoricalFromCache = ({ pair, points, interval }) => {
+const getHistoricalFromRedis = async (symbol, points) => {
+  const redis = await getRedisClient();
+  if (!redis) return null;
+
+  try {
+    const values = await redis.lrange(getHistoryKey(symbol), -points, -1);
+    if (!Array.isArray(values) || values.length === 0) return [];
+    return values
+      .map(parseRedisPayload)
+      .filter(Boolean)
+      .map((entry) => ({
+        price: Number(entry.price),
+        timestampMs: Number(entry.timestampMs)
+      }))
+      .filter((entry) => Number.isFinite(entry.price) && Number.isFinite(entry.timestampMs));
+  } catch (error) {
+    logger.warn("Redis history cache read failed", { symbol, error: error?.message });
+    return null;
+  }
+};
+
+const getHistoricalFromCache = async ({ pair, points, interval }) => {
   const symbol = pairToSymbol[pair];
   if (!symbol) {
     throw new Error(`Unsupported pair: ${pair}`);
   }
 
-  const history = historyBySymbol.get(symbol) || [];
   const intervalMs = parseIntervalMs(interval);
   const now = Date.now();
   const fallbackPrice = basePrices[pair];
+
+  const redisHistory = await getHistoricalFromRedis(symbol, points);
+  const memoryHistory = historyBySymbol.get(symbol) || [];
+  const history = Array.isArray(redisHistory) ? redisHistory : memoryHistory;
 
   const data = [];
   for (let i = points - 1; i >= 0; i -= 1) {

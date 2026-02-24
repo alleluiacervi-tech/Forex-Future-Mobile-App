@@ -1,9 +1,13 @@
 import { EventEmitter } from "events";
 import prisma from "../db/prisma.js";
+import Logger from "../utils/logger.js";
+import { buildRedisKey, getRedisClient } from "./redis.js";
 import { marketEvents } from "./marketCache.js";
 import { symbolToPair } from "./marketSymbols.js";
 import { validateTick, isTickOutlier, logDiagnostic } from "./marketValidator.js";
 import { ForexFutureEngine } from "./forexFutureEngine.js";
+
+const logger = new Logger("MarketRecorder");
 
 // create a single shared engine instance used by the recorder
 const forexEngine = new ForexFutureEngine();
@@ -19,6 +23,7 @@ const marketAlertCleanupIntervalMs = Math.max(
   60 * 1000,
   Number(process.env.MARKET_ALERT_CLEANUP_INTERVAL_MS || 15 * 60 * 1000)
 );
+const redisRecentAlertsKey = buildRedisKey("market", "alerts", "recent");
 
 const toTimeMs = (value) => {
   if (value instanceof Date) return value.getTime();
