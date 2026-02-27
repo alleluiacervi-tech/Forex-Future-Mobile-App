@@ -146,7 +146,7 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
       </View>
 
       <View style={frameStyle}>
-        <View pointerEvents="none" style={styles.zones}>
+        <View style={[styles.zones, { pointerEvents: 'none' }]}>
           <View style={[styles.zoneTop, { backgroundColor: 'rgba(244, 67, 54, 0.08)' }]} />
           <View style={styles.zoneMiddle} />
           <View style={[styles.zoneBottom, { backgroundColor: 'rgba(76, 175, 80, 0.08)' }]} />
@@ -226,7 +226,7 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
           </View>
         )}
 
-        <View pointerEvents="none" style={styles.levelLabels}>
+        <View style={[styles.levelLabels, { pointerEvents: 'none' }]}>
           <View style={[styles.levelLabel, styles.levelLabelTop, { backgroundColor: 'rgba(244, 67, 54, 0.15)', borderColor: 'rgba(244, 67, 54, 0.4)' }]}>
             <Text variant="caption" style={[styles.levelLabelText, { color: '#f44336' }]}>70</Text>
           </View>

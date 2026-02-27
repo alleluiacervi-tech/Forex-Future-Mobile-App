@@ -239,10 +239,10 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
         ]}
       >
         <View
-          pointerEvents="none"
           style={[
             styles.trendWash,
             {
+              pointerEvents: 'none',
               backgroundColor:
                 trendState === 'bullish'
                   ? `${theme.colors.success}08`
@@ -316,7 +316,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({ pair, timeframe }) => {
           </View>
         )}
 
-        <View pointerEvents="none" style={styles.emaLegend}>
+        <View style={[styles.emaLegend, { pointerEvents: 'none' }]}>
           <View style={[styles.emaChip, { backgroundColor: 'rgba(76, 175, 80, 0.12)', borderColor: 'rgba(76, 175, 80, 0.3)' }]}>
             <View style={[styles.emaIndicator, { backgroundColor: ema20Color }]} />
             <Text variant="caption" style={[styles.emaChipText, { color: ema20Color }]}>
@@ -462,4 +462,3 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
 });
-

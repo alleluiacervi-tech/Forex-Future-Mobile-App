@@ -199,7 +199,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   return (
     <ToastContext.Provider value={{ showToast, hideToast }}>
       {children}
-      <View pointerEvents="box-none" style={styles.overlay}>
+      <View style={[styles.overlay, { pointerEvents: 'box-none' }]}>
         {activeToast ? (
           <Animated.View
             style={[

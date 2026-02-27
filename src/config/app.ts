@@ -58,7 +58,7 @@ const envApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 const localApiUrl = resolveLocalApiUrl();
 const resolvedApiUrl = envApiUrl || localApiUrl;
 
-if (__DEV__ && !envApiUrl) {
+if (__DEV__ && !envApiUrl && Platform.OS !== 'web') {
   const debugHost = getExpoDebugHost();
   if (debugHost && isTunnelHost(debugHost)) {
     console.warn(
