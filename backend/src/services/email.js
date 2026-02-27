@@ -70,9 +70,6 @@ const validateEmailConfig = () => {
 
   if (cfg.appPassword) {
     if (cfg.appPassword.length < 12) warnings.push("EMAIL_APP_PASSWORD looks short (double-check your app password).");
-    if (cfg.appPassword.length === 16 && /^[a-z0-9]+$/i.test(cfg.appPassword)) {
-      warnings.push("EMAIL_APP_PASSWORD matches common 16-char app-password format.");
-    }
   }
 
   return {

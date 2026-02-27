@@ -5,6 +5,7 @@ const logger = new Logger("RedisService");
 
 const redisEnabled = process.env.REDIS_ENABLED !== "false";
 const redisUrl = String(process.env.REDIS_URL || "").trim();
+const nodeEnv = String(process.env.NODE_ENV || "development").trim().toLowerCase();
 const redisKeyPrefix = String(process.env.REDIS_KEY_PREFIX || "forex:").trim() || "forex:";
 const reconnectBaseMs = Math.max(100, Number(process.env.REDIS_RECONNECT_BASE_MS || 250));
 const reconnectMaxMs = Math.max(reconnectBaseMs, Number(process.env.REDIS_RECONNECT_MAX_MS || 5000));
@@ -16,7 +17,12 @@ const canUseRedis = () => {
   if (redisUrl) return true;
   if (!warnedMissingRedis) {
     warnedMissingRedis = true;
-    logger.warn("REDIS_URL is not set; Redis-backed services will use in-memory fallback.");
+    const message = "REDIS_URL is not set; Redis-backed services will use in-memory fallback.";
+    if (nodeEnv === "production") {
+      logger.warn(message);
+    } else {
+      logger.info(message);
+    }
   }
   return false;
 };
