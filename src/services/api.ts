@@ -1,5 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_CONFIG } from '../config';
 
+const TOKEN_KEY = '@forexapp_token';
 const baseUrl = APP_CONFIG.apiUrl.replace(/\/$/, '');
 
 const buildUrl = (path: string) => (path.startsWith('http') ? path : `${baseUrl}${path}`);
@@ -80,25 +82,52 @@ export async function apiGet<T>(path: string): Promise<T> {
   return parseResponseBody<T>(response);
 }
 
+const getStoredToken = async (): Promise<string | null> => {
+  try {
+    return await AsyncStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const buildAuthHeaders = async (token?: string): Promise<Record<string, string>> => {
+  const resolved = token ?? (await getStoredToken());
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  };
+  if (resolved) {
+    headers.Authorization = `Bearer ${resolved}`;
+  }
+  return headers;
+};
+
 export async function apiPost<T>(
   path: string,
   body: unknown,
   options: { token?: string } = {},
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-  };
-
-  if (options.token) {
-    headers.Authorization = `Bearer ${options.token}`;
-  }
+  const headers = await buildAuthHeaders(options.token);
 
   const response = await fetch(buildUrl(path), {
     method: 'POST',
     headers,
     body: JSON.stringify(body ?? {}),
   });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    const message = extractErrorMessage(errorText, response.status);
+    throw new Error(message);
+  }
+
+  return parseResponseBody<T>(response);
+}
+
+export async function apiAuthGet<T>(path: string, options: { token?: string } = {}): Promise<T> {
+  const headers = await buildAuthHeaders(options.token);
+
+  const response = await fetch(buildUrl(path), { headers });
 
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');

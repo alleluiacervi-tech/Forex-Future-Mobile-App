@@ -6,14 +6,19 @@ import { marketEvents } from "./marketCache.js";
 import { symbolToPair } from "./marketSymbols.js";
 import { validateTick, isTickOutlier, logDiagnostic } from "./marketValidator.js";
 import { ForexFutureEngine } from "./forexFutureEngine.js";
+import { ForexAlertEngine } from "./forexAlertEngine.js";
 
 const logger = new Logger("MarketRecorder");
 
 // create a single shared engine instance used by the recorder
 const forexEngine = new ForexFutureEngine();
+// new enterprise-grade alert engine
+const forexAlertEngine = new ForexAlertEngine();
+
 // We emit alerts after optional DB persistence in maybeCreateAlerts().
 // Keep callback disabled to avoid duplicate marketAlert broadcasts.
 forexEngine.onAlert = null;
+forexAlertEngine.onAlert = null;
 
 const alertEvents = new EventEmitter();
 const recentAlerts = [];
@@ -327,39 +332,41 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask
   pruneRecentAlerts(nowMs);
   await cleanupPersistedAlerts(nowMs);
 
-  // hand off to the new high-performance engine
-  const engineAlerts = forexEngine.processTick(pair, price, priceType, tsMs, { bid, ask, volume });
+  // Use new enterprise-grade alert engine
+  let engineAlerts = [];
+  try {
+    const alert = forexAlertEngine.processTick(pair, bid, ask, tsMs);
+    if (alert) {
+      engineAlerts = [alert];
+    }
+  } catch (error) {
+    logger.error("ForexAlertEngine error", { error: error?.message });
+  }
+
   // persist each alert if DB available and also emit/store in-memory
   for (const alert of engineAlerts) {
     let record = alert;
     if (prisma.marketAlert) {
       try {
-        // engine alerts do not include traditional fields; supply safe defaults
-        const isEngine = alert.windowMinutes == null;
+        // Map alert object to database schema
         const data = {
           pair: alert.pair,
-          windowMinutes: isEngine ? 0 : alert.windowMinutes,
-          // fromPrice could be provided by the engine if we detected a velocity
-          // signal; otherwise it might be undefined.  record whatever we have so
-          // front‑end can compute meaningful pct moves.
-          fromPrice: isEngine
-            ? alert.fromPrice != null
-              ? alert.fromPrice
-              : alert.currentPrice
-            : alert.fromPrice,
-          toPrice: alert.currentPrice,
-          changePercent: isEngine ? 0 : alert.changePercent,
-          severity: isEngine ? alert.confidence?.label || "" : alert.severity,
-          currentPrice: alert.currentPrice || null,
-          direction: alert.direction || null,
-          velocity: alert.velocity || null,
-          confidence: alert.confidence || null,
-          levels: alert.levels || null,
+          windowMinutes: 0,
+          fromPrice: alert.levels?.entry || price,
+          toPrice: price,
+          changePercent: (alert.pips / 100),
+          severity: alert.severity?.name || 'SIGNIFICANT',
+          currentPrice: price,
+          direction: alert.direction,
+          velocity: alert.speed,
+          confidence: { level: alert.severity?.level, name: alert.severity?.name },
+          levels: alert.levels,
           triggeredAt: new Date(alert.timestamp)
         };
         record = await prisma.marketAlert.create({ data });
       } catch (e) {
         // ignore persistence errors; keep original alert
+        logger.warn("Failed to persist alert", { error: e?.message, pair });
         record = alert;
       }
     }
@@ -580,6 +587,7 @@ export {
   maybeCreateAlerts,
   marketAlertRetentionMs,
   state,
-  // new export for direct access
-  forexEngine
+  // engines for direct access
+  forexEngine,
+  forexAlertEngine
 };

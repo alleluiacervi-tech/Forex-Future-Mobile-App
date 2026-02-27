@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View, Image } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import { LinearGradient } from 'expo-linear-gradient';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -16,6 +17,7 @@ import { ToastProvider } from './src/context/ToastContext';
 import { createQueryClient } from './src/services/queryClient';
 
 const STARTUP_SPLASH_DURATION_MS = 5000;
+const TERMS_ACCEPTED_KEY = '@forexapp_terms_accepted';
 
 void SplashScreen.preventAutoHideAsync().catch(() => {
   // Ignore if the splash screen is already prevented or unavailable.
@@ -32,11 +34,10 @@ export default function App() {
 
     const prepare = async () => {
       try {
-        // If you add custom fonts later, you can load them here.
-        // Example:
-        // await Font.loadAsync({
-        //   'YourFontName': require('./assets/fonts/YourFont.ttf'),
-        // });
+        const storedTerms = await AsyncStorage.getItem(TERMS_ACCEPTED_KEY);
+        if (isMounted && storedTerms === 'true') {
+          setAcceptedTerms(true);
+        }
       } catch (e) {
         console.warn(e);
       } finally {
@@ -84,7 +85,10 @@ export default function App() {
                   {showStartupSplash ? (
                     <StartupSplash />
                   ) : !acceptedTerms ? (
-                    <TermsScreen onAgree={() => setAcceptedTerms(true)} />
+                    <TermsScreen onAgree={() => {
+                      setAcceptedTerms(true);
+                      void AsyncStorage.setItem(TERMS_ACCEPTED_KEY, 'true').catch(() => {});
+                    }} />
                   ) : (
                     <MainNavigator />
                   )}

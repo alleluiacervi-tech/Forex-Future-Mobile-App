@@ -78,11 +78,32 @@ const parseArcjetMode = (value, fallback) => {
 
 const defaultArcjetMode = process.env.NODE_ENV === "production" ? "LIVE" : "DRY_RUN";
 
+const resolveJwtSecret = () => {
+  const secret = process.env.JWT_SECRET;
+  const isProduction = (process.env.NODE_ENV || "development") === "production";
+
+  if (!secret || secret === "change-me" || secret === "dev-secret") {
+    if (isProduction) {
+      throw new Error(
+        "FATAL: JWT_SECRET must be set to a strong, unique value in production. " +
+        "Do not use 'change-me' or 'dev-secret'."
+      );
+    }
+    console.warn(
+      "[Config] WARNING: JWT_SECRET is not set or uses a default value. " +
+      "This is acceptable for local development only."
+    );
+    return secret || "dev-secret";
+  }
+
+  return secret;
+};
+
 const config = {
   port: Number(process.env.PORT || 4000),
   nodeEnv: process.env.NODE_ENV || "development",
   trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
-  jwtSecret: process.env.JWT_SECRET || "dev-secret",
+  jwtSecret: resolveJwtSecret(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "2h",
   databaseUrl: process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/forex",
   wsHeartbeatMs: Number(process.env.WS_HEARTBEAT_MS || 15000),
