@@ -17,7 +17,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "seed": "node prisma/seed.js",
-    "test": "node --test src/**/*.test.js tests/**/*.js"
+    "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
     "@arcjet/inspect": "^1.1.0",

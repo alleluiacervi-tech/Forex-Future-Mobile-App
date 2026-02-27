@@ -4,7 +4,7 @@ import Logger from "../utils/logger.js";
 import { buildRedisKey, getRedisClient } from "./redis.js";
 import { marketEvents } from "./marketCache.js";
 import { symbolToPair } from "./marketSymbols.js";
-import { validateTick, isTickOutlier, logDiagnostic } from "./marketValidator.js";
+import { validateTick, isTickOutlier, logDiagnostic, pipSizeForPair } from "./marketValidator.js";
 import { ForexFutureEngine } from "./forexFutureEngine.js";
 import { ForexAlertEngine } from "./forexAlertEngine.js";
 
@@ -274,38 +274,6 @@ const getMarketWindowSnapshot = (pair, windowsMinutes = [1, 15, 60, 240, 1440]) 
   };
 };
 
-const alertThresholds = {
-  1: Number(process.env.MARKET_ALERT_THRESHOLD_1M || 0.12),
-  15: Number(process.env.MARKET_ALERT_THRESHOLD_15M || 0.45),
-  60: Number(process.env.MARKET_ALERT_THRESHOLD_1H || 0.9),
-  240: Number(process.env.MARKET_ALERT_THRESHOLD_4H || 1.4),
-  1440: Number(process.env.MARKET_ALERT_THRESHOLD_1D || 2.2)
-};
-
-const alertCooldownMs = Number(process.env.MARKET_ALERT_COOLDOWN_MS || 10 * 60 * 1000);
-// tolerance for how old the reference tick may be relative to the ideal window
-// start; if the chosen tick precedes (windowMs + tolerance) we consider the
-// price stale and skip the comparison.
-const REF_TICK_TOLERANCE_MS = Number(process.env.MARKET_ALERT_REF_TOLERANCE_MS || 5000);
-
-// optional hard cap on what constitutes a physically impossible move over a
-// given window.  Used as additional sanity-check in maybeCreateAlerts.
-const MAX_MOVE_CAPS = {
-  1: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_1M || 5),
-  15: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_15M || 10),
-  60: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_1H || 20),
-  240: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_4H || 40),
-  1440: Number(process.env.MARKET_ALERT_MAX_MOVE_CAP_1D || 100)
-};
-
-const severityFor = (absChangePercent, windowMinutes) => {
-  if (windowMinutes >= 240 && absChangePercent >= 1.2) return "high";
-  if (windowMinutes >= 60 && absChangePercent >= 0.9) return "high";
-  if (windowMinutes >= 15 && absChangePercent >= 0.5) return "high";
-  if (absChangePercent >= 0.6) return "high";
-  return "medium";
-};
-
 const cleanupPersistedAlerts = async (nowMs = Date.now()) => {
   if (!prisma.marketAlert) return;
   if (nowMs - state.lastAlertCleanupAt < marketAlertCleanupIntervalMs) return;
@@ -321,7 +289,16 @@ const cleanupPersistedAlerts = async (nowMs = Date.now()) => {
   } catch {}
 };
 
-const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask, volume }) => {
+const maybeCreateAlerts = async ({
+  pair,
+  tsMs,
+  price,
+  ticks: _ticks,
+  priceType: _priceType,
+  bid,
+  ask,
+  volume: _volume
+}) => {
   const nowMs = Date.now();
   const retentionFloorMs = nowMs - marketAlertRetentionMs;
   if (!Number.isFinite(Number(tsMs)) || tsMs < retentionFloorMs) {
@@ -332,10 +309,20 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask
   pruneRecentAlerts(nowMs);
   await cleanupPersistedAlerts(nowMs);
 
+  // IMPROVED: initialize/reset pair-local engine state the first time this recorder
+  // sees a pair (or after explicit state reset in tests/restarts).
+  if (!state.lastAlertKeyAt.has(pair)) {
+    forexAlertEngine.resetPair(pair);
+  }
+  state.lastAlertKeyAt.set(pair, tsMs);
+
   // Use new enterprise-grade alert engine
   let engineAlerts = [];
   try {
-    const alert = forexAlertEngine.processTick(pair, bid, ask, tsMs);
+    const resolvedBid = Number.isFinite(Number(bid)) ? Number(bid) : Number(price);
+    const resolvedAsk = Number.isFinite(Number(ask)) ? Number(ask) : Number(price);
+    // IMPROVED: ensure detection still works when upstream omits one side of quote.
+    const alert = forexAlertEngine.processTick(pair, resolvedBid, resolvedAsk, tsMs, price);
     if (alert) {
       engineAlerts = [alert];
     }
@@ -349,17 +336,48 @@ const maybeCreateAlerts = async ({ pair, tsMs, price, ticks, priceType, bid, ask
     if (prisma.marketAlert) {
       try {
         // Map alert object to database schema
+        const currentPrice = Number.isFinite(Number(alert.currentBid))
+          ? Number(alert.currentBid)
+          : Number.isFinite(Number(alert.levels?.entry))
+            ? Number(alert.levels.entry)
+            : Number(price);
+        const pipSize = pipSizeForPair(pair);
+        const directionalPips = alert.direction === "SELL" ? -Math.abs(alert.pips) : Math.abs(alert.pips);
+        const signedChangePercent =
+          Number.isFinite(currentPrice) && currentPrice > 0
+            ? (directionalPips * pipSize / currentPrice) * 100
+            : null;
+        const windowMinutes = Math.max(
+          1,
+          Math.round((Number.isFinite(Number(alert.timeTakenMs)) ? Number(alert.timeTakenMs) : 0) / 60000)
+        );
+
         const data = {
           pair: alert.pair,
-          windowMinutes: 0,
-          fromPrice: alert.levels?.entry || price,
-          toPrice: price,
-          changePercent: (alert.pips / 100),
+          // IMPROVED: persist an estimated detection window instead of hard-coded 0.
+          windowMinutes,
+          // IMPROVED: persist move origin/current prices for clearer downstream messaging.
+          fromPrice: Number.isFinite(Number(alert.moveOriginPrice))
+            ? Number(alert.moveOriginPrice)
+            : Number.isFinite(Number(alert.levels?.entry))
+              ? Number(alert.levels.entry)
+              : Number(price),
+          toPrice: currentPrice,
+          changePercent: Number.isFinite(signedChangePercent) ? signedChangePercent : 0,
           severity: alert.severity?.name || 'SIGNIFICANT',
-          currentPrice: price,
+          currentPrice,
           direction: alert.direction,
-          velocity: alert.speed,
-          confidence: { level: alert.severity?.level, name: alert.severity?.name },
+          velocity: {
+            speed: alert.speed,
+            pips: alert.pips,
+            tickFrequency: alert.tickFrequency,
+            timeTakenMs: alert.timeTakenMs
+          },
+          confidence: {
+            level: alert.severity?.level,
+            name: alert.severity?.name,
+            consistency: alert.consistency
+          },
           levels: alert.levels,
           triggeredAt: new Date(alert.timestamp)
         };
@@ -441,6 +459,18 @@ const upsertCandle = async (candle) => {
   });
 };
 
+// IMPROVED: prevent unbounded growth of active candle map in long-running sessions.
+const pruneActiveCandles = (nowMs = Date.now()) => {
+  state.activeCandles.forEach((candle, key) => {
+    if (state.dirtyKeys.has(key)) return;
+    const intervalMs = parseIntervalMs(candle.interval);
+    const ttlMs = Math.max(intervalMs * 3, 10 * 60 * 1000);
+    if (nowMs - candle.bucketStartMs > ttlMs) {
+      state.activeCandles.delete(key);
+    }
+  });
+};
+
 const flush = async () => {
   if (!state.enabled || state.flushing) return;
   if (state.dbRetryAt && Date.now() < state.dbRetryAt) return;
@@ -496,6 +526,7 @@ const flush = async () => {
     }
   } finally {
     state.flushing = false;
+    pruneActiveCandles();
   }
 };
 
@@ -550,6 +581,9 @@ const startMarketRecorder = () => {
       recordIntoCandle({ pair, interval: "1h", tsMs, price, volume });
       recordIntoCandle({ pair, interval: "4h", tsMs, price, volume });
       recordIntoCandle({ pair, interval: "1d", tsMs, price, volume });
+
+      // IMPROVED: outliers are retained for diagnostics/candles but excluded from alert detection.
+      if (tick.outlier) return;
 
       void maybeCreateAlerts({ pair, tsMs, price, ticks, priceType, bid: trade.bid, ask: trade.ask, volume });
     } catch (_e) {

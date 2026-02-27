@@ -14,6 +14,7 @@
  * 9. Console Output Format (Part 9)
  * 10. Performance/Error Handling (Part 10)
  */
+import { decimalsForPair, pipSizeForPair } from "./marketValidator.js";
 
 // ============================================================================
 // PART 1 - MINIMUM MOVE THRESHOLDS (Hard Floors)
@@ -28,6 +29,15 @@ const MINIMUM_PIP_THRESHOLDS = {
   'GBP/JPY': { pips: 40, timeWindowMs: 180000 },
   'EUR/JPY': { pips: 35, timeWindowMs: 180000 },
   'USD/CAD': { pips: 22, timeWindowMs: 180000 },
+};
+
+// IMPROVED: normalize pair keys so both `EUR/USD` and `EURUSD` are accepted.
+const normalizePair = (pair) => {
+  const raw = String(pair || "").toUpperCase().replace(/[^A-Z]/g, "");
+  if (raw.length === 6) {
+    return `${raw.slice(0, 3)}/${raw.slice(3)}`;
+  }
+  return String(pair || "");
 };
 
 // ============================================================================
@@ -93,14 +103,27 @@ const ALERT_LEVELS = {
   },
 };
 
+// IMPROVED: configurable risk/quality guardrails without code edits.
+const MIN_PIP_GATE_RATIO = Math.max(
+  0.1,
+  Math.min(1, Number(process.env.MARKET_ALERT_MIN_PIP_GATE_RATIO || 0.35))
+);
+const MIN_TICK_FREQUENCY = Math.max(0.1, Number(process.env.MARKET_ALERT_MIN_TICK_FREQUENCY || 0.5));
+const MAX_ALLOWED_SPREAD_PIPS = Math.max(1, Number(process.env.MARKET_ALERT_MAX_SPREAD_PIPS || 4));
+
 // ============================================================================
 // PART 2 - NOISE FILTER LAYER
 // ============================================================================
 
 class NoiseFilter {
   constructor(pair, options = {}) {
-    this.pair = pair;
-    this.averageSpread = options.averageSpread || 0.0002;
+    this.pair = normalizePair(pair);
+    // IMPROVED: initialize spread baseline from instrument pip size.
+    this.averageSpread =
+      Number.isFinite(Number(options.averageSpread)) && Number(options.averageSpread) > 0
+        ? Number(options.averageSpread)
+        : this.getPipSize() * 1.5;
+    this.spreadSamples = 0;
     this.recentAlerts = [];
     this.maxRecentAlerts = 100;
   }
@@ -109,23 +132,23 @@ class NoiseFilter {
    * Filter 1 - Minimum Pip Gate
    * Calculate total pips in last 60 seconds
    */
-  checkMinimumPipGate(tickHistory) {
-    if (tickHistory.length < 1) return true; // Pass if insufficient data
+  checkMinimumPipGate(tickHistory, nowTs = Date.now()) {
+    if (tickHistory.length < 2) return true; // Pass if insufficient data
 
-    const now = Date.now();
-    const lastMinute = tickHistory.filter(t => now - t.ts < 60000);
-
-    if (lastMinute.length === 0) return false;
+    const lastMinute = tickHistory.filter((t) => nowTs - t.ts < 60000 && Number.isFinite(t.bid));
+    if (lastMinute.length < 2) return true;
 
     const pipSize = this.getPipSize();
-    const highPrice = Math.max(...lastMinute.map(t => t.bid));
-    const lowPrice = Math.min(...lastMinute.map(t => t.bid));
+    const highPrice = Math.max(...lastMinute.map((t) => t.bid));
+    const lowPrice = Math.min(...lastMinute.map((t) => t.bid));
     const totalPips = (highPrice - lowPrice) / pipSize;
 
     const threshold = MINIMUM_PIP_THRESHOLDS[this.pair];
     if (!threshold) return true; // No threshold defined = pass
 
-    return totalPips >= threshold.pips;
+    // IMPROVED: gate on progress ratio so gradual but legitimate 3-minute moves are not suppressed.
+    const gatePips = Math.max(3, threshold.pips * MIN_PIP_GATE_RATIO);
+    return totalPips >= gatePips;
   }
 
   /**
@@ -133,8 +156,11 @@ class NoiseFilter {
    * Check if spread is abnormally wide
    */
   checkSpreadFilter(bid, ask) {
+    if (!Number.isFinite(bid) || !Number.isFinite(ask)) return false;
+    if (ask < bid) return false;
     const currentSpread = ask - bid;
-    const maxAllowedSpread = this.averageSpread * 3;
+    // IMPROVED: pair-aware hard cap in pips to avoid blocking JPY instruments.
+    const maxAllowedSpread = Math.max(this.averageSpread * 3, this.getPipSize() * MAX_ALLOWED_SPREAD_PIPS);
 
     if (currentSpread > maxAllowedSpread) {
       return false; // Spread too wide - illiquid market
@@ -147,8 +173,8 @@ class NoiseFilter {
    * Filter 3 - Session Filter
    * Returns multiplier for current session
    */
-  getSessionThresholdMultiplier() {
-    const now = new Date();
+  getSessionThresholdMultiplier(nowTs = Date.now()) {
+    const now = new Date(nowTs);
     const hourUTC = now.getUTCHours();
 
     // Dead Zone: 21:00 - 06:00 UTC (+ stricter)
@@ -161,8 +187,8 @@ class NoiseFilter {
       return TRADING_SESSIONS.LONDON_NY_OVERLAP.thresholdMultiplier;
     }
 
-    // Asian session: 00:00 - 08:00 UTC (+ stricter)
-    if (hourUTC >= 0 && hourUTC < 8) {
+    // Asian session: 06:00 - 08:00 UTC (+ stricter)
+    if (hourUTC >= 6 && hourUTC < 8) {
       return TRADING_SESSIONS.ASIAN.thresholdMultiplier;
     }
 
@@ -208,7 +234,8 @@ class NoiseFilter {
    * Require velocity to be consistent across at least 3 of last 5 ticks
    */
   checkVelocityConsistency(tickHistory) {
-    if (tickHistory.length < 5) return false;
+    // IMPROVED: allow early-stage legitimate moves before 5 ticks are available.
+    if (tickHistory.length < 5) return true;
 
     const recent = tickHistory.slice(-5);
     const pipSize = this.getPipSize();
@@ -223,7 +250,7 @@ class NoiseFilter {
       velocities.push(velocity);
     }
 
-    if (velocities.length < 3) return false;
+    if (velocities.length < 3) return true;
 
     // Check if at least 3 velocities are consistently high
     const sortedVelocities = [...velocities].sort((a, b) => a - b);
@@ -254,10 +281,9 @@ class NoiseFilter {
    * Filter 7 - Duplicate Alert Prevention
    * Skip if within same 15 pip range in last 10 minutes
    */
-  checkDuplicateAlert(currentPrice) {
+  checkDuplicateAlert(currentPrice, nowTs = Date.now()) {
     const pipSize = this.getPipSize();
-    const now = Date.now();
-    const tenMinutesAgo = now - 600000;
+    const tenMinutesAgo = nowTs - 600000;
 
     // Clean old alerts
     this.recentAlerts = this.recentAlerts.filter(alert => alert.ts > tenMinutesAgo);
@@ -276,10 +302,10 @@ class NoiseFilter {
   /**
    * Record an alert for duplicate checking
    */
-  recordAlert(price) {
+  recordAlert(price, tsMs = Date.now()) {
     this.recentAlerts.push({
       price,
-      ts: Date.now(),
+      ts: tsMs,
     });
 
     if (this.recentAlerts.length > this.maxRecentAlerts) {
@@ -294,7 +320,7 @@ class NoiseFilter {
   filter(tick, tickHistory) {
     try {
       // Filter 1: Minimum pip gate
-      if (!this.checkMinimumPipGate(tickHistory)) {
+      if (!this.checkMinimumPipGate(tickHistory, tick.ts)) {
         return false;
       }
 
@@ -302,6 +328,7 @@ class NoiseFilter {
       if (!this.checkSpreadFilter(tick.bid, tick.ask)) {
         return false;
       }
+      this.updateSpreadBaseline(tick.bid, tick.ask);
 
       // Filter 3: Session filter (returns multiplier, always passes)
       // This is used in analyzer, not for rejection
@@ -322,19 +349,28 @@ class NoiseFilter {
       }
 
       // Filter 7: Duplicate alert prevention
-      if (!this.checkDuplicateAlert(tick.bid)) {
+      if (!this.checkDuplicateAlert(tick.bid, tick.ts)) {
         return false;
       }
 
       return true;
-    } catch (error) {
+    } catch (_error) {
       // Log error but pass through to avoid crashing
       return true;
     }
   }
 
   getPipSize() {
-    return this.pair.includes('JPY') ? 0.01 : 0.0001;
+    return pipSizeForPair(this.pair);
+  }
+
+  // IMPROVED: keep an adaptive spread baseline for current market conditions.
+  updateSpreadBaseline(bid, ask) {
+    if (!Number.isFinite(bid) || !Number.isFinite(ask) || ask < bid) return;
+    const spread = ask - bid;
+    this.spreadSamples += 1;
+    const alpha = this.spreadSamples < 20 ? 0.25 : 0.1;
+    this.averageSpread = (1 - alpha) * this.averageSpread + alpha * spread;
   }
 }
 
@@ -344,15 +380,16 @@ class NoiseFilter {
 
 class MovementAnalyzer {
   constructor(pair, baselineCalibrator = null) {
-    this.pair = pair;
+    this.pair = normalizePair(pair);
     this.baselineCalibrator = baselineCalibrator;
   }
 
   /**
    * Analyze if movement meets all 5 criteria
    */
-  analyze(tickHistory, noiseFilter) {
-    if (tickHistory.length < 5) return null;
+  analyze(tickHistory, noiseFilter, nowTs = Date.now()) {
+    // IMPROVED: allow detection once three directional ticks establish a valid move.
+    if (tickHistory.length < 3) return null;
 
     try {
       // Get the threshold window
@@ -360,12 +397,11 @@ class MovementAnalyzer {
       if (!threshold) return null;
 
       const windowMs = threshold.timeWindowMs;
-      const now = Date.now();
-      const windowStart = now - windowMs;
+      const windowStart = nowTs - windowMs;
 
       // Get ticks in window
-      const windowTicks = tickHistory.filter(t => t.ts >= windowStart);
-      if (windowTicks.length === 0) return null;
+      const windowTicks = tickHistory.filter((t) => t.ts >= windowStart && Number.isFinite(t.bid));
+      if (windowTicks.length < 2) return null;
 
       const pipSize = this.getPipSize();
 
@@ -373,8 +409,9 @@ class MovementAnalyzer {
       const highPrice = Math.max(...windowTicks.map(t => t.bid));
       const lowPrice = Math.min(...windowTicks.map(t => t.bid));
       const totalPips = (highPrice - lowPrice) / pipSize;
+      if (!Number.isFinite(totalPips) || totalPips <= 0) return null;
 
-      const adjustedThreshold = threshold.pips * noiseFilter.getSessionThresholdMultiplier();
+      const adjustedThreshold = threshold.pips * noiseFilter.getSessionThresholdMultiplier(nowTs);
       const volatilityAdjustment = this.baselineCalibrator
         ? this.baselineCalibrator.getVolatilityAdjustment()
         : 1.0;
@@ -388,10 +425,12 @@ class MovementAnalyzer {
       // Determine direction
       const firstPrice = windowTicks[0].bid;
       const lastPrice = windowTicks[windowTicks.length - 1].bid;
+      if (lastPrice === firstPrice) return null;
       const direction = lastPrice > firstPrice ? 'BUY' : 'SELL';
 
       // CRITERIA 2: Minimum speed
       const timeTakenMs = windowTicks[windowTicks.length - 1].ts - windowTicks[0].ts;
+      if (!Number.isFinite(timeTakenMs) || timeTakenMs <= 0) return null;
       const speed = this.classifySpeed(totalPips, timeTakenMs);
       if (!speed) return null;
 
@@ -409,7 +448,7 @@ class MovementAnalyzer {
 
       // CRITERIA 5: Volume confirmation (tick frequency)
       const tickFrequency = (windowTicks.length / timeTakenMs) * 1000; // ticks per second
-      if (tickFrequency < 5) {
+      if (tickFrequency < MIN_TICK_FREQUENCY) {
         // Low frequency ticks = low institutional backing
         // Only allow if move is very large (EXPLOSIVE or CRASH level)
         if (totalPips < 50) {
@@ -427,8 +466,9 @@ class MovementAnalyzer {
         timeTakenMs,
         severity: this.calculateSeverity(totalPips, timeTakenMs),
         moveOriginPrice: direction === 'BUY' ? lowPrice : highPrice,
+        extremePrice: direction === 'BUY' ? highPrice : lowPrice,
       };
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }
@@ -453,17 +493,21 @@ class MovementAnalyzer {
     if (ticks.length < 2) return 0;
 
     let consistentCount = 0;
+    let directionalTicks = 0;
 
     for (let i = 1; i < ticks.length; i++) {
       const change = ticks[i].bid - ticks[i - 1].bid;
+      if (change === 0) continue;
       const tickDirection = change > 0 ? 'BUY' : 'SELL';
+      directionalTicks++;
 
       if (tickDirection === dominantDirection) {
         consistentCount++;
       }
     }
 
-    return consistentCount / (ticks.length - 1);
+    if (directionalTicks === 0) return 0;
+    return consistentCount / directionalTicks;
   }
 
   /**
@@ -526,7 +570,7 @@ class MovementAnalyzer {
   }
 
   getPipSize() {
-    return this.pair.includes('JPY') ? 0.01 : 0.0001;
+    return pipSizeForPair(this.pair);
   }
 }
 
@@ -536,7 +580,7 @@ class MovementAnalyzer {
 
 class BaselineCalibrator {
   constructor(pair) {
-    this.pair = pair;
+    this.pair = normalizePair(pair);
     this.history = []; // 4 hours of data
     this.maxHistory = 240 * 4; // 4 hours of minute-level data
     this.lastCalibrationTime = 0;
@@ -545,7 +589,8 @@ class BaselineCalibrator {
     this.metrics = {
       avgPipPerMinute: 1.0,
       avgTickFrequency: 1.0,
-      avgSpread: 0.0002,
+      // IMPROVED: initialize spread baseline by instrument, not a fixed non-JPY value.
+      avgSpread: pipSizeForPair(pair) * 1.5,
       volatilityRegime: 'MEDIUM',
     };
   }
@@ -553,8 +598,8 @@ class BaselineCalibrator {
   /**
    * Recalibrate every 15 minutes
    */
-  updateBaseline(tickHistory) {
-    const now = Date.now();
+  updateBaseline(tickHistory, nowTs = Date.now()) {
+    const now = nowTs;
     if (now - this.lastCalibrationTime < this.calibrationIntervalMs) {
       return;
     }
@@ -562,7 +607,7 @@ class BaselineCalibrator {
     this.lastCalibrationTime = now;
 
     try {
-      const pipSize = this.pair.includes('JPY') ? 0.01 : 0.0001;
+      const pipSize = pipSizeForPair(this.pair);
 
       // Calculate metrics from last 15 minutes
       const fifteenMinutesAgo = now - 15 * 60 * 1000;
@@ -584,8 +629,12 @@ class BaselineCalibrator {
         this.metrics.avgTickFrequency = timeSpanMs > 0 ? (recentTicks.length / timeSpanMs) * 1000 : 1.0;
 
         // Avg spread
-        const spreads = recentTicks.map(t => t.ask - t.bid);
-        this.metrics.avgSpread = spreads.reduce((a, b) => a + b, 0) / spreads.length;
+        const spreads = recentTicks
+          .map((t) => (Number.isFinite(t.ask) && Number.isFinite(t.bid) ? t.ask - t.bid : null))
+          .filter((spread) => Number.isFinite(spread) && spread >= 0);
+        if (spreads.length > 0) {
+          this.metrics.avgSpread = spreads.reduce((a, b) => a + b, 0) / spreads.length;
+        }
 
         // Volatility regime
         this.metrics.volatilityRegime = this.classifyVolatility(this.metrics.avgPipPerMinute);
@@ -596,7 +645,7 @@ class BaselineCalibrator {
       if (this.history.length > this.maxHistory) {
         this.history.shift();
       }
-    } catch (error) {
+    } catch (_error) {
       // Silently continue with existing metrics
     }
   }
@@ -641,16 +690,24 @@ class BaselineCalibrator {
 
 class EntryLevelCalculator {
   constructor(pair) {
-    this.pair = pair;
+    this.pair = normalizePair(pair);
   }
 
   /**
    * Calculate entry, stop loss, and take profit levels
    */
   calculateLevels(currentBid, currentAsk, direction, severity) {
-    const pipSize = this.pair.includes('JPY') ? 0.01 : 0.0001;
+    const pipSize = pipSizeForPair(this.pair);
+    const decimals = decimalsForPair(this.pair);
 
-    const entry = direction === 'BUY' ? currentAsk : currentBid;
+    const preferredEntry = direction === 'BUY' ? currentAsk : currentBid;
+    const fallbackEntry = direction === 'BUY' ? currentBid : currentAsk;
+    // IMPROVED: avoid propagating NaN levels when one side of quote is missing.
+    const entry = Number.isFinite(preferredEntry)
+      ? preferredEntry
+      : Number.isFinite(fallbackEntry)
+        ? fallbackEntry
+        : 0;
 
     // Stop Loss (behind origin of move)
     const slPips = severity.slPips;
@@ -668,11 +725,11 @@ class EntryLevelCalculator {
     const tp2 = direction === 'BUY' ? entry + tp2Distance * pipSize : entry - tp2Distance * pipSize;
 
     return {
-      entry: Math.round(entry * 100000) / 100000,
-      stopLoss: Math.round(sl * 100000) / 100000,
-      tp1: Math.round(tp1 * 100000) / 100000,
-      tp2: Math.round(tp2 * 100000) / 100000,
-      tp3: Math.round(tp3 * 100000) / 100000,
+      entry: Number(entry.toFixed(decimals)),
+      stopLoss: Number(sl.toFixed(decimals)),
+      tp1: Number(tp1.toFixed(decimals)),
+      tp2: Number(tp2.toFixed(decimals)),
+      tp3: Number(tp3.toFixed(decimals)),
       riskReward: severity.riskReward,
     };
   }
@@ -684,7 +741,7 @@ class EntryLevelCalculator {
 
 class AlertValidator {
   constructor(pair) {
-    this.pair = pair;
+    this.pair = normalizePair(pair);
   }
 
   /**
@@ -732,7 +789,7 @@ class AlertValidator {
       }
 
       return movement;
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   }
@@ -743,18 +800,28 @@ class AlertValidator {
   checkMovementInProgress(movement, tickHistory) {
     if (tickHistory.length < 2) return true;
 
-    const pipSize = this.pair.includes('JPY') ? 0.01 : 0.0001;
-    const recent = tickHistory.slice(-2);
-
+    const pipSize = pipSizeForPair(this.pair);
+    const recent = tickHistory[tickHistory.length - 1];
     const moveOrigin = movement.moveOriginPrice;
-    const currentPrice = recent[1].bid;
-    const moveTarget = recent[0].bid;
+    const extremePrice = Number.isFinite(movement.extremePrice)
+      ? movement.extremePrice
+      : movement.direction === "BUY"
+        ? Math.max(...tickHistory.map((t) => t.bid))
+        : Math.min(...tickHistory.map((t) => t.bid));
+    const currentPrice = recent.bid;
 
-    const originalMove = Math.abs(moveTarget - moveOrigin) / pipSize;
-    const currentRetrace = Math.abs(currentPrice - moveTarget) / pipSize;
+    if (!Number.isFinite(moveOrigin) || !Number.isFinite(currentPrice) || !Number.isFinite(extremePrice)) {
+      return true;
+    }
+
+    const originalMove = Math.abs(extremePrice - moveOrigin) / pipSize;
+    const currentRetrace =
+      movement.direction === "BUY"
+        ? Math.max(0, (extremePrice - currentPrice) / pipSize)
+        : Math.max(0, (currentPrice - extremePrice) / pipSize);
 
     // If retraced more than 50%, opportunity is over
-    if (currentRetrace > originalMove * 0.5) {
+    if (originalMove > 0 && currentRetrace > originalMove * 0.5) {
       return false;
     }
 
@@ -765,9 +832,12 @@ class AlertValidator {
    * CHECK 2: Spread within acceptable range
    */
   checkSpreadNormal(bid, ask) {
+    if (!Number.isFinite(bid) || !Number.isFinite(ask) || ask < bid) {
+      return false;
+    }
     const spread = ask - bid;
-    // Assume 0.0002 is normal; flag if > 0.0004
-    return spread <= 0.0004;
+    // IMPROVED: use pair pip size instead of a fixed non-JPY spread threshold.
+    return spread <= pipSizeForPair(this.pair) * MAX_ALLOWED_SPREAD_PIPS;
   }
 
   /**
@@ -776,11 +846,12 @@ class AlertValidator {
   checkMoveStillAccelerating(movement, tickHistory) {
     if (tickHistory.length < 3) return true;
 
-    const pipSize = this.pair.includes('JPY') ? 0.01 : 0.0001;
+    const pipSize = pipSizeForPair(this.pair);
     const recent = tickHistory.slice(-3);
 
     const v1 = Math.abs((recent[1].bid - recent[0].bid) / pipSize);
     const v2 = Math.abs((recent[2].bid - recent[1].bid) / pipSize);
+    if (!Number.isFinite(v1) || !Number.isFinite(v2) || v1 <= 0) return true;
 
     // If velocity dropped more than 70%, move is ending
     if (v2 < v1 * 0.3) {
@@ -836,6 +907,10 @@ class AlertManager {
    */
   shouldFire(alert, pair) {
     try {
+      const nowMs =
+        alert?.timestamp instanceof Date && Number.isFinite(alert.timestamp.getTime())
+          ? alert.timestamp.getTime()
+          : Date.now();
       // CRASH level always fires immediately
       if (alert.severity.level === 4) {
         return true;
@@ -845,13 +920,15 @@ class AlertManager {
       const lastAlertTs = this.lastAlertTs.get(pair) || 0;
       const cooldown = this.cooldownsByLevel[alert.severity.level] || 0;
 
-      if (Date.now() - lastAlertTs < cooldown) {
+      if (nowMs - lastAlertTs < cooldown) {
         return false;
       }
 
       // Check global hourly limit (max 10 alerts per hour)
-      const oneHourAgo = Date.now() - 3600000;
+      const oneHourAgo = nowMs - 3600000;
       const recentAlerts = this.alerTsGlobal.filter(ts => ts > oneHourAgo);
+      // IMPROVED: keep compact global history without waiting for recordAlert().
+      this.alerTsGlobal = recentAlerts;
 
       if (recentAlerts.length >= this.maxAlerTsGlobal && alert.severity.level < 3) {
         // EXPLOSIVE/CRASH override the limit
@@ -859,7 +936,7 @@ class AlertManager {
       }
 
       return true;
-    } catch (error) {
+    } catch (_error) {
       return true;
     }
   }
@@ -868,27 +945,31 @@ class AlertManager {
    * Record that an alert was fired
    */
   recordAlert(alert, pair) {
-    this.lastAlertTs.set(pair, Date.now());
+    const tsMs =
+      alert?.timestamp instanceof Date && Number.isFinite(alert.timestamp.getTime())
+        ? alert.timestamp.getTime()
+        : Date.now();
+    this.lastAlertTs.set(pair, tsMs);
 
     if (!this.alertHistory.has(pair)) {
       this.alertHistory.set(pair, []);
     }
 
     this.alertHistory.get(pair).push({
-      ts: Date.now(),
+      ts: tsMs,
       level: alert.severity.level,
       direction: alert.direction,
     });
 
     // Keep only last 24 hours
-    const oneDayAgo = Date.now() - 86400000;
+    const oneDayAgo = tsMs - 86400000;
     const history = this.alertHistory.get(pair);
     const filtered = history.filter(a => a.ts > oneDayAgo);
     this.alertHistory.set(pair, filtered);
 
     // Record global alert timestamp
-    this.alerTsGlobal.push(Date.now());
-    const oneHourAgo = Date.now() - 3600000;
+    this.alerTsGlobal.push(tsMs);
+    const oneHourAgo = tsMs - 3600000;
     this.alerTsGlobal = this.alerTsGlobal.filter(ts => ts > oneHourAgo);
   }
 
@@ -897,7 +978,8 @@ class AlertManager {
    */
   getRecentAlerts(pair, maxCount = 10) {
     const history = this.alertHistory.get(pair) || [];
-    return history.slice(0, maxCount);
+    // IMPROVED: return most-recent-first entries for trend validation logic.
+    return history.slice(-maxCount).reverse();
   }
 }
 
@@ -912,6 +994,8 @@ class ForexAlertEngine {
     this.tickHistories = new Map(); // pair -> [ticks]
     this.maxTicksPerPair = 1000;
     this.lastProcessedTs = new Map();
+    // IMPROVED: cache latest good quote so single-sided/missing fields don't break detection.
+    this.lastQuotes = new Map();
 
     this.onAlert = null; // Callback function
     this.onError = null; // Error callback
@@ -922,30 +1006,68 @@ class ForexAlertEngine {
   /**
    * Process incoming tick and detect alerts
    */
-  processTick(pair, bid, ask, timestamp = Date.now()) {
+  processTick(pair, bid, ask, timestamp = Date.now(), fallbackPrice = null) {
     try {
-      // Ensure engine initialized for this pair
-      if (!this.engines.has(pair)) {
-        this.initializePair(pair);
+      if (!pair || typeof pair !== "string") return null;
+      const normalizedPair = normalizePair(pair);
+      const ts = Number.isFinite(Number(timestamp)) ? Number(timestamp) : Date.now();
+
+      const lastTs = this.lastProcessedTs.get(normalizedPair) || 0;
+      if (lastTs && ts < lastTs) {
+        // IMPROVED: reject stale/out-of-order ticks to preserve directional calculations.
+        return null;
       }
 
-      const engine = this.engines.get(pair);
-      const tick = { bid, ask, ts: timestamp };
+      const numericBid = Number.isFinite(Number(bid)) ? Number(bid) : null;
+      const numericAsk = Number.isFinite(Number(ask)) ? Number(ask) : null;
+      const numericFallback = Number.isFinite(Number(fallbackPrice)) ? Number(fallbackPrice) : null;
+      const previousQuote = this.lastQuotes.get(normalizedPair) || null;
+
+      let resolvedBid = numericBid;
+      let resolvedAsk = numericAsk;
+      if (!Number.isFinite(resolvedBid) && Number.isFinite(resolvedAsk)) resolvedBid = resolvedAsk;
+      if (!Number.isFinite(resolvedAsk) && Number.isFinite(resolvedBid)) resolvedAsk = resolvedBid;
+      if (!Number.isFinite(resolvedBid) && !Number.isFinite(resolvedAsk) && Number.isFinite(numericFallback)) {
+        resolvedBid = numericFallback;
+        resolvedAsk = numericFallback;
+      }
+      if (!Number.isFinite(resolvedBid) && previousQuote && Number.isFinite(previousQuote.bid)) {
+        resolvedBid = previousQuote.bid;
+      }
+      if (!Number.isFinite(resolvedAsk) && previousQuote && Number.isFinite(previousQuote.ask)) {
+        resolvedAsk = previousQuote.ask;
+      }
+      if (!Number.isFinite(resolvedBid) || !Number.isFinite(resolvedAsk) || resolvedAsk < resolvedBid) {
+        return null;
+      }
+
+      // Ensure engine initialized for this pair
+      if (!this.engines.has(normalizedPair)) {
+        this.initializePair(normalizedPair);
+      }
+
+      const engine = this.engines.get(normalizedPair);
+      const tick = { bid: resolvedBid, ask: resolvedAsk, ts };
 
       // Maintain tick history
-      const history = this.tickHistories.get(pair) || [];
+      const history = this.tickHistories.get(normalizedPair) || [];
       history.push(tick);
 
       // Auto-cleanup old ticks (keep sliding 4-hour window)
-      const fourHoursAgo = Date.now() - 14400000;
+      const fourHoursAgo = ts - 14400000;
       while (history.length > 0 && history[0].ts < fourHoursAgo) {
         history.shift();
       }
+      if (history.length > this.maxTicksPerPair) {
+        history.splice(0, history.length - this.maxTicksPerPair);
+      }
 
-      this.tickHistories.set(pair, history);
+      this.tickHistories.set(normalizedPair, history);
+      this.lastProcessedTs.set(normalizedPair, ts);
+      this.lastQuotes.set(normalizedPair, { bid: resolvedBid, ask: resolvedAsk, ts });
 
       // Update baseline
-      engine.calibrator.updateBaseline(history);
+      engine.calibrator.updateBaseline(history, ts);
 
       // Apply noise filter
       if (!engine.filter.filter(tick, history)) {
@@ -954,32 +1076,43 @@ class ForexAlertEngine {
       }
 
       // Analyze movement
-      const movement = engine.analyzer.analyze(history, engine.filter);
+      const movement = engine.analyzer.analyze(history, engine.filter, ts);
       if (!movement) {
         // No significant movement detected - silent
         return null;
       }
 
       // Validate before sending
-      const recentAlerts = this.alertManager.getRecentAlerts(pair);
-      const validatedMovement = engine.validator.validate(movement, history, bid, ask, recentAlerts);
+      const recentAlerts = this.alertManager.getRecentAlerts(normalizedPair);
+      const validatedMovement = engine.validator.validate(
+        movement,
+        history,
+        resolvedBid,
+        resolvedAsk,
+        recentAlerts
+      );
       if (!validatedMovement) {
         // Validation failed - silent
         return null;
       }
 
       // Check frequency rules
-      if (!this.alertManager.shouldFire(validatedMovement, pair)) {
+      if (!this.alertManager.shouldFire(validatedMovement, normalizedPair)) {
         // Frequency limit reached - silent
         return null;
       }
 
       // Calculate entry/SL/TP levels
-      const levels = engine.entryCalc.calculateLevels(bid, ask, validatedMovement.direction, validatedMovement.severity);
+      const levels = engine.entryCalc.calculateLevels(
+        resolvedBid,
+        resolvedAsk,
+        validatedMovement.direction,
+        validatedMovement.severity
+      );
 
       // Build alert object
       const alert = {
-        pair,
+        pair: normalizedPair,
         direction: validatedMovement.direction,
         severity: validatedMovement.severity,
         pips: validatedMovement.totalPips,
@@ -987,16 +1120,22 @@ class ForexAlertEngine {
         consistency: validatedMovement.consistency,
         tickFrequency: validatedMovement.tickFrequency,
         timeTakenMs: validatedMovement.timeTakenMs,
+        moveOriginPrice: validatedMovement.moveOriginPrice,
+        // IMPROVED: provide explicit origin field used by recorder/tests/UI.
+        fromPrice: validatedMovement.moveOriginPrice,
+        currentBid: resolvedBid,
+        currentAsk: resolvedAsk,
         levels,
-        timestamp: new Date(timestamp),
+        timestamp: new Date(ts),
         warnings: validatedMovement.warnings || [],
       };
 
       // Record this alert
-      this.alertManager.recordAlert(alert, pair);
+      this.alertManager.recordAlert(alert, normalizedPair);
+      engine.filter.recordAlert(resolvedBid, ts);
 
       // Print to console (PART 9) - only alerts, no noise
-      this.printAlertToConsole(alert, pair);
+      this.printAlertToConsole(alert, normalizedPair);
 
       // Trigger callback
       if (this.onAlert && typeof this.onAlert === 'function') {
@@ -1018,19 +1157,31 @@ class ForexAlertEngine {
    * Initialize engines for a new pair
    */
   initializePair(pair) {
-    const filter = new NoiseFilter(pair);
-    const calibrator = new BaselineCalibrator(pair);
-    const analyzer = new MovementAnalyzer(pair, calibrator);
-    const entryCalc = new EntryLevelCalculator(pair);
-    const validator = new AlertValidator(pair);
+    const normalizedPair = normalizePair(pair);
+    const filter = new NoiseFilter(normalizedPair);
+    const calibrator = new BaselineCalibrator(normalizedPair);
+    const analyzer = new MovementAnalyzer(normalizedPair, calibrator);
+    const entryCalc = new EntryLevelCalculator(normalizedPair);
+    const validator = new AlertValidator(normalizedPair);
 
-    this.engines.set(pair, {
+    this.engines.set(normalizedPair, {
       filter,
       analyzer,
       calibrator,
       entryCalc,
       validator,
     });
+  }
+
+  // IMPROVED: allow recorder/test harness to reset pair-specific state safely.
+  resetPair(pair) {
+    const normalizedPair = normalizePair(pair);
+    this.engines.delete(normalizedPair);
+    this.tickHistories.delete(normalizedPair);
+    this.lastProcessedTs.delete(normalizedPair);
+    this.lastQuotes.delete(normalizedPair);
+    this.alertManager.alertHistory.delete(normalizedPair);
+    this.alertManager.lastAlertTs.delete(normalizedPair);
   }
 
   /**
@@ -1085,7 +1236,7 @@ class ForexAlertEngine {
   }
 
   getVolatilityRegime(pair) {
-    const engine = this.engines.get(pair);
+    const engine = this.engines.get(normalizePair(pair));
     if (!engine) return 'UNKNOWN';
     return engine.calibrator.getMetrics().volatilityRegime;
   }
@@ -1102,13 +1253,14 @@ class ForexAlertEngine {
    * Get statistics for a pair
    */
   getStats(pair) {
-    const engine = this.engines.get(pair);
+    const normalizedPair = normalizePair(pair);
+    const engine = this.engines.get(normalizedPair);
     if (!engine) return null;
 
     return {
-      pair,
+      pair: normalizedPair,
       metrics: engine.calibrator.getMetrics(),
-      alerts: this.alertManager.getRecentAlerts(pair),
+      alerts: this.alertManager.getRecentAlerts(normalizedPair),
     };
   }
 }

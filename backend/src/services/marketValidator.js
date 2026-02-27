@@ -15,6 +15,11 @@ export { decimalsForPair, pipSizeForPair };
 // configuration helpers (environment variables can override defaults)
 const MAX_TICK_RETURN_PERCENT = Number(process.env.MARKET_ALERT_MAX_TICK_RETURN_PERCENT || 0.005); // 0.5% per tick
 const OUTLIER_ZSCORE = Number(process.env.MARKET_ALERT_OUTLIER_ZSCORE || 5);
+// IMPROVED: tolerate floating-point representation noise while preserving strict pip-step validation.
+const PIP_MULTIPLE_TOLERANCE_DIVISOR = Math.max(
+  10,
+  Number(process.env.MARKET_ALERT_PIP_TOLERANCE_DIVISOR || 1000)
+);
 
 // Validate a tick before it enters the alert engine. Returns an object
 // detailing whether the tick is acceptable and any reasons for rejection.
@@ -33,7 +38,9 @@ export const validateTick = ({ pair, tsMs, price, priceType }) => {
     const decimals = decimalsForPair(pair);
     const pip = pipSizeForPair(pair);
     const multiplier = 1 / pip;
-    if (Math.abs(Math.round(price * multiplier) - price * multiplier) > Number.EPSILON) {
+    const snapped = Math.round(price * multiplier) / multiplier;
+    const tolerance = pip / PIP_MULTIPLE_TOLERANCE_DIVISOR;
+    if (Math.abs(price - snapped) > tolerance) {
       issues.push(`price not multiple of pip (${pip}; decimals=${decimals})`);
     }
   }

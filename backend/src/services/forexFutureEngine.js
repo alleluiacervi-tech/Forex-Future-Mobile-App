@@ -738,7 +738,8 @@ class AlertManager {
   }
 
   buildAlert(pair, price, bid, ask, velocityAlert, instSignals, confluence) {
-    const id = crypto.randomUUID();
+    // IMPROVED: avoid runtime dependency on global `crypto` in older Node runtimes.
+    const id = uuidv4();
     const timestamp = new Date().toISOString();
     const detectionLatencyMs = nowMs() - price.tsMs;
     // pick primary velocity signal if exists otherwise derive direction from inst
@@ -843,6 +844,8 @@ class ForexFutureEngine {
 
     // periodic garbage collection to prune old ticks / memory stores
     this.gcTimer = setInterval(() => this._garbageCollect(), CONFIG.cleanupIntervalMs);
+    // IMPROVED: let process exit naturally in tests/short-lived workers.
+    this.gcTimer.unref?.();
   }
 
   _ensureBuffer(pair) {
