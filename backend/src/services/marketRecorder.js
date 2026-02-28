@@ -29,6 +29,7 @@ const marketAlertCleanupIntervalMs = Math.max(
   Number(process.env.MARKET_ALERT_CLEANUP_INTERVAL_MS || 15 * 60 * 1000)
 );
 const redisRecentAlertsKey = buildRedisKey("market", "alerts", "recent");
+let warnedMarketAlertCompatFallback = false;
 
 const toTimeMs = (value) => {
   if (value instanceof Date) return value.getTime();
@@ -186,6 +187,11 @@ const isRetryableDbError = (error) => {
   if (/timed out/i.test(message)) return true;
   if (/connection/i.test(message) && /failed|closed|reset|refused/i.test(message)) return true;
   return false;
+};
+
+const isPrismaUnknownArgumentError = (error) => {
+  const message = String(error?.message || "");
+  return /Unknown argument/i.test(message);
 };
 
 const warnDbConnectivity = (error) => {
@@ -381,7 +387,34 @@ const maybeCreateAlerts = async ({
           levels: alert.levels,
           triggeredAt: new Date(alert.timestamp)
         };
-        record = await prisma.marketAlert.create({ data });
+        try {
+          record = await prisma.marketAlert.create({ data });
+        } catch (error) {
+          // Compatibility path for environments where Prisma Client is older than
+          // the deployed schema (or vice-versa). Persist the core alert fields.
+          if (!isPrismaUnknownArgumentError(error)) {
+            throw error;
+          }
+
+          const compatibleData = {
+            pair: alert.pair,
+            windowMinutes,
+            fromPrice: Number.isFinite(Number(data.fromPrice)) ? Number(data.fromPrice) : Number(price),
+            toPrice: Number.isFinite(Number(data.toPrice)) ? Number(data.toPrice) : Number(price),
+            changePercent: Number.isFinite(Number(data.changePercent)) ? Number(data.changePercent) : 0,
+            severity: data.severity,
+            triggeredAt: data.triggeredAt
+          };
+
+          record = await prisma.marketAlert.create({ data: compatibleData });
+          if (!warnedMarketAlertCompatFallback) {
+            warnedMarketAlertCompatFallback = true;
+            logger.warn(
+              "Persisted market alert using compatibility payload (regenerate Prisma client to store full metadata).",
+              { pair: alert.pair }
+            );
+          }
+        }
       } catch (e) {
         // ignore persistence errors; keep original alert
         logger.warn("Failed to persist alert", { error: e?.message, pair });

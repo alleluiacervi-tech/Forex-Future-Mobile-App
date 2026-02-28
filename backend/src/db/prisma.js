@@ -1,4 +1,5 @@
 import Logger from "../utils/logger.js";
+import config from "../config.js";
 
 const logger = new Logger("Prisma");
 
@@ -46,14 +47,20 @@ try {
     log: ["error", "warn"]
   };
 
-  // Prisma 7 expects a driver adapter (or accelerateUrl). If adapter packages
-  // are installed, wire PostgreSQL automatically from DATABASE_URL.
-  const connectionString = process.env.DATABASE_URL;
-  if (connectionString) {
-    try {
-      const { PrismaPg } = await import("@prisma/adapter-pg");
-      prismaOptions.adapter = new PrismaPg({ connectionString });
-    } catch {}
+  // Prisma 7 expects a driver adapter (or accelerateUrl). Resolve DATABASE_URL
+  // from runtime env first, then fall back to app config defaults.
+  const connectionString = String(process.env.DATABASE_URL || config.databaseUrl || "").trim();
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not configured. Database-backed persistence is unavailable.");
+  }
+
+  try {
+    const { PrismaPg } = await import("@prisma/adapter-pg");
+    prismaOptions.adapter = new PrismaPg({ connectionString });
+  } catch (error) {
+    throw new Error(
+      `Failed to initialize Prisma PostgreSQL adapter (@prisma/adapter-pg): ${error?.message || "unknown error"}`
+    );
   }
 
   prisma = new PrismaClient({
@@ -68,4 +75,29 @@ try {
 
 export const isPrismaAvailable = !prisma.__isUnavailable;
 export const getPrismaInitError = () => prismaInitError;
+
+export const connectPrisma = async ({ required = false } = {}) => {
+  if (!isPrismaAvailable) {
+    const reason = prisma?.__reason || DEFAULT_ERROR_MESSAGE;
+    if (required) {
+      throw new Error(reason);
+    }
+    logger.warn("Prisma unavailable; continuing with degraded persistence mode.", { reason });
+    return false;
+  }
+
+  try {
+    await prisma.$connect();
+    return true;
+  } catch (error) {
+    if (required) {
+      throw error;
+    }
+    logger.warn("Prisma connection failed; continuing with degraded persistence mode.", {
+      error: error?.message
+    });
+    return false;
+  }
+};
+
 export default prisma;

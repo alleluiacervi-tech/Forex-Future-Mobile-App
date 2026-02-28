@@ -5,6 +5,7 @@ import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import config from "./config.js";
+import { connectPrisma } from "./db/prisma.js";
 import authRoutes from "./routes/auth.js";
 import marketRoutes from "./routes/market.js";
 import tradesRoutes from "./routes/trades.js";
@@ -74,6 +75,14 @@ app.use(errorHandler);
 
 const server = http.createServer(app);
 const wss = initializeSocket({ server, heartbeatMs: config.wsHeartbeatMs });
+
+const databaseRequired = process.env.DATABASE_REQUIRED === "true" || config.nodeEnv === "production";
+try {
+  await connectPrisma({ required: databaseRequired });
+} catch (error) {
+  appLogger.error({ error: error?.message }, "Database connection failed during startup");
+  process.exit(1);
+}
 
 startMarketRecorder();
 logEmailConfigStatus();

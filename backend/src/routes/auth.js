@@ -145,7 +145,10 @@ router.post("/email/verify", async (req, res) => {
   }
 
   try {
-    const result = await authService.verifyEmailCode(normalizedEmail, data.code);
+    const result = await authService.verifyEmailCode(normalizedEmail, data.code, {
+      ip: req.ip,
+      deviceInfo: req.get("user-agent")
+    });
     verifyThrottle.delete(key);
     return res.json({ ok: true, ...result });
   } catch (err) {
@@ -395,12 +398,17 @@ router.post('/otp/verify', async (req, res) => {
       throw new Error('Invalid code.');
     }
 
-    await otpService.verifyOtp(user.id, purpose, code, { ip: req.ip });
+    const deviceInfo = req.get("user-agent");
 
     if (purpose === 'email_verification') {
-      await authService.verifyEmailCode(normalizedEmail, code, { ip: req.ip });
-      return res.json({ ok: true });
+      const result = await authService.verifyEmailCode(normalizedEmail, code, {
+        ip: req.ip,
+        deviceInfo
+      });
+      return res.json({ ok: true, ...result });
     }
+
+    await otpService.verifyOtp(user.id, purpose, code, { ip: req.ip, deviceInfo });
 
     if (purpose === 'login') {
       const token = authService.issueToken(user.id);

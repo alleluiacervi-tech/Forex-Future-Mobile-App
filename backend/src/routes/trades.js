@@ -23,21 +23,30 @@ router.post("/orders", authenticate, async (req, res) => {
 
   try {
     const { pair, side, units } = data;
-    const account = await prisma.account.findUnique({ where: { userId: req.user.id } });
-    if (!account) {
-      return res.status(404).json({ error: "Account not found." });
-    }
-
     const pricing = await getPriceForPair(pair);
     const price = side === "buy" ? pricing.ask : pricing.bid;
     const notional = units * price;
+    const requiredMargin = notional * 0.02;
 
-    if (account.balance < notional * 0.02) {
-      return res.status(400).json({ error: "Insufficient margin to open this trade." });
-    }
+    const result = await prisma.$transaction(async (tx) => {
+      const account = await tx.account.findUnique({
+        where: { userId: req.user.id },
+        select: { id: true, balance: true }
+      });
 
-    const [order, position, transaction] = await prisma.$transaction([
-      prisma.order.create({
+      if (!account) {
+        const err = new Error("Account not found.");
+        err.statusCode = 404;
+        throw err;
+      }
+
+      if (account.balance < requiredMargin) {
+        const err = new Error("Insufficient margin to open this trade.");
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const order = await tx.order.create({
         data: {
           userId: req.user.id,
           pair,
@@ -46,8 +55,9 @@ router.post("/orders", authenticate, async (req, res) => {
           price,
           status: "filled"
         }
-      }),
-      prisma.position.create({
+      });
+
+      const position = await tx.position.create({
         data: {
           userId: req.user.id,
           pair,
@@ -56,8 +66,9 @@ router.post("/orders", authenticate, async (req, res) => {
           entryPrice: price,
           unrealizedPnl: 0
         }
-      }),
-      prisma.transaction.create({
+      });
+
+      const transaction = await tx.transaction.create({
         data: {
           userId: req.user.id,
           type: "trade",
@@ -66,20 +77,24 @@ router.post("/orders", authenticate, async (req, res) => {
           units,
           price
         }
-      })
-    ]);
+      });
 
-    const updatedAccount = await prisma.account.update({
-      where: { id: account.id },
-      data: {
-        marginUsed: account.marginUsed + notional * 0.02,
-        updatedAt: new Date()
-      }
+      const updatedAccount = await tx.account.update({
+        where: { id: account.id },
+        data: {
+          marginUsed: {
+            increment: requiredMargin
+          }
+        }
+      });
+
+      return { order, position, transaction, account: updatedAccount };
     });
 
-    return res.status(201).json({ order, position, transaction, account: updatedAccount });
+    return res.status(201).json(result);
   } catch (error) {
-    return res.status(502).json({ error: error.message });
+    const statusCode = Number.isInteger(error?.statusCode) ? Number(error.statusCode) : 502;
+    return res.status(statusCode).json({ error: error.message });
   }
 });
 
