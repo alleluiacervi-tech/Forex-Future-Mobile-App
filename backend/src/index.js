@@ -13,6 +13,7 @@ import portfolioRoutes from "./routes/portfolio.js";
 import usersRoutes from "./routes/users.js";
 import emailRoutes from "./routes/email.js";
 import adminRoutes from "./routes/admin.js";
+import paypalRoutes from "./routes/paypal.js";
 import {
   arcjetAdminProtection,
   arcjetApiProtection,
@@ -69,6 +70,7 @@ app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/paypal", paypalRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

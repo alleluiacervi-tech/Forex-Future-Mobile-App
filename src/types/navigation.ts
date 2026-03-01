@@ -51,6 +51,12 @@ export type RootStackParamList = {
         selectedPrice?: number;
         billingLabel?: string;
       };
+  Pricing: undefined;
+  Payment:
+    | undefined
+    | {
+        plan?: string;
+      };
   TermsOfService: undefined;
   PrivacyPolicy: undefined;
   RiskDisclosure: undefined;

@@ -34,6 +34,8 @@ import LicensesScreen from '../screens/Legal/LicensesScreen';
 import HelpCenterScreen from '../screens/Support/HelpCenterScreen';
 import ContactUsScreen from '../screens/Support/ContactUsScreen';
 import TermsOfServiceScreen from '../screens/Terms/TermsOfServiceScreen';
+import PricingScreen from '../screens/Pricing';
+import PaymentScreen from '../screens/Payment';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -191,6 +193,16 @@ export default function MainNavigator() {
         <Stack.Screen
           name="ContactUs"
           component={ContactUsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Pricing"
+          component={PricingScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Payment"
+          component={PaymentScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

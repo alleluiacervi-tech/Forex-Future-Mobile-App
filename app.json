@@ -10,11 +10,6 @@
     "updates": {
       "enabled": false
     },
-    // "splash": {
-    //   "image": "./assets/splash.png",
-    //   "resizeMode": "contain",
-    //   "backgroundColor": "#1a1a2e"
-    // },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -29,8 +24,9 @@
       },
       "package": "com.forextradingapp"
     },
-    "web": {
-      // "favicon": "./assets/favicon.png"
-    }
+    "web": {},
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { ComponentProps } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons as Icon } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { Card, Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { useTheme } from '../../hooks';
 import { useAuth } from '../../context/AuthContext';
+import { apiAuthGet, apiPost } from '../../services/api';
 import { RootStackParamList } from '../../types';
 import { resetToLanding } from '../../navigation/rootNavigation';
 
@@ -20,7 +21,70 @@ export default function ProfileScreen() {
   const { logout, isLoading } = useAuth();
 
   type IconName = ComponentProps<typeof Icon>['name'];
-  
+
+  // Subscription state
+  const [subscription, setSubscription] = useState<any>(null);
+  const [subLoading, setSubLoading] = useState(true);
+  const [cancellingSubscription, setCancellingSubscription] = useState(false);
+
+  const fetchSubscription = useCallback(async () => {
+    setSubLoading(true);
+    try {
+      const data = await apiAuthGet<{ subscription: any }>('/api/paypal/subscription');
+      setSubscription(data?.subscription || null);
+    } catch {
+      setSubscription(null);
+    } finally {
+      setSubLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSubscription();
+  }, [fetchSubscription]);
+
+  const handleCancelSubscription = () => {
+    const accessUntil = subscription?.currentPeriodEnd || subscription?.trialEnd;
+    const dateStr = accessUntil
+      ? new Date(accessUntil).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      : 'end of your current period';
+
+    Alert.alert(
+      'Cancel Subscription',
+      `Are you sure? You will keep access until ${dateStr}.`,
+      [
+        { text: 'Keep Subscription', style: 'cancel' },
+        {
+          text: 'Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            setCancellingSubscription(true);
+            try {
+              await apiPost('/api/paypal/cancel', { reason: 'Cancelled by user' });
+              await fetchSubscription();
+            } catch (error) {
+              Alert.alert('Error', error instanceof Error ? error.message : 'Unable to cancel subscription.');
+            } finally {
+              setCancellingSubscription(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return '#4CAF50';
+      case 'trial': return '#FBBF24';
+      case 'cancelled': return '#f44336';
+      case 'expired': return '#9BB3BD';
+      case 'suspended': return '#f44336';
+      case 'past_due': return '#FBBF24';
+      default: return '#9BB3BD';
+    }
+  };
+
   // Settings state
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -157,6 +221,89 @@ export default function ProfileScreen() {
                 <FeatureItem icon="stats-chart-outline" title="Technical Tools" color="#FFC107" />
                 <FeatureItem icon="shield-checkmark-outline" title="Risk Management" color="#f44336" />
               </View>
+            </Card>
+          </View>
+
+          <View style={styles.section}>
+            <Text variant="caption" color={theme.colors.textSecondary} style={styles.sectionLabel}>
+              SUBSCRIPTION
+            </Text>
+            <Card style={[styles.menuCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              {subLoading ? (
+                <View style={styles.subLoadingContainer}>
+                  <ActivityIndicator size="small" color={theme.colors.primary} />
+                </View>
+              ) : subscription ? (
+                <View style={styles.subContainer}>
+                  <View style={styles.subHeader}>
+                    <Text variant="body" style={styles.subPlanName}>
+                      {(subscription.plan || 'monthly').charAt(0).toUpperCase() + (subscription.plan || 'monthly').slice(1)} Plan
+                    </Text>
+                    <View style={[styles.subStatusBadge, { backgroundColor: getStatusColor(subscription.status) }]}>
+                      <Text variant="caption" style={styles.subStatusText}>
+                        {(subscription.status || 'unknown').toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+                  {subscription.trialEnd && subscription.status === 'trial' && (
+                    <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.subDetail}>
+                      Trial ends {new Date(subscription.trialEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  )}
+                  {subscription.currentPeriodEnd && subscription.status !== 'trial' && (
+                    <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.subDetail}>
+                      Next billing {new Date(subscription.currentPeriodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  )}
+                  {subscription.amount && (
+                    <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.subDetail}>
+                      ${Number(subscription.amount).toFixed(2)} per billing cycle
+                    </Text>
+                  )}
+                  <View style={styles.subActions}>
+                    {subscription.status !== 'cancelled' && subscription.status !== 'expired' && (
+                      <TouchableOpacity
+                        style={[styles.subActionButton, { borderColor: theme.colors.error }]}
+                        onPress={handleCancelSubscription}
+                        disabled={cancellingSubscription}
+                        activeOpacity={0.7}
+                      >
+                        {cancellingSubscription ? (
+                          <ActivityIndicator size="small" color={theme.colors.error} />
+                        ) : (
+                          <Text variant="bodySmall" style={{ color: theme.colors.error, fontWeight: '700' }}>
+                            Cancel Subscription
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.subActionButton, { borderColor: theme.colors.primary }]}
+                      onPress={() => navigation.navigate('Pricing' as any)}
+                      activeOpacity={0.7}
+                    >
+                      <Text variant="bodySmall" style={{ color: theme.colors.primary, fontWeight: '700' }}>
+                        Change Plan
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.subContainer}>
+                  <Text variant="body" color={theme.colors.textSecondary} style={styles.subDetail}>
+                    No active subscription
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.viewPlansButton, { backgroundColor: theme.colors.primary }]}
+                    onPress={() => navigation.navigate('Pricing' as any)}
+                    activeOpacity={0.8}
+                  >
+                    <Text variant="button" style={styles.viewPlansText}>
+                      View Plans
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </Card>
           </View>
 
@@ -425,5 +572,57 @@ const styles = StyleSheet.create({
   },
   footerText: {
     textAlign: 'center',
+  },
+  subLoadingContainer: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  subContainer: {
+    padding: 16,
+  },
+  subHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  subPlanName: {
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  subStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  subStatusText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 10,
+  },
+  subDetail: {
+    marginBottom: 4,
+  },
+  subActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  subActionButton: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  viewPlansButton: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  viewPlansText: {
+    color: '#fff',
+    fontWeight: '800',
   },
 });
