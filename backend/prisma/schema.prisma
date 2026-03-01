@@ -54,6 +54,9 @@ model User {
   watchlist     Watchlist?
   recommendations Recommendation[]
   paymentMethods PaymentMethod[]
+  subscriptions Subscription[]
+  paymentEvents PaymentEvent[]
+  trialFingerprints TrialFingerprint[]
   otps          Otp[]
 }
 
@@ -202,4 +205,55 @@ model MarketAlert {
   createdAt     DateTime @default(now())
 
   @@index([pair, triggeredAt])
+}
+
+model Subscription {
+  id                   Int       @id @default(autoincrement())
+  userId               String?   @map("user_id")
+  user                 User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  plan                 String    @db.VarChar(20)
+  status               String    @db.VarChar(20)
+  amount               Decimal   @db.Decimal(10, 2)
+  trialEnd             DateTime? @map("trial_end")
+  currentPeriodEnd     DateTime? @map("current_period_end")
+  gracePeriodEnd       DateTime? @map("grace_period_end")
+  cardFingerprint      String?   @map("card_fingerprint")
+  payerId              String?   @map("payer_id")
+  paypalSubscriptionId String?   @unique @map("paypal_subscription_id")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId], map: "subscriptions_user_id_idx")
+  @@index([status], map: "subscriptions_status_idx")
+  @@index([cardFingerprint], map: "subscriptions_card_fingerprint_idx")
+  @@index([payerId], map: "subscriptions_payer_id_idx")
+  @@map("subscriptions")
+}
+
+model PaymentEvent {
+  id                   Int       @id @default(autoincrement())
+  userId               String?   @map("user_id")
+  user                 User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  eventType            String    @db.VarChar(50) @map("event_type")
+  paypalEventId        String?   @unique @map("paypal_event_id")
+  paypalSubscriptionId String?   @map("paypal_subscription_id")
+  amount               Decimal?  @db.Decimal(10, 2)
+  status               String?   @db.VarChar(20)
+  rawEvent             Json      @map("raw_event")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  @@index([userId], map: "payment_events_user_id_idx")
+  @@index([paypalSubscriptionId], map: "payment_events_paypal_subscription_id_idx")
+  @@map("payment_events")
+}
+
+model TrialFingerprint {
+  id              Int      @id @default(autoincrement())
+  cardFingerprint String   @unique @map("card_fingerprint")
+  userId          String?  @map("user_id")
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  usedAt          DateTime @default(now()) @map("used_at")
+
+  @@index([userId], map: "trial_fingerprints_user_id_idx")
+  @@map("trial_fingerprints")
 }

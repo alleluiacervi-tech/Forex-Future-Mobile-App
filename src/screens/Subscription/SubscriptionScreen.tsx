@@ -76,7 +76,6 @@ export default function SubscriptionScreen() {
 
   const selectedPlan = plans.find((plan) => plan.id === selectedBilling) ?? plans[0];
   const selectedPrice = selectedPlan.totalPrice;
-  const billingLabel = selectedPlan.billingLabel;
 
   const nameError = useMemo(() => {
     if (!touched.name) return undefined;
@@ -126,14 +125,6 @@ export default function SubscriptionScreen() {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
-    const billingParams = {
-      setupTrial: true,
-      email: normalizedEmail,
-      password,
-      selectedBilling,
-      selectedPrice,
-      billingLabel,
-    } as const;
 
     try {
       try {
@@ -150,8 +141,7 @@ export default function SubscriptionScreen() {
             email: normalizedEmail,
             debugCode: verification?.debugCode,
             debugExpiresAt: verification?.debugExpiresAt,
-            nextScreen: 'BillingPayments',
-            nextParams: billingParams,
+            nextScreen: 'Welcome',
           });
           return;
         }
@@ -162,7 +152,7 @@ export default function SubscriptionScreen() {
         }
       }
 
-      navigation.replace('BillingPayments', billingParams);
+      navigation.replace('Welcome');
     } catch (error) {
       Alert.alert('Registration failed', error instanceof Error ? error.message : 'Unable to continue');
     }

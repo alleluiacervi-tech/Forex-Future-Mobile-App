@@ -108,8 +108,15 @@ export default function WelcomeScreen() {
   };
 
   const handleRequestAccess = () => {
-    // Navigate to registration/subscription screen
-    navigation.navigate('Subscription');
+    const normalizedEmail = email.trim().toLowerCase();
+    navigation.navigate('BillingPayments', {
+      setupTrial: true,
+      email: normalizedEmail || undefined,
+      password: password || undefined,
+      selectedBilling: 'monthly',
+      selectedPrice: 20,
+      billingLabel: 'month',
+    });
   };
 
   const handleForgotPassword = () => {

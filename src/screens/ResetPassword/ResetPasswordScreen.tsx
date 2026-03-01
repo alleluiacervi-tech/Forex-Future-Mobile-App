@@ -119,7 +119,7 @@ export default function ResetPasswordScreen() {
       Alert.alert('Success', message, [
         {
           text: 'OK',
-          onPress: () => navigation.navigate('Welcome'),
+          onPress: () => navigation.replace('Welcome'),
         },
       ]);
     } catch (error) {
