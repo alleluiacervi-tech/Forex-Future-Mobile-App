@@ -112,15 +112,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // FIXED: resend operations no longer set global isLoading to avoid blocking verify buttons
   const resendLoginOtp = useCallback(async (email: string) => {
     try {
-      setIsLoading(true);
       return await authService.resendLoginOtp(email);
     } catch (error) {
       console.error('[AuthProvider] Resend login OTP failed:', error);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
@@ -201,16 +199,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // FIXED: resend operations no longer set global isLoading to avoid blocking verify buttons
   const resendEmailVerification = useCallback(async (email: string) => {
     try {
-      setIsLoading(true);
       const data = await authService.resendEmailVerification(email);
       return data;
     } catch (error) {
       console.error('[AuthProvider] Resend verification failed:', error);
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 

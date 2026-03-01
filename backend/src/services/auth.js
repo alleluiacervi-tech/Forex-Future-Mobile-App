@@ -818,7 +818,13 @@ class AuthService {
         // issue a one‑time code and ask the client to verify it before issuing JWT
         const { code, expiresAt } = await otpService.generateOtp(user.id, 'login');
         await this.sendVerificationEmail({ to: user.email, name: user.name, code, expiresAt });
-        return { otpRequired: true, debugCode: code, debugExpiresAt: expiresAt };
+        // FIXED: only return debug code in non-production to prevent OTP bypass
+        const allowDebug = process.env.NODE_ENV !== 'production';
+        return {
+          otpRequired: true,
+          debugCode: allowDebug ? code : undefined,
+          debugExpiresAt: allowDebug ? expiresAt : undefined,
+        };
       }
 
       // Check trial status

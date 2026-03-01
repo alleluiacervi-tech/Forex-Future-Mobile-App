@@ -77,7 +77,7 @@ function MainTabs() {
           return <Icon name={iconName} size={size} color={color} />;
         },
         ...NAVIGATION_CONFIG,
-        tabBarStyle: { display: 'none' },
+        // FIXED: removed tabBarStyle: { display: 'none' } which hid the entire tab bar
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />

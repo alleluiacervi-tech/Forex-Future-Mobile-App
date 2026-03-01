@@ -22,13 +22,15 @@ export default function WelcomeScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showPaymentSetupAction, setShowPaymentSetupAction] = useState(false);
+  // FIXED: added emailTouched state so validation error doesn't show while user is still typing
+  const [emailTouched, setEmailTouched] = useState(false);
 
   const emailError = useMemo(() => {
-    if (!email) return undefined;
+    if (!emailTouched || !email) return undefined;
     const normalized = email.trim().toLowerCase();
     const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
     return ok ? undefined : 'Enter a valid email address';
-  }, [email]);
+  }, [email, emailTouched]);
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
@@ -37,13 +39,17 @@ export default function WelcomeScreen() {
   }, [isAuthenticated, isLoading, navigation]);
 
   const handleSignIn = async () => {
+    setEmailTouched(true); // FIXED: mark touched on submit so validation shows
     if (!email.trim() || !password) {
       Alert.alert('Missing info', 'Please enter both email and password.');
       return;
     }
 
-    if (emailError) {
-      Alert.alert('Invalid email', emailError);
+    // FIXED: validate inline since emailError memo may not reflect touched state yet
+    const normalizedCheck = email.trim().toLowerCase();
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedCheck);
+    if (!isValidEmail) {
+      Alert.alert('Invalid email', 'Enter a valid email address');
       return;
     }
 
@@ -59,7 +65,8 @@ export default function WelcomeScreen() {
         });
         return;
       }
-      navigation.replace('Main');
+      // FIXED: removed manual navigation.replace('Main') — the useEffect watching
+      // isAuthenticated handles navigation to avoid double-navigation race condition
     } catch (error) {
       const verificationRequired =
         typeof error === 'object' &&

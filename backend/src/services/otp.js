@@ -20,8 +20,9 @@ const RESEND_LIMIT = toPositiveInt(process.env.OTP_RESEND_LIMIT, 3, { min: 1, ma
 const RESEND_WINDOW_MS = toPositiveInt(process.env.OTP_RESEND_WINDOW_MIN, 15, { min: 1, max: 24 * 60 }) * 60 * 1000; // minutes
 const ATTEMPT_BASE_DELAY_MS = 300; // base multiplier for progressive delay
 
+// FIXED: use crypto.randomInt instead of Math.random for cryptographic security
 const randomSixDigitCode = () =>
-  String(Math.floor(Math.random() * 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, '0');
+  String(crypto.randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, '0');
 const hashValue = (val) =>
   crypto.createHash('sha256').update(String(val || '')).digest('hex');
 const normalizeOtpCode = (value) => String(value || '').replace(/\D/g, '').slice(0, OTP_LENGTH);
