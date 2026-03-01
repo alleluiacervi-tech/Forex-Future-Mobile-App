@@ -4,27 +4,28 @@ import config from "../config.js";
 import Logger from "../utils/logger.js";
 
 const logger = new Logger("ArcjetMiddleware");
+const isDev = config.nodeEnv !== "production";
 
+// ── Arcjet environment hint ─────────────────────────────────────────
 const ensureArcjetEnvironment = () => {
   const configuredEnv = String(process.env.ARCJET_ENV || "").trim();
-  if (configuredEnv) {
-    return;
-  }
+  if (configuredEnv) return;
 
-  if (config.nodeEnv !== "production") {
+  if (isDev) {
     process.env.ARCJET_ENV = "development";
     logger.info('ARCJET_ENV not set; defaulting to "development" for local requests.');
   }
 };
 
+// ── Helpers ─────────────────────────────────────────────────────────
 const normalizeBucket = (bucket) => {
   const refillRate = Math.max(1, Number(bucket?.refillRate || 1));
   const interval = Math.max(1, Number(bucket?.interval || 1));
   const capacity = Math.max(refillRate, Number(bucket?.capacity || refillRate));
-
   return { refillRate, interval, capacity };
 };
 
+// ── Client builder ──────────────────────────────────────────────────
 const buildArcjetClient = () => {
   if (!config.arcjet.enabled) {
     logger.warn("Arcjet disabled via configuration.");
@@ -32,7 +33,13 @@ const buildArcjetClient = () => {
   }
 
   if (!config.arcjet.key) {
-    logger.warn("Arcjet not enabled because ARCJET_KEY is missing.");
+    if (!isDev) {
+      throw new Error(
+        "FATAL: ARCJET_KEY is required in production. " +
+        "Set ARCJET_KEY or explicitly disable with ARCJET_ENABLED=false."
+      );
+    }
+    logger.warn("Arcjet not enabled because ARCJET_KEY is missing (acceptable in development).");
     return null;
   }
 
@@ -48,7 +55,6 @@ const buildArcjetClient = () => {
     characteristics: ["ip.src"],
     rules: [
       shield({ mode: config.arcjet.mode }),
-      // Search engine bots are allowed while other known bots are denied.
       detectBot({ mode: config.arcjet.mode, allow: ["CATEGORY:SEARCH_ENGINE"] })
     ]
   };
@@ -58,38 +64,18 @@ const buildArcjetClient = () => {
   }
 
   const base = arcjet(options);
-  const api = base.withRule(
-    tokenBucket({
-      mode: config.arcjet.mode,
-      refillRate: apiBucket.refillRate,
-      interval: apiBucket.interval,
-      capacity: apiBucket.capacity
-    })
-  );
 
+  const api = base.withRule(
+    tokenBucket({ mode: config.arcjet.mode, ...apiBucket })
+  );
   const auth = base.withRule(
-    tokenBucket({
-      mode: config.arcjet.mode,
-      refillRate: authBucket.refillRate,
-      interval: authBucket.interval,
-      capacity: authBucket.capacity
-    })
+    tokenBucket({ mode: config.arcjet.mode, ...authBucket })
   );
   const market = base.withRule(
-    tokenBucket({
-      mode: config.arcjet.mode,
-      refillRate: marketBucket.refillRate,
-      interval: marketBucket.interval,
-      capacity: marketBucket.capacity
-    })
+    tokenBucket({ mode: config.arcjet.mode, ...marketBucket })
   );
   const admin = base.withRule(
-    tokenBucket({
-      mode: config.arcjet.mode,
-      refillRate: adminBucket.refillRate,
-      interval: adminBucket.interval,
-      capacity: adminBucket.capacity
-    })
+    tokenBucket({ mode: config.arcjet.mode, ...adminBucket })
   );
 
   logger.info("Arcjet protection enabled.", {
@@ -107,6 +93,7 @@ const buildArcjetClient = () => {
 
 const clients = buildArcjetClient();
 
+// ── Rate-limit response headers ─────────────────────────────────────
 const setRateLimitHeaders = (res, reason) => {
   const retryAfter = Math.max(1, Number(reason.reset || 1));
   const resetEpoch = reason.resetTime instanceof Date
@@ -119,6 +106,7 @@ const setRateLimitHeaders = (res, reason) => {
   res.set("X-RateLimit-Reset", String(resetEpoch));
 };
 
+// ── Deny handler ────────────────────────────────────────────────────
 const handleDecisionDeny = (req, res, decision, scope) => {
   if (decision.reason.isRateLimit()) {
     setRateLimitHeaders(res, decision.reason);
@@ -130,7 +118,6 @@ const handleDecisionDeny = (req, res, decision, scope) => {
       remaining: decision.reason.remaining,
       reset: decision.reason.reset
     });
-
     return res.status(429).json({
       error: "Too many requests. Please try again shortly."
     });
@@ -146,7 +133,6 @@ const handleDecisionDeny = (req, res, decision, scope) => {
       spoofed,
       verified: decision.reason.isVerified()
     });
-
     return res.status(403).json({
       error: spoofed ? "Spoofed bot traffic is not allowed." : "Automated traffic is not allowed."
     });
@@ -159,10 +145,10 @@ const handleDecisionDeny = (req, res, decision, scope) => {
     ip: req.ip,
     reason: decision.reason.type
   });
-
   return res.status(403).json({ error: "Request blocked by security policy." });
 };
 
+// ── Core middleware factory ──────────────────────────────────────────
 const createArcjetMiddleware = (client, scope) => {
   if (!client) {
     return (_req, _res, next) => next();
@@ -176,17 +162,40 @@ const createArcjetMiddleware = (client, scope) => {
     try {
       const decision = await client.protect(req, { requested: 1 });
 
+      // ── DENIED ──
       if (decision.isDenied()) {
+        if (isDev && config.arcjet.mode === "DRY_RUN") {
+          // In dev DRY_RUN: log what would be blocked, but allow through
+          logger.warn("Arcjet would deny (dry-run)", {
+            scope,
+            path: req.path,
+            ip: req.ip,
+            reason: decision.reason.type
+          });
+          return next();
+        }
         return handleDecisionDeny(req, res, decision, scope);
       }
 
+      // ── ERRORED (e.g. missing public IP on localhost) ──
       if (decision.isErrored()) {
+        if (isDev) {
+          // Graceful degradation: log once-per-scope style, never block
+          logger.debug("Arcjet decision errored in development (expected on localhost)", {
+            scope,
+            ip: req.ip,
+            reason: decision.reason?.message || decision.reason?.type
+          });
+          return next();
+        }
+
+        // Production: respect failClosed setting
         logger.error("Arcjet decision errored", {
           scope,
           path: req.path,
           method: req.method,
           ip: req.ip,
-          reason: decision.reason.type
+          reason: decision.reason?.message || decision.reason?.type
         });
 
         if (config.arcjet.failClosed) {
@@ -196,12 +205,23 @@ const createArcjetMiddleware = (client, scope) => {
 
       return next();
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      if (isDev) {
+        logger.debug("Arcjet middleware exception in development", {
+          scope,
+          error: errorMsg
+        });
+        return next();
+      }
+
+      // Production: never silently swallow
       logger.error("Arcjet middleware failed", {
         scope,
         path: req.path,
         method: req.method,
         ip: req.ip,
-        error: error instanceof Error ? error.message : String(error)
+        error: errorMsg
       });
 
       if (config.arcjet.failClosed) {
@@ -213,6 +233,7 @@ const createArcjetMiddleware = (client, scope) => {
   };
 };
 
+// ── Exports ─────────────────────────────────────────────────────────
 export const arcjetApiProtection = createArcjetMiddleware(clients?.base, "api");
 export const arcjetRateLimitApiProtection = createArcjetMiddleware(clients?.api, "api-rate-limit");
 export const arcjetAuthProtection = createArcjetMiddleware(clients?.auth, "auth");
