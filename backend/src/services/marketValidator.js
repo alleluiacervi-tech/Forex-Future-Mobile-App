@@ -93,3 +93,5 @@ export const logDiagnostic = (data) => {
   if (process.env.MARKET_ALERT_DIAGNOSTICS !== "true") return;
   logger.debug("Market recorder diagnostic", { diagnostic: data });
 };
+
+

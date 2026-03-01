@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Dimensions, Image } from 'react-native';
+import { View, StyleSheet, Dimensions, Image, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types';
@@ -159,11 +159,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#2B5260',
-    shadowColor: '#0A1216',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 22,
-    elevation: 8,
+    ...Platform.select({
+      ios: { shadowColor: '#0A1216', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 22 },
+      android: { elevation: 8 },
+      web: { boxShadow: '0px 10px 22px rgba(10, 18, 22, 0.35)' },
+    }),
   },
   logoPlate: {
     width: 108,
@@ -190,11 +190,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#E7C77A',
     marginBottom: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 18,
-    elevation: 10,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.28, shadowRadius: 18 },
+      android: { elevation: 10 },
+      web: { boxShadow: '0px 10px 18px rgba(0, 0, 0, 0.28)' },
+    }),
   },
   globeInner: {
     flex: 1,
@@ -245,11 +245,11 @@ const styles = StyleSheet.create({
     width: 12,
     height: 30,
     borderRadius: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
-    elevation: 2,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 2 },
+      android: { elevation: 2 },
+      web: { boxShadow: '0px 2px 2px rgba(0, 0, 0, 0.12)' },
+    }),
   },
   bullishBody: {
     backgroundColor: '#10B981', // Professional green
@@ -264,11 +264,11 @@ const styles = StyleSheet.create({
     width: 1.5,
     backgroundColor: '#94A3B8', // Professional gray
     position: 'absolute',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-    elevation: 1,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 1 },
+      android: { elevation: 1 },
+      web: { boxShadow: '0px 1px 1px rgba(0, 0, 0, 0.1)' },
+    }),
   },
   upperWick: {
     top: -12,
@@ -383,11 +383,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 6 },
+      android: { elevation: 4 },
+      web: { boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.25)' },
+    }),
   },
   featureText: {
     flex: 1,

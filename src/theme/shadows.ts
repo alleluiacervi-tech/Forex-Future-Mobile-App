@@ -11,6 +11,9 @@ export const shadows = {
     android: {
       elevation: 2,
     },
+    web: {
+      boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+    },
   }),
   medium: Platform.select({
     ios: {
@@ -21,6 +24,9 @@ export const shadows = {
     },
     android: {
       elevation: 4,
+    },
+    web: {
+      boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
     },
   }),
   large: Platform.select({
@@ -33,8 +39,10 @@ export const shadows = {
     android: {
       elevation: 8,
     },
+    web: {
+      boxShadow: '0px 8px 16px rgba(0, 0, 0, 0.3)',
+    },
   }),
 };
 
 export type Shadows = typeof shadows;
-

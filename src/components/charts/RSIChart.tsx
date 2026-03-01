@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef } from 'react';
-import { View, StyleSheet, Dimensions, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Dimensions, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -353,10 +353,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+      android: { elevation: 3 },
+      web: { boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)' },
+    }),
   },
 });

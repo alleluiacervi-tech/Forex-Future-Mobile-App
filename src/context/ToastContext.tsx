@@ -207,7 +207,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               {
                 borderColor: toneColor[activeToast.tone || 'info'],
                 backgroundColor: theme.colors.surface,
-                shadowColor: toneColor[activeToast.tone || 'info'],
+                ...(Platform.OS !== 'web' ? { shadowColor: toneColor[activeToast.tone || 'info'] } : {}),
                 opacity,
                 transform: [{ translateY }],
               },
@@ -252,10 +252,11 @@ const styles = StyleSheet.create({
     maxWidth: 520,
     borderRadius: 12,
     borderWidth: 1,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 14,
-    elevation: 10,
+    ...Platform.select({
+      ios: { shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 14 },
+      android: { elevation: 10 },
+      web: { boxShadow: '0px 8px 14px rgba(0, 0, 0, 0.2)' },
+    }),
   },
   pressable: {
     paddingHorizontal: 14,
