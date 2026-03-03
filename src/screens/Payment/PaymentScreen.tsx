@@ -109,7 +109,7 @@ export default function PaymentScreen() {
                   navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
                 }}
               >
-                <Text variant="button" style={styles.actionButtonText}>
+                <Text variant="body" style={styles.actionButtonText}>
                   Start Trading
                 </Text>
               </TouchableOpacity>
@@ -144,7 +144,7 @@ export default function PaymentScreen() {
                 activeOpacity={0.8}
                 onPress={() => navigation.goBack()}
               >
-                <Text variant="button" style={styles.actionButtonText}>
+                <Text variant="body" style={styles.actionButtonText}>
                   Choose a Plan
                 </Text>
               </TouchableOpacity>
@@ -179,7 +179,7 @@ export default function PaymentScreen() {
                   setErrorMessage('');
                 }}
               >
-                <Text variant="button" style={styles.actionButtonText}>
+                <Text variant="body" style={styles.actionButtonText}>
                   Try Again
                 </Text>
               </TouchableOpacity>
@@ -249,13 +249,13 @@ export default function PaymentScreen() {
             {flowState === 'loading' ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator color="#003087" size="small" />
-                <Text variant="button" style={styles.paypalButtonText}>
+                <Text variant="body" style={styles.paypalButtonText}>
                   Setting up your account...
                 </Text>
               </View>
             ) : (
               <View style={styles.paypalRow}>
-                <Text variant="button" style={styles.paypalButtonText}>
+                <Text variant="body" style={styles.paypalButtonText}>
                   Pay with PayPal
                 </Text>
               </View>

@@ -93,9 +93,9 @@ const withNetworkHint = (error: unknown, endpoint: string) => {
     message.includes('failed to fetch') ||
     message.includes('load failed')
   ) {
-    return new Error(
-      `Unable to reach auth server at ${endpoint}. Set EXPO_PUBLIC_API_URL to a reachable backend URL and restart Expo.`,
-    );
+    const hint = `Unable to reach auth server at ${endpoint}. Set EXPO_PUBLIC_API_URL to a reachable backend URL and restart Expo.`;
+    console.error(`[AuthService] NETWORK ERROR: ${hint} (original: ${error.message})`);
+    return new Error(hint);
   }
 
   return error;

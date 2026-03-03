@@ -115,6 +115,14 @@ export default function LandingScreen() {
             size="large"
             style={styles.primaryAction}
           />
+
+          <Button
+            title="Sign In"
+            onPress={() => navigation.navigate('Welcome')}
+            variant="outline"
+            size="large"
+            style={styles.signInAction}
+          />
         </View>
       </View>
     </LinearGradient>
@@ -356,6 +364,10 @@ const styles = StyleSheet.create({
   },
   primaryAction: {
     width: '100%',
+  },
+  signInAction: {
+    width: '100%',
+    marginTop: 10,
   },
   headline: {
     fontWeight: '700',

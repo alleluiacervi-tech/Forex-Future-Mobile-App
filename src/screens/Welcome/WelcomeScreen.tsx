@@ -55,8 +55,10 @@ export default function WelcomeScreen() {
 
     setShowPaymentSetupAction(false);
 
+    console.log('[WelcomeScreen] Sign-in attempt for:', email.trim().toLowerCase());
     try {
       const result = await login(email.trim().toLowerCase(), password);
+      console.log('[WelcomeScreen] Login returned:', result ? 'OTP challenge' : 'success');
       if (result?.otpRequired) {
         navigation.navigate('LoginOtp', {
           email: email.trim().toLowerCase(),
@@ -89,6 +91,7 @@ export default function WelcomeScreen() {
         );
         return;
       }
+      console.error('[WelcomeScreen] Sign-in error:', error);
       Alert.alert('Sign in failed', error instanceof Error ? error.message : 'Unable to sign in');
     }
   };

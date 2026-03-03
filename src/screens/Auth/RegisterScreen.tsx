@@ -75,8 +75,10 @@ export default function RegisterScreen() {
 
     const normalizedEmail = email.trim().toLowerCase();
 
+    console.log('[RegisterScreen] Registration attempt for:', normalizedEmail);
     try {
       const verification = await register(name.trim(), normalizedEmail, password);
+      console.log('[RegisterScreen] Register returned:', JSON.stringify(verification));
       if (verification?.verificationUnavailable) {
         Alert.alert(
           'Verification unavailable',
@@ -97,6 +99,7 @@ export default function RegisterScreen() {
       Alert.alert('Success', 'Your account has been created. You can now sign in.');
       navigation.replace('Welcome');
     } catch (error) {
+      console.error('[RegisterScreen] Registration error:', error);
       const message = error instanceof Error ? error.message : 'Registration failed';
       Alert.alert('Registration failed', message);
     }

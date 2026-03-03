@@ -298,7 +298,7 @@ export default function ProfileScreen() {
                     onPress={() => navigation.navigate('Pricing' as any)}
                     activeOpacity={0.8}
                   >
-                    <Text variant="button" style={styles.viewPlansText}>
+                    <Text variant="body" style={styles.viewPlansText}>
                       View Plans
                     </Text>
                   </TouchableOpacity>

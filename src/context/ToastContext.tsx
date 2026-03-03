@@ -12,6 +12,7 @@ import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-n
 import { useTheme } from '../theme';
 import { Text } from '../components/common';
 import { subscribeToMarketSocket } from '../services/marketSocket';
+import { useAuth } from './AuthContext';
 
 type ToastTone = 'info' | 'success' | 'warning' | 'error';
 
@@ -73,6 +74,7 @@ const toToastFromAlert = (rawAlert: any): ToastPayload | null => {
 
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const theme = useTheme();
+  const { isAuthenticated } = useAuth();
   const [queue, setQueue] = useState<ToastPayload[]>([]);
   const [activeToast, setActiveToast] = useState<ToastPayload | null>(null);
 
@@ -165,6 +167,12 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   }, [activeToast, hideToast, opacity, translateY]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      console.log('[ToastProvider] Skipping WebSocket subscription (not authenticated)');
+      return;
+    }
+
+    console.log('[ToastProvider] Subscribing to market WebSocket');
     const unsubscribe = subscribeToMarketSocket((event) => {
       if (event.type !== 'marketAlert') return;
       const alert = event.data;
@@ -194,7 +202,7 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     });
 
     return unsubscribe;
-  }, [showToast]);
+  }, [isAuthenticated, showToast]);
 
   return (
     <ToastContext.Provider value={{ showToast, hideToast }}>

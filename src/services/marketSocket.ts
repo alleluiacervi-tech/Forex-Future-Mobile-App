@@ -44,6 +44,7 @@ class MarketSocketManager {
     }
 
     const wsUrl = resolveWsUrl();
+    console.log(`[MarketSocket] Connecting to ${wsUrl} (attempt ${this.reconnectAttempts + 1})`);
 
     try {
       this.ws = new WebSocket(wsUrl);
@@ -77,10 +78,12 @@ class MarketSocketManager {
     };
 
     this.ws.onerror = () => {
+      console.warn(`[MarketSocket] Connection error for ${wsUrl}`);
       this.emit({ type: 'socketError', message: 'Market socket connection error.' });
     };
 
     this.ws.onclose = (event) => {
+      console.log(`[MarketSocket] Connection closed (code=${event.code}, reason=${event.reason || 'none'})`);
       this.ws = null;
       this.emit({ type: 'socketClose', code: event.code, reason: event.reason });
 
