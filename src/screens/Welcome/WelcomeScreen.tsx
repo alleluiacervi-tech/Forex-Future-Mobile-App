@@ -258,16 +258,12 @@ export default function WelcomeScreen() {
               </View>
 
               <Button
-                title="Request Access"
-                onPress={handleRequestAccess}
+                title="Create account"
+                onPress={() => navigation.navigate('Register')}
                 variant="outline"
                 size="large"
                 style={styles.requestAccessButton}
               />
-
-              <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.disclaimer}>
-                By continuing you agree to our Terms and acknowledge our Privacy Policy.
-              </Text>
             </View>
           </View>
           </Container>
