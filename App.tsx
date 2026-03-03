@@ -78,8 +78,8 @@ export default function App() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            <ToastProvider>
-              <AuthProvider>
+            <AuthProvider>
+              <ToastProvider>
                 <View style={styles.container} onLayout={onLayoutRootView}>
                   <StatusBar style="light" />
                   {showStartupSplash ? (
@@ -93,8 +93,8 @@ export default function App() {
                     <MainNavigator />
                   )}
                 </View>
-              </AuthProvider>
-            </ToastProvider>
+              </ToastProvider>
+            </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
