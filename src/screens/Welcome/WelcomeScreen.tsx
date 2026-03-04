@@ -63,10 +63,8 @@ export default function WelcomeScreen() {
 
     setShowPaymentSetupAction(false);
 
-    console.log('[WelcomeScreen] Sign-in attempt for:', email.trim().toLowerCase());
     try {
       const result = await login(email.trim().toLowerCase(), password);
-      console.log('[WelcomeScreen] Login returned:', result ? 'OTP challenge' : 'success');
       if (result?.otpRequired) {
         navigation.navigate('LoginOtp', {
           email: email.trim().toLowerCase(),
@@ -119,8 +117,6 @@ export default function WelcomeScreen() {
         return;
       }
 
-      console.error('[WelcomeScreen] Sign-in error:', error);
-
       // ADDED: User feedback message for network errors
       const message = error instanceof Error ? error.message : 'Unable to sign in';
       if (message.toLowerCase().includes('network') || message.toLowerCase().includes('fetch') || message.toLowerCase().includes('connect')) {
@@ -133,13 +129,24 @@ export default function WelcomeScreen() {
         return;
       }
 
-      // ADDED: User feedback message for specific error codes
-      if (errorCode === 'AUTH_INVALID_CREDENTIALS') {
-        Alert.alert('Sign in failed', 'Incorrect email or password. Please try again.');
+      // ADDED: User feedback message for user not found
+      if (errorCode === 'AUTH_USER_NOT_FOUND') {
+        Alert.alert('Sign in failed', 'No account found with this email.');
         return;
       }
+      // ADDED: User feedback message for wrong password
+      if (errorCode === 'AUTH_INVALID_CREDENTIALS') {
+        Alert.alert('Sign in failed', 'Incorrect password. Please try again.');
+        return;
+      }
+      // ADDED: User feedback message for account suspended
       if (errorCode === 'AUTH_ACCOUNT_SUSPENDED') {
         Alert.alert('Account suspended', 'Your account has been suspended. Please contact support.');
+        return;
+      }
+      // ADDED: User feedback message for rate limiting
+      if (errorCode === 'RATE_LIMIT_EXCEEDED' || message.toLowerCase().includes('rate limit') || message.toLowerCase().includes('too many')) {
+        Alert.alert('Too many attempts', 'Too many failed attempts. Please wait before trying again.');
         return;
       }
 

@@ -1,8 +1,8 @@
 import { execSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Pool } from "pg";
 import dotenv from "dotenv";
+import prisma from "../db/prisma.js";
 
 dotenv.config();
 
@@ -20,28 +20,16 @@ const runPrismaDeploy = () => {
 };
 
 const assertTables = async () => {
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
-  });
+  const result = await prisma.$queryRaw`
+    SELECT table_name::text
+    FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = ANY(${REQUIRED_TABLES}::text[])
+  `;
 
-  try {
-    const result = await pool.query(
-      `
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = ANY($1::text[])
-      `,
-      [REQUIRED_TABLES]
-    );
-
-    const found = new Set(result.rows.map((row) => row.table_name));
-    const missing = REQUIRED_TABLES.filter((name) => !found.has(name));
-    if (missing.length > 0) {
-      throw new Error(`Missing required tables: ${missing.join(", ")}`);
-    }
-  } finally {
-    await pool.end();
+  const found = new Set(result.map((row) => row.table_name));
+  const missing = REQUIRED_TABLES.filter((name) => !found.has(name));
+  if (missing.length > 0) {
+    throw new Error(`Missing required tables: ${missing.join(", ")}`);
   }
 };
 
@@ -53,9 +41,11 @@ const main = async () => {
   runPrismaDeploy();
   await assertTables();
   console.log("Database migration completed and verified.");
+  await prisma.$disconnect();
 };
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error("Migration failed:", error?.message || error);
+  await prisma.$disconnect();
   process.exit(1);
 });

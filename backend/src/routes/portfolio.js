@@ -2,6 +2,7 @@ import express from "express";
 import authenticate from "../middleware/auth.js";
 import prisma from "../db/prisma.js";
 import { getPriceForPair } from "../services/rates.js";
+import handleError from "../utils/handleError.js";
 
 const router = express.Router();
 
@@ -40,7 +41,7 @@ router.get("/summary", authenticate, async (req, res) => {
       openPositions: positions.length
     });
   } catch (error) {
-    return res.status(502).json({ error: error.message });
+    return handleError(error, res);
   }
 });
 
@@ -60,17 +61,21 @@ router.get("/positions", authenticate, async (req, res) => {
 
     return res.json({ positions: enriched });
   } catch (error) {
-    return res.status(502).json({ error: error.message });
+    return handleError(error, res);
   }
 });
 
 router.get("/transactions", authenticate, async (req, res) => {
-  const transactions = await prisma.transaction.findMany({
-    where: { userId: req.user.id },
-    orderBy: { timestamp: "desc" }
-  });
+  try {
+    const transactions = await prisma.transaction.findMany({
+      where: { userId: req.user.id },
+      orderBy: { timestamp: "desc" }
+    });
 
-  return res.json({ transactions });
+    return res.json({ transactions });
+  } catch (error) {
+    return handleError(error, res);
+  }
 });
 
 export default router;

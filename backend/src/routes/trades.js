@@ -3,16 +3,21 @@ import authenticate from "../middleware/auth.js";
 import prisma from "../db/prisma.js";
 import { getPriceForPair } from "../services/rates.js";
 import { orderSchema, parseSchema } from "../utils/validators.js";
+import handleError from "../utils/handleError.js";
 
 const router = express.Router();
 
 router.get("/orders", authenticate, async (req, res) => {
-  const orders = await prisma.order.findMany({
-    where: { userId: req.user.id },
-    orderBy: { createdAt: "desc" }
-  });
+  try {
+    const orders = await prisma.order.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: "desc" }
+    });
 
-  return res.json({ orders });
+    return res.json({ orders });
+  } catch (error) {
+    return handleError(error, res);
+  }
 });
 
 router.post("/orders", authenticate, async (req, res) => {
@@ -93,8 +98,7 @@ router.post("/orders", authenticate, async (req, res) => {
 
     return res.status(201).json(result);
   } catch (error) {
-    const statusCode = Number.isInteger(error?.statusCode) ? Number(error.statusCode) : 502;
-    return res.status(statusCode).json({ error: error.message });
+    return handleError(error, res);
   }
 });
 
