@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, StyleSheet, View, Image } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -78,8 +78,8 @@ export default function App() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            <ToastProvider>
-              <AuthProvider>
+            <AuthProvider>
+              <ToastProvider>
                 <View style={styles.container} onLayout={onLayoutRootView}>
                   <StatusBar style="light" />
                   {showStartupSplash ? (
@@ -93,8 +93,8 @@ export default function App() {
                     <MainNavigator />
                   )}
                 </View>
-              </AuthProvider>
-            </ToastProvider>
+              </ToastProvider>
+            </AuthProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </SafeAreaProvider>
@@ -164,11 +164,11 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#2B5260',
-    shadowColor: '#0A1216',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 22,
-    elevation: 8,
+    ...Platform.select({
+      ios: { shadowColor: '#0A1216', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 22 },
+      android: { elevation: 8 },
+      web: { boxShadow: '0px 10px 22px rgba(10, 18, 22, 0.35)' },
+    }),
   },
   splashMark: {
     width: 108,

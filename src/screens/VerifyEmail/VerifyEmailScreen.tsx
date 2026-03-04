@@ -93,7 +93,8 @@ export default function VerifyEmailScreen() {
 
     try {
       await verifyEmail(normalized, cleaned);
-      Alert.alert('Verified', 'Your email is verified.', [
+      // ADDED: User feedback message for verification success
+      Alert.alert('Verified', 'Your email is verified. You can now sign in.', [
         {
           text: 'Continue',
           onPress: () => {
@@ -107,7 +108,29 @@ export default function VerifyEmailScreen() {
         },
       ]);
     } catch (error) {
-      Alert.alert('Verification failed', error instanceof Error ? error.message : 'Unable to verify email');
+      // FIX: Extract error code for specific user feedback messages
+      const errorCode = typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: string }).code
+        : undefined;
+      const message = error instanceof Error ? error.message : 'Unable to verify email';
+
+      // ADDED: User feedback message for wrong OTP code
+      if (errorCode === 'AUTH_OTP_INVALID') {
+        Alert.alert('Incorrect code', 'Incorrect code. Please try again.');
+        return;
+      }
+      // ADDED: User feedback message for expired OTP
+      if (errorCode === 'AUTH_OTP_EXPIRED') {
+        Alert.alert('Code expired', 'This code has expired. Request a new one below.');
+        return;
+      }
+      // ADDED: User feedback message for too many OTP attempts
+      if (errorCode === 'AUTH_OTP_MAX_ATTEMPTS') {
+        Alert.alert('Too many attempts', 'Too many incorrect attempts. Please request a new code.');
+        return;
+      }
+
+      Alert.alert('Verification failed', message);
     }
   };
 
@@ -121,18 +144,23 @@ export default function VerifyEmailScreen() {
     const normalized = email.trim().toLowerCase();
     try {
       const result = await resendEmailVerification(normalized);
+      // ADDED: User feedback message for OTP resend success
       Alert.alert(
-        'Sent',
-        typeof result?.message === 'string' && result.message
-          ? result.message
-          : 'If the account exists, a new verification code will be sent shortly.',
+        'Code sent',
+        `A new code has been sent to ${normalized}`,
       );
       if (result?.debugCode) {
         setCode(result.debugCode);
         Alert.alert('Dev code (debug)', result.debugCode);
       }
     } catch (error) {
-      Alert.alert('Request failed', error instanceof Error ? error.message : 'Unable to resend code');
+      // ADDED: User feedback message for resend failure
+      const message = error instanceof Error ? error.message : 'Unable to resend code';
+      if (message.toLowerCase().includes('network') || message.toLowerCase().includes('fetch')) {
+        Alert.alert('Connection failed', 'Check your network and try again.');
+        return;
+      }
+      Alert.alert('Request failed', message);
     }
   };
 

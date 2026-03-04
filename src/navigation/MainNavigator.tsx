@@ -24,6 +24,7 @@ import VerifyEmailScreen from '../screens/VerifyEmail';
 import ForgotPasswordScreen from '../screens/ForgotPassword';
 import ResetPasswordScreen from '../screens/ResetPassword';
 import SubscriptionScreen from '../screens/Subscription';
+import RegisterScreen from '../screens/Auth/RegisterScreen';
 import SettingsScreen from '../screens/Settings';
 import SubscriptionPlanScreen from '../screens/Account/SubscriptionPlanScreen';
 import SecurityScreen from '../screens/Account/SecurityScreen';
@@ -45,8 +46,7 @@ const linking: LinkingOptions<RootStackParamList> = {
   config: {
     screens: {
       Landing: '',
-      Welcome: 'welcome',
-      LoginOtp: 'login-otp',
+      Welcome: 'welcome',      Register: 'register',      LoginOtp: 'login-otp',
       VerifyEmail: 'verify-email',
       ForgotPassword: 'forgot-password',
       ResetPassword: 'reset-password',
@@ -123,6 +123,11 @@ export default function MainNavigator() {
         <Stack.Screen
           name="Welcome"
           component={WelcomeScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

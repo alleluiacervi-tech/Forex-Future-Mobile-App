@@ -6,6 +6,7 @@ export type RootStackParamList = {
   TradeDetail: { pair: string };
   About: undefined;
   Welcome: undefined;
+  Register: undefined;
   LoginOtp:
     | undefined
     | {

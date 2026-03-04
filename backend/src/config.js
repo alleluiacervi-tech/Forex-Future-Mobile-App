@@ -112,7 +112,10 @@ const config = {
     enabled: parseBoolean(process.env.ARCJET_ENABLED, true),
     key: String(process.env.ARCJET_KEY || "").trim(),
     mode: parseArcjetMode(process.env.ARCJET_MODE, defaultArcjetMode),
-    failClosed: parseBoolean(process.env.ARCJET_FAIL_CLOSED, false),
+    failClosed: parseBoolean(
+      process.env.ARCJET_FAIL_CLOSED,
+      process.env.NODE_ENV === "production"   // fail-closed by default in production
+    ),
     trustedProxies: parseCsv(process.env.ARCJET_TRUSTED_PROXIES),
     rateLimits: {
       api: {

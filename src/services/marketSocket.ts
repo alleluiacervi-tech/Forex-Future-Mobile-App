@@ -44,6 +44,7 @@ class MarketSocketManager {
     }
 
     const wsUrl = resolveWsUrl();
+    console.log(`[MarketSocket] Connecting to ${wsUrl} (attempt ${this.reconnectAttempts + 1})`);
 
     try {
       this.ws = new WebSocket(wsUrl);
@@ -77,10 +78,12 @@ class MarketSocketManager {
     };
 
     this.ws.onerror = () => {
+      console.warn(`[MarketSocket] Connection error for ${wsUrl}`);
       this.emit({ type: 'socketError', message: 'Market socket connection error.' });
     };
 
     this.ws.onclose = (event) => {
+      console.log(`[MarketSocket] Connection closed (code=${event.code}, reason=${event.reason || 'none'})`);
       this.ws = null;
       this.emit({ type: 'socketClose', code: event.code, reason: event.reason });
 
@@ -92,12 +95,18 @@ class MarketSocketManager {
     };
   }
 
+  private static readonly MAX_RECONNECT_ATTEMPTS = 10;
+
   private scheduleReconnect() {
     if (this.reconnectTimer || !this.shouldConnect || this.listeners.size === 0) {
       return;
     }
 
     this.reconnectAttempts += 1;
+    if (this.reconnectAttempts > MarketSocketManager.MAX_RECONNECT_ATTEMPTS) {
+      this.emit({ type: 'socketError', message: 'Max reconnect attempts reached. Call subscribe() again to retry.' });
+      return;
+    }
     const delayMs = Math.min(1000 * 2 ** Math.max(0, this.reconnectAttempts - 1), 30000);
 
     this.reconnectTimer = setTimeout(() => {

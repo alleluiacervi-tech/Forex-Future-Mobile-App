@@ -157,7 +157,7 @@ export default function PricingScreen() {
           activeOpacity={0.8}
           onPress={() => handleSelectPlan(plan.key)}
         >
-          <Text variant="button" style={styles.planButtonText}>
+          <Text variant="body" style={styles.planButtonText}>
             Start Free Trial
           </Text>
         </TouchableOpacity>

@@ -72,7 +72,8 @@ type ResendVerificationResponse = {
 };
 
 type ErrorResponse = {
-  error?: string;
+  error?: string | { code?: string; message?: string }; // FIX: error can be string or object from apiResponse envelope
+  code?: string; // ADDED: error code for frontend logic
   verificationRequired?: boolean;
   trialRequired?: boolean;
   otpRequired?: boolean;
@@ -93,29 +94,72 @@ const withNetworkHint = (error: unknown, endpoint: string) => {
     message.includes('failed to fetch') ||
     message.includes('load failed')
   ) {
-    return new Error(
-      `Unable to reach auth server at ${endpoint}. Set EXPO_PUBLIC_API_URL to a reachable backend URL and restart Expo.`,
-    );
+    const hint = `Unable to reach auth server at ${endpoint}. Set EXPO_PUBLIC_API_URL to a reachable backend URL and restart Expo.`;
+    console.error(`[AuthService] NETWORK ERROR: ${hint} (original: ${error.message})`);
+    return new Error(hint);
   }
 
   return error;
 };
 
+// FIX: pickError now handles both {error: "string"} and {error: {message: "string"}} formats
+// from the apiResponse middleware envelope
 const pickError = (data: unknown, fallback: string) => {
   if (!data || typeof data !== 'object') return fallback;
+  const raw = data as Record<string, unknown>;
+
+  // Handle apiResponse envelope: {success: false, error: {code, message}}
+  if (raw.success === false && raw.error && typeof raw.error === 'object') {
+    const nested = raw.error as Record<string, unknown>;
+    if (typeof nested.message === 'string' && nested.message) return nested.message;
+  }
+
+  // Handle direct {error: "string"} format
   const errorValue = (data as ErrorResponse).error;
-  return typeof errorValue === 'string' && errorValue ? errorValue : fallback;
+  if (typeof errorValue === 'string' && errorValue) return errorValue;
+
+  // Handle {message: "string"} format
+  if (typeof raw.message === 'string' && raw.message) return raw.message;
+
+  return fallback;
+};
+
+// FIX: Helper to extract error code from apiResponse envelope
+const pickErrorCode = (data: unknown): string | undefined => {
+  if (!data || typeof data !== 'object') return undefined;
+  const raw = data as Record<string, unknown>;
+  // Handle {success: false, error: {code: "AUTH_..."}}
+  if (raw.success === false && raw.error && typeof raw.error === 'object') {
+    const nested = raw.error as Record<string, unknown>;
+    if (typeof nested.code === 'string') return nested.code;
+  }
+  // Handle direct {code: "AUTH_..."}
+  if (typeof raw.code === 'string') return raw.code;
+  return undefined;
+};
+
+// FIX: unwrapEnvelope extracts data from {success: true, data: {...}} envelope
+const unwrapEnvelope = <T>(raw: unknown): T => {
+  if (!raw || typeof raw !== 'object') return raw as T;
+  const obj = raw as Record<string, unknown>;
+  // If this is a success envelope, return the data portion
+  if (obj.success === true && Object.prototype.hasOwnProperty.call(obj, 'data') && obj.data && typeof obj.data === 'object') {
+    return obj.data as T;
+  }
+  return raw as T;
 };
 
 class AuthApiError extends Error {
   verificationRequired?: boolean;
   trialRequired?: boolean;
+  code?: string; // ADDED: error code for frontend logic
 
-  constructor(message: string, options: { verificationRequired?: boolean; trialRequired?: boolean } = {}) {
+  constructor(message: string, options: { verificationRequired?: boolean; trialRequired?: boolean; code?: string } = {}) {
     super(message);
     this.name = 'AuthApiError';
     this.verificationRequired = options.verificationRequired;
     this.trialRequired = options.trialRequired;
+    this.code = options.code;
   }
 }
 
@@ -150,11 +194,17 @@ class AuthService {
         body: JSON.stringify({ name, email, password }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<AuthRegisterResponse> & ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
 
       if (!response.ok) {
-        throw new Error(pickError(data, 'Registration failed'));
+        // FIX: extract error code and message from apiResponse envelope
+        const message = pickError(rawData, 'Registration failed');
+        const errorCode = pickErrorCode(rawData);
+        throw new AuthApiError(message, { code: errorCode });
       }
+
+      // FIX: unwrap apiResponse envelope {success: true, data: {...}}
+      const data = unwrapEnvelope<Partial<AuthRegisterResponse> & ErrorResponse>(rawData);
 
       if (!data.user) {
         throw new Error('Registration failed');
@@ -180,13 +230,17 @@ class AuthService {
         body: JSON.stringify({ email, code }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<VerifyEmailResponse> & ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
 
       if (!response.ok) {
-        throw new Error(pickError(data, 'Email verification failed'));
+        // FIX: extract error code from apiResponse envelope
+        const message = pickError(rawData, 'Email verification failed');
+        const errorCode = pickErrorCode(rawData);
+        throw new AuthApiError(message, { code: errorCode });
       }
 
-      return data as VerifyEmailResponse;
+      // FIX: unwrap apiResponse envelope
+      return unwrapEnvelope<VerifyEmailResponse>(rawData);
     } catch (error) {
       const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/email/verify`);
       console.error('[AuthService] Verify email error:', getErrorMessage(enrichedError));
@@ -204,13 +258,15 @@ class AuthService {
         body: JSON.stringify({ email }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<ResendVerificationResponse> & ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
 
       if (!response.ok) {
-        throw new Error(pickError(data, 'Unable to resend verification code'));
+        // FIX: extract error from apiResponse envelope
+        throw new Error(pickError(rawData, 'Unable to resend verification code'));
       }
 
-      return data as ResendVerificationResponse;
+      // FIX: unwrap apiResponse envelope
+      return unwrapEnvelope<ResendVerificationResponse>(rawData);
     } catch (error) {
       const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/email/resend`);
       console.error('[AuthService] Resend verification error:', getErrorMessage(enrichedError));
@@ -228,28 +284,33 @@ class AuthService {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<AuthLoginResponse> &
-        Partial<AuthLoginOtpChallenge> &
-        ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
 
       if (!response.ok) {
-        const message = pickError(data, 'Login failed');
-        if (isVerificationRequired(data)) {
-          throw new AuthApiError(message, { verificationRequired: true });
+        const message = pickError(rawData, 'Login failed');
+        // FIX: extract error code from apiResponse envelope for frontend error handling
+        const errorCode = pickErrorCode(rawData);
+        // FIX: check verificationRequired/trialRequired in both envelope and direct format
+        const unwrapped = unwrapEnvelope<ErrorResponse>(rawData);
+        if (isVerificationRequired(rawData) || isVerificationRequired(unwrapped)) {
+          throw new AuthApiError(message, { verificationRequired: true, code: errorCode });
         }
-        if (isTrialRequired(data)) {
-          throw new AuthApiError(message, { trialRequired: true });
+        if (isTrialRequired(rawData) || isTrialRequired(unwrapped)) {
+          throw new AuthApiError(message, { trialRequired: true, code: errorCode });
         }
-        if (isOtpRequired(data)) {
+        if (isOtpRequired(rawData) || isOtpRequired(unwrapped)) {
           return {
             otpRequired: true,
             email,
-            debugCode: data.debugCode,
-            debugExpiresAt: data.debugExpiresAt,
+            debugCode: unwrapped.debugCode,
+            debugExpiresAt: unwrapped.debugExpiresAt,
           };
         }
-        throw new Error(message);
+        throw new AuthApiError(message, { code: errorCode });
       }
+
+      // FIX: unwrap apiResponse envelope {success: true, data: {user, token}}
+      const data = unwrapEnvelope<Partial<AuthLoginResponse> & Partial<AuthLoginOtpChallenge> & ErrorResponse>(rawData);
 
       if (data.otpRequired) {
         return {
@@ -287,11 +348,17 @@ class AuthService {
         body: JSON.stringify({ email, purpose: 'login', code }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<OtpVerifyResponse> & ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
 
       if (!response.ok) {
-        throw new Error(pickError(data, 'OTP verification failed'));
+        // FIX: extract error code from apiResponse envelope
+        const message = pickError(rawData, 'OTP verification failed');
+        const errorCode = pickErrorCode(rawData);
+        throw new AuthApiError(message, { code: errorCode });
       }
+
+      // FIX: unwrap apiResponse envelope
+      const data = unwrapEnvelope<Partial<OtpVerifyResponse> & ErrorResponse>(rawData);
 
       const token = typeof data.token === 'string' ? data.token : '';
       if (!token) {
@@ -323,11 +390,13 @@ class AuthService {
         body: JSON.stringify({ email, purpose: 'login' }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<OtpRequestResponse> & ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
       if (!response.ok) {
-        throw new Error(pickError(data, 'Unable to resend login code'));
+        // FIX: extract error from apiResponse envelope
+        throw new Error(pickError(rawData, 'Unable to resend login code'));
       }
-      return data as OtpRequestResponse;
+      // FIX: unwrap apiResponse envelope
+      return unwrapEnvelope<OtpRequestResponse>(rawData);
     } catch (error) {
       const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/otp/request`);
       console.error('[AuthService] Resend login OTP error:', getErrorMessage(enrichedError));
@@ -354,15 +423,21 @@ class AuthService {
         }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<AuthLoginResponse> & ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
 
       if (!response.ok) {
-        const message = pickError(data, 'Trial activation failed');
-        if (isVerificationRequired(data)) {
-          throw new AuthApiError(message, { verificationRequired: true });
+        const message = pickError(rawData, 'Trial activation failed');
+        // FIX: extract error code and check flags from apiResponse envelope
+        const errorCode = pickErrorCode(rawData);
+        const unwrapped = unwrapEnvelope<ErrorResponse>(rawData);
+        if (isVerificationRequired(rawData) || isVerificationRequired(unwrapped)) {
+          throw new AuthApiError(message, { verificationRequired: true, code: errorCode });
         }
-        throw new Error(message);
+        throw new AuthApiError(message, { code: errorCode });
       }
+
+      // FIX: unwrap apiResponse envelope
+      const data = unwrapEnvelope<Partial<AuthLoginResponse> & ErrorResponse>(rawData);
 
       if (!data.user || !data.token) {
         throw new Error('Trial activation failed');
@@ -397,15 +472,17 @@ class AuthService {
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<AuthMessageResponse> & ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
 
       if (!response.ok) {
-        throw new Error(pickError(data, 'Password change failed'));
+        // FIX: extract error from apiResponse envelope
+        throw new Error(pickError(rawData, 'Password change failed'));
       }
 
       console.log('[AuthService] Password changed successfully');
 
-      return data as AuthMessageResponse;
+      // FIX: unwrap apiResponse envelope
+      return unwrapEnvelope<AuthMessageResponse>(rawData);
     } catch (error) {
       const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/password/change`);
       console.error('[AuthService] Password change error:', getErrorMessage(enrichedError));
@@ -423,13 +500,15 @@ class AuthService {
         body: JSON.stringify({ email }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<AuthForgotPasswordResponse> & ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
 
       if (!response.ok) {
-        throw new Error(pickError(data, 'Password reset request failed'));
+        // FIX: extract error from apiResponse envelope
+        throw new Error(pickError(rawData, 'Password reset request failed'));
       }
 
-      return data as AuthForgotPasswordResponse;
+      // FIX: unwrap apiResponse envelope
+      return unwrapEnvelope<AuthForgotPasswordResponse>(rawData);
     } catch (error) {
       const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/password/forgot`);
       console.error('[AuthService] Password reset request error:', getErrorMessage(enrichedError));
@@ -447,13 +526,17 @@ class AuthService {
         body: JSON.stringify({ email, code, newPassword }),
       });
 
-      const data = (await response.json().catch(() => ({}))) as Partial<AuthMessageResponse> & ErrorResponse;
+      const rawData = (await response.json().catch(() => ({})));
 
       if (!response.ok) {
-        throw new Error(pickError(data, 'Password reset failed'));
+        // FIX: extract error code from apiResponse envelope
+        const message = pickError(rawData, 'Password reset failed');
+        const errorCode = pickErrorCode(rawData);
+        throw new AuthApiError(message, { code: errorCode });
       }
 
-      return data as AuthMessageResponse;
+      // FIX: unwrap apiResponse envelope
+      return unwrapEnvelope<AuthMessageResponse>(rawData);
     } catch (error) {
       const enrichedError = withNetworkHint(error, `${this.authBaseUrl}/password/reset`);
       console.error('[AuthService] Password reset error:', getErrorMessage(enrichedError));
@@ -491,12 +574,15 @@ class AuthService {
       },
     });
 
-    const data = (await response.json().catch(() => ({}))) as Partial<{ user: User; account?: User['account'] }> &
-      ErrorResponse;
+    const rawData = (await response.json().catch(() => ({})));
 
     if (!response.ok) {
-      throw new Error(pickError(data, 'Failed to fetch user'));
+      // FIX: extract error from apiResponse envelope
+      throw new Error(pickError(rawData, 'Failed to fetch user'));
     }
+
+    // FIX: unwrap apiResponse envelope
+    const data = unwrapEnvelope<Partial<{ user: User; account?: User['account'] }> & ErrorResponse>(rawData);
 
     if (!data.user) {
       throw new Error('Failed to fetch user');

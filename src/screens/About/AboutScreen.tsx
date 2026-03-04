@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ComponentProps } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -129,8 +129,7 @@ export default function AboutScreen() {
             <View style={styles.logoRow}>
               <BrandLogo style={styles.heroLogo} />
             </View>
-            <View style={[styles.heroPill, { borderColor: theme.colors.border }]}
-            >
+            <View style={[styles.heroPill, { borderColor: theme.colors.border }]}>
               <Icon name="bolt" size={16} color={theme.colors.primary} />
               <Text variant="caption" color={theme.colors.textSecondary} style={styles.heroPillText}>
                 Built for disciplined decisions
@@ -298,11 +297,11 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 18,
     borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#0A1216',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    elevation: 4,
+    ...Platform.select({
+      ios: { shadowColor: '#0A1216', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.14, shadowRadius: 14 },
+      android: { elevation: 4 },
+      web: { boxShadow: '0px 10px 14px rgba(10, 18, 22, 0.14)' },
+    }),
   },
   featureHeaderRow: {
     flexDirection: 'row',
@@ -318,11 +317,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 6,
+    ...Platform.select({
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.2, shadowRadius: 10 },
+      android: { elevation: 6 },
+      web: { boxShadow: '0px 6px 10px rgba(0, 0, 0, 0.2)' },
+    }),
   },
   featureTitle: {
     fontSize: 16,

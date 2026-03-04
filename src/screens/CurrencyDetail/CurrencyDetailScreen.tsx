@@ -81,8 +81,7 @@ export default function CurrencyDetailScreen() {
             <PriceChart pair={currencyPair} timeframe={selectedTimeframe} />
           </View>
 
-          <View style={[styles.rsiContainer, { backgroundColor: theme.colors.surface }]}
-          >
+          <View style={[styles.rsiContainer, { backgroundColor: theme.colors.surface }]}>
             <RSIChart basePrice={currencyPair.price} timeframe={selectedTimeframe} />
           </View>
 

@@ -80,6 +80,10 @@ if (__DEV__ && envApiUrl) {
   }
 }
 
+if (__DEV__) {
+  console.log(`[Config] API URL resolved to: ${resolvedApiUrl}${envApiUrl ? ' (from EXPO_PUBLIC_API_URL)' : ' (default/auto-detected)'}`);
+}
+
 export const APP_CONFIG = {
   name: 'Forex Trading App',
   version: '1.0.0',
