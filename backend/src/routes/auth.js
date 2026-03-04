@@ -202,10 +202,7 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    // ADDED: Debug logging for 401 investigation
-    console.log('[LOGIN] Attempt for:', data.email);
     const result = await authService.authenticateUser(data.email, data.password);
-    console.log('[LOGIN] Auth result: otpRequired=', !!result.otpRequired, ', hasUser=', !!result.user);
     if (result.otpRequired) {
       // OTP was sent instead of issuing token
       return res.json({ success: true, otpRequired: true, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt });
@@ -220,25 +217,32 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     logger.error('Login endpoint error', { error: error.message });
-    console.log('[LOGIN] Error:', error.message);
 
     // ADDED: Error code AUTH_SUB_TRIAL_EXPIRED for trial issues
     if (
       error.message.toLowerCase().includes('trial must be activated') ||
       error.message.toLowerCase().includes('free trial must be activated')
     ) {
-      return res.status(403).json({ error: error.message, code: 'SUB_TRIAL_EXPIRED', trialRequired: true });
+      return res.status(403).json({ success: false, error: error.message, code: 'SUB_TRIAL_EXPIRED', trialRequired: true });
     }
     if (error.message.toLowerCase().includes('trial has expired')) {
-      return res.status(403).json({ error: error.message, code: 'SUB_TRIAL_EXPIRED', trialRequired: true });
+      return res.status(403).json({ success: false, error: error.message, code: 'SUB_TRIAL_EXPIRED', trialRequired: true });
     }
     // ADDED: Error code AUTH_EMAIL_NOT_VERIFIED for unverified email
     if (error.message.toLowerCase().includes('email verification required')) {
-      return res.status(403).json({ error: error.message, code: 'AUTH_EMAIL_NOT_VERIFIED', verificationRequired: true });
+      return res.status(403).json({ success: false, error: error.message, code: 'AUTH_EMAIL_NOT_VERIFIED', verificationRequired: true });
     }
 
-    // ADDED: Error code AUTH_INVALID_CREDENTIALS for wrong email/password
-    return res.status(401).json({ error: error.message, code: 'AUTH_INVALID_CREDENTIALS' });
+    // FIX: Use errorCode from service to distinguish user-not-found from wrong-password
+    if (error.errorCode === 'AUTH_USER_NOT_FOUND') {
+      return res.status(401).json({ success: false, error: error.message, code: 'AUTH_USER_NOT_FOUND' });
+    }
+    if (error.errorCode === 'AUTH_INVALID_CREDENTIALS') {
+      return res.status(401).json({ success: false, error: error.message, code: 'AUTH_INVALID_CREDENTIALS' });
+    }
+
+    // ADDED: Fallback for any other auth error
+    return res.status(401).json({ success: false, error: error.message, code: 'AUTH_INVALID_CREDENTIALS' });
   }
 });
 

@@ -123,6 +123,20 @@ export default function ResetPasswordScreen() {
         },
       ]);
     } catch (error) {
+      // ADDED: Extract error code for specific OTP error messages
+      const errorCode = typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: string }).code
+        : undefined;
+
+      if (errorCode === 'AUTH_OTP_EXPIRED') {
+        Alert.alert('Code expired', 'Your reset code has expired. Please request a new one.');
+        return;
+      }
+      if (errorCode === 'AUTH_OTP_INVALID') {
+        Alert.alert('Invalid code', 'The reset code you entered is incorrect. Please check and try again.');
+        return;
+      }
+
       Alert.alert('Reset failed', error instanceof Error ? error.message : 'Unable to reset password');
     }
   };
