@@ -84,7 +84,7 @@ const checkResendRateLimit = (key) => {
 router.post("/register", async (req, res) => {
   const { data, error } = parseSchema(registerSchema, req.body);
   if (error) {
-    return res.status(400).json({ error });
+    return res.status(400).json({ error, code: 'VALIDATION_ERROR' });
   }
 
   try {
@@ -105,7 +105,9 @@ router.post("/register", async (req, res) => {
       card
     );
     const user = result?.user || result;
+    // ADDED: success response with consistent format
     return res.status(201).json({
+      success: true,
       user,
       account: user.account,
       trialRequired: true,
@@ -116,15 +118,17 @@ router.post("/register", async (req, res) => {
     });
   } catch (error) {
     logger.error('Registration endpoint error', { error: error.message });
-    
+
+    // ADDED: Error code for email already exists
     if (error.message.includes('already registered')) {
-      return res.status(409).json({ error: error.message });
+      return res.status(409).json({ error: error.message, code: 'AUTH_EMAIL_EXISTS' });
     }
     if (error.message.includes('must be')) {
-      return res.status(400).json({ error: error.message });
+      return res.status(400).json({ error: error.message, code: 'VALIDATION_ERROR' });
     }
-    
-    return res.status(500).json({ error: "Registration failed." });
+
+    // ADDED: Error code for server error
+    return res.status(500).json({ error: "Registration failed.", code: 'SERVER_ERROR' });
   }
 });
 
@@ -141,7 +145,8 @@ router.post("/email/verify", async (req, res) => {
     res.set("Retry-After", String(limited.retryAfterSec));
     return res
       .status(429)
-      .json({ error: `Too many attempts. Please wait ${limited.retryAfterSec}s and try again.`, retryAfterSec: limited.retryAfterSec });
+      // ADDED: Error code for rate limiting
+      .json({ error: `Too many attempts. Please wait ${limited.retryAfterSec}s and try again.`, retryAfterSec: limited.retryAfterSec, code: 'AUTH_OTP_MAX_ATTEMPTS' });
   }
 
   try {
@@ -152,7 +157,12 @@ router.post("/email/verify", async (req, res) => {
     verifyThrottle.delete(key);
     return res.json({ ok: true, ...result });
   } catch (err) {
-    return res.status(400).json({ error: err instanceof Error ? err.message : "Email verification failed." });
+    // ADDED: Error codes for OTP verification failures
+    const message = err instanceof Error ? err.message : "Email verification failed.";
+    let code = 'AUTH_OTP_INVALID';
+    if (message.toLowerCase().includes('expired')) code = 'AUTH_OTP_EXPIRED';
+    if (message.toLowerCase().includes('maximum') || message.toLowerCase().includes('too many')) code = 'AUTH_OTP_MAX_ATTEMPTS';
+    return res.status(400).json({ error: message, code });
   }
 });
 
@@ -188,35 +198,47 @@ router.post("/email/resend", async (req, res) => {
 router.post("/login", async (req, res) => {
   const { data, error } = parseSchema(loginSchema, req.body);
   if (error) {
-    return res.status(400).json({ error });
+    return res.status(400).json({ error, code: 'VALIDATION_ERROR' });
   }
 
   try {
+    // ADDED: Debug logging for 401 investigation
+    console.log('[LOGIN] Attempt for:', data.email);
     const result = await authService.authenticateUser(data.email, data.password);
+    console.log('[LOGIN] Auth result: otpRequired=', !!result.otpRequired, ', hasUser=', !!result.user);
     if (result.otpRequired) {
       // OTP was sent instead of issuing token
-      return res.json({ otpRequired: true, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt });
+      return res.json({ success: true, otpRequired: true, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt });
     }
     const { user, token } = result;
+    // ADDED: success flag for consistent response format
     return res.json({
+      success: true,
       user,
       account: user.account,
       token
     });
   } catch (error) {
     logger.error('Login endpoint error', { error: error.message });
-    
+    console.log('[LOGIN] Error:', error.message);
+
+    // ADDED: Error code AUTH_SUB_TRIAL_EXPIRED for trial issues
     if (
       error.message.toLowerCase().includes('trial must be activated') ||
-      error.message.toLowerCase().includes('trial has expired')
+      error.message.toLowerCase().includes('free trial must be activated')
     ) {
-      return res.status(403).json({ error: error.message, trialRequired: true });
+      return res.status(403).json({ error: error.message, code: 'SUB_TRIAL_EXPIRED', trialRequired: true });
     }
+    if (error.message.toLowerCase().includes('trial has expired')) {
+      return res.status(403).json({ error: error.message, code: 'SUB_TRIAL_EXPIRED', trialRequired: true });
+    }
+    // ADDED: Error code AUTH_EMAIL_NOT_VERIFIED for unverified email
     if (error.message.toLowerCase().includes('email verification required')) {
-      return res.status(403).json({ error: error.message, verificationRequired: true });
+      return res.status(403).json({ error: error.message, code: 'AUTH_EMAIL_NOT_VERIFIED', verificationRequired: true });
     }
-    
-    return res.status(401).json({ error: error.message });
+
+    // ADDED: Error code AUTH_INVALID_CREDENTIALS for wrong email/password
+    return res.status(401).json({ error: error.message, code: 'AUTH_INVALID_CREDENTIALS' });
   }
 });
 
@@ -236,30 +258,32 @@ router.post("/trial/start", async (req, res) => {
       billingPostalCode: data.cardPostalCode
     };
     const { user, token } = await authService.startTrial(data.email, data.password, card);
-    return res.json({ user, account: user.account, token });
+    // ADDED: success flag for consistent response format
+    return res.json({ success: true, user, account: user.account, token });
   } catch (error) {
     logger.error('Trial start endpoint error', { error: error.message });
-    
+
+    // ADDED: Specific error codes for trial start failures
     if (error.message.toLowerCase().includes('card has already been used')) {
-      return res.status(409).json({ error: error.message });
+      return res.status(409).json({ error: error.message, code: 'SUB_CARD_REUSED' });
     }
     if (
       error.message.toLowerCase().includes('already active') ||
       error.message.toLowerCase().includes('already used')
     ) {
-      return res.status(400).json({ error: error.message });
+      return res.status(400).json({ error: error.message, code: 'SUB_TRIAL_ALREADY_USED' });
     }
     if (error.message.toLowerCase().includes('email verification required')) {
-      return res.status(403).json({ error: error.message, verificationRequired: true });
+      return res.status(403).json({ error: error.message, code: 'AUTH_EMAIL_NOT_VERIFIED', verificationRequired: true });
     }
     if (
       error.message.toLowerCase().includes('payment information') ||
       error.message.toLowerCase().includes('card details')
     ) {
-      return res.status(400).json({ error: error.message });
+      return res.status(400).json({ error: error.message, code: 'SUB_PAYMENT_FAILED' });
     }
-    
-    return res.status(401).json({ error: error.message });
+
+    return res.status(401).json({ error: error.message, code: 'AUTH_INVALID_CREDENTIALS' });
   }
 });
 
@@ -324,7 +348,12 @@ router.post("/password/reset", async (req, res) => {
     return res.json({ message: "Password reset successfully. Please log in with your new password." });
   } catch (err) {
     logger.warn("Password reset failed", { error: err?.message, ip: req.ip });
-    return res.status(400).json({ error: err instanceof Error ? err.message : "Password reset failed." });
+    // ADDED: Error codes for password reset failures
+    const message = err instanceof Error ? err.message : "Password reset failed.";
+    let code = 'SERVER_ERROR';
+    if (message.toLowerCase().includes('expired')) code = 'AUTH_OTP_EXPIRED';
+    if (message.toLowerCase().includes('invalid') || message.toLowerCase().includes('incorrect')) code = 'AUTH_OTP_INVALID';
+    return res.status(400).json({ error: message, code });
   }
 });
 
@@ -341,11 +370,12 @@ router.post("/password/change", authenticate, async (req, res) => {
   } catch (error) {
     logger.error('Password change endpoint error', { userId: req.user.id, error: error.message });
     
+    // ADDED: Error code for incorrect current password
     if (error.message.includes('incorrect')) {
-      return res.status(401).json({ error: error.message });
+      return res.status(401).json({ error: error.message, code: 'AUTH_INVALID_CREDENTIALS' });
     }
-    
-    return res.status(400).json({ error: error.message });
+
+    return res.status(400).json({ error: error.message, code: 'SERVER_ERROR' });
   }
 });
 
@@ -418,7 +448,12 @@ router.post('/otp/verify', async (req, res) => {
     // password_reset verification doesn't change password here
     return res.json({ ok: true });
   } catch (err) {
-    return res.status(400).json({ error: err instanceof Error ? err.message : 'Verification failed.' });
+    // ADDED: Error codes for OTP verification failures
+    const message = err instanceof Error ? err.message : 'Verification failed.';
+    let code = 'AUTH_OTP_INVALID';
+    if (message.toLowerCase().includes('expired')) code = 'AUTH_OTP_EXPIRED';
+    if (message.toLowerCase().includes('maximum') || message.toLowerCase().includes('too many')) code = 'AUTH_OTP_MAX_ATTEMPTS';
+    return res.status(400).json({ error: message, code });
   }
 });
 

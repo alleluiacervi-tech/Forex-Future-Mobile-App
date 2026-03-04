@@ -40,16 +40,24 @@ export default function WelcomeScreen() {
 
   const handleSignIn = async () => {
     setEmailTouched(true); // FIXED: mark touched on submit so validation shows
-    if (!email.trim() || !password) {
-      Alert.alert('Missing info', 'Please enter both email and password.');
+
+    // ADDED: User feedback message for empty email
+    if (!email.trim()) {
+      Alert.alert('Missing email', 'Please enter your email address.');
+      return;
+    }
+    // ADDED: User feedback message for empty password
+    if (!password) {
+      Alert.alert('Missing password', 'Please enter your password.');
       return;
     }
 
     // FIXED: validate inline since emailError memo may not reflect touched state yet
     const normalizedCheck = email.trim().toLowerCase();
     const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedCheck);
+    // ADDED: User feedback message for invalid email format
     if (!isValidEmail) {
-      Alert.alert('Invalid email', 'Enter a valid email address');
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
       return;
     }
 
@@ -70,29 +78,72 @@ export default function WelcomeScreen() {
       // FIXED: removed manual navigation.replace('Main') — the useEffect watching
       // isAuthenticated handles navigation to avoid double-navigation race condition
     } catch (error) {
+      // FIX: Extract error code for specific user feedback messages
+      const errorCode = typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: string }).code
+        : undefined;
+
       const verificationRequired =
         typeof error === 'object' &&
         error !== null &&
-        (error as { verificationRequired?: boolean }).verificationRequired;
+        ((error as { verificationRequired?: boolean }).verificationRequired || errorCode === 'AUTH_EMAIL_NOT_VERIFIED');
       if (verificationRequired) {
-        navigation.navigate('VerifyEmail', { email: email.trim().toLowerCase() });
+        // ADDED: User feedback message for unverified email
+        Alert.alert(
+          'Email not verified',
+          'Your email is not verified yet. Check your inbox for the verification code.',
+          [
+            { text: 'Go to Verification', onPress: () => navigation.navigate('VerifyEmail', { email: email.trim().toLowerCase() }) },
+            { text: 'Cancel', style: 'cancel' },
+          ],
+        );
         return;
       }
+
       const trialRequired =
         (typeof error === 'object' && error !== null && (error as { trialRequired?: boolean }).trialRequired) ||
+        errorCode === 'SUB_TRIAL_EXPIRED' ||
         (error instanceof Error &&
           (error.message.toLowerCase().includes('trial must be activated') ||
             error.message.toLowerCase().includes('free trial must be activated')));
       if (trialRequired) {
         setShowPaymentSetupAction(true);
+        // ADDED: User feedback message for trial expired / payment required
+        const isExpired = error instanceof Error && error.message.toLowerCase().includes('expired');
         Alert.alert(
-          'Payment setup required',
-          'Continue to payment methods to activate your trial, then sign in again.',
+          isExpired ? 'Trial expired' : 'Payment setup required',
+          isExpired
+            ? 'Your free trial has ended. Add a payment method to continue.'
+            : 'Continue to payment methods to activate your trial, then sign in again.',
         );
         return;
       }
+
       console.error('[WelcomeScreen] Sign-in error:', error);
-      Alert.alert('Sign in failed', error instanceof Error ? error.message : 'Unable to sign in');
+
+      // ADDED: User feedback message for network errors
+      const message = error instanceof Error ? error.message : 'Unable to sign in';
+      if (message.toLowerCase().includes('network') || message.toLowerCase().includes('fetch') || message.toLowerCase().includes('connect')) {
+        Alert.alert('No connection', 'No internet connection. Check your network and try again.');
+        return;
+      }
+      // ADDED: User feedback message for server errors
+      if (message.toLowerCase().includes('server') || message.toLowerCase().includes('500')) {
+        Alert.alert('Server error', 'Something went wrong on our end. Please try again in a moment.');
+        return;
+      }
+
+      // ADDED: User feedback message for specific error codes
+      if (errorCode === 'AUTH_INVALID_CREDENTIALS') {
+        Alert.alert('Sign in failed', 'Incorrect email or password. Please try again.');
+        return;
+      }
+      if (errorCode === 'AUTH_ACCOUNT_SUSPENDED') {
+        Alert.alert('Account suspended', 'Your account has been suspended. Please contact support.');
+        return;
+      }
+
+      Alert.alert('Sign in failed', message);
     }
   };
 

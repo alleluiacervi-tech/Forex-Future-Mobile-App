@@ -1,3 +1,6 @@
+
+
+
 import React, { useMemo, useState, useRef } from 'react';
 import { View, StyleSheet, Dimensions, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';

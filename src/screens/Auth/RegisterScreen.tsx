@@ -68,12 +68,50 @@ export default function RegisterScreen() {
 
   const handleSignUp = async () => {
     setTouched({ name: true, email: true, password: true, confirmPassword: true });
+
+    // ADDED: Specific user feedback messages for validation
+    if (!name.trim()) {
+      Alert.alert('Missing name', 'Please enter your full name.');
+      return;
+    }
+    if (name.trim().length < 2) {
+      Alert.alert('Name too short', 'Name must be at least 2 characters.');
+      return;
+    }
+    if (!email.trim()) {
+      Alert.alert('Missing email', 'Please enter your email address.');
+      return;
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+    if (!password) {
+      Alert.alert('Missing password', 'Please enter a password.');
+      return;
+    }
+    if (password.length < 8) {
+      Alert.alert('Password too short', 'Password must be at least 8 characters.');
+      return;
+    }
+    if (!/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
+      Alert.alert('Password too weak', 'Password must contain at least one uppercase letter and one number.');
+      return;
+    }
+    if (!confirmPassword) {
+      Alert.alert('Missing confirmation', 'Please confirm your password.');
+      return;
+    }
+    if (confirmPassword !== password) {
+      Alert.alert('Mismatch', 'Passwords do not match. Please try again.');
+      return;
+    }
+
     if (!canSubmit) {
       Alert.alert('Validation error', 'Please fix the errors and try again.');
       return;
     }
-
-    const normalizedEmail = email.trim().toLowerCase();
 
     console.log('[RegisterScreen] Registration attempt for:', normalizedEmail);
     try {
@@ -87,6 +125,8 @@ export default function RegisterScreen() {
         return;
       }
       if (verification?.verificationRequired) {
+        // ADDED: User feedback message for registration success with verification
+        Alert.alert('Account created!', 'Check your email for your verification code.');
         navigation.replace('VerifyEmail', {
           email: normalizedEmail,
           debugCode: verification?.debugCode,
@@ -96,11 +136,35 @@ export default function RegisterScreen() {
         return;
       }
 
-      Alert.alert('Success', 'Your account has been created. You can now sign in.');
+      // ADDED: User feedback message for registration success
+      Alert.alert('Account created!', 'Your account has been created. You can now sign in.');
       navigation.replace('Welcome');
     } catch (error) {
       console.error('[RegisterScreen] Registration error:', error);
+      // FIX: Extract error code for specific user feedback messages
+      const errorCode = typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: string }).code
+        : undefined;
       const message = error instanceof Error ? error.message : 'Registration failed';
+
+      // ADDED: User feedback message for email already exists
+      if (errorCode === 'AUTH_EMAIL_EXISTS' || message.toLowerCase().includes('already registered')) {
+        Alert.alert(
+          'Email already exists',
+          'An account with this email already exists. Sign in instead?',
+          [
+            { text: 'Sign In', onPress: () => navigation.replace('Welcome') },
+            { text: 'Cancel', style: 'cancel' },
+          ],
+        );
+        return;
+      }
+      // ADDED: User feedback message for network errors
+      if (message.toLowerCase().includes('network') || message.toLowerCase().includes('fetch') || message.toLowerCase().includes('connect')) {
+        Alert.alert('Connection failed', 'Connection failed. Check your network.');
+        return;
+      }
+
       Alert.alert('Registration failed', message);
     }
   };

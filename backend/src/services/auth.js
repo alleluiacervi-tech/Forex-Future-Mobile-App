@@ -773,6 +773,9 @@ class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
+      // ADDED: Debug logging for 401 investigation
+      console.log('[LOGIN] Attempt for:', normalizedEmail);
+
       // Find user
       const user = await prisma.user.findFirst({
         where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
@@ -795,6 +798,11 @@ class AuthService {
         }
       });
 
+      // ADDED: Debug logging for 401 investigation
+      console.log('[LOGIN] User found:', !!user);
+      console.log('[LOGIN] Is verified:', user?.emailVerified);
+      console.log('[LOGIN] Is active (trial):', user?.trialActive);
+
       if (!user || !user.passwordHash) {
         logger.warn('Authentication failed - user not found', { email });
         throw new Error('Invalid email or password.');
@@ -802,6 +810,8 @@ class AuthService {
 
       // Verify password
       const passwordMatch = await this.comparePassword(password, user.passwordHash);
+      // ADDED: Debug logging for 401 investigation
+      console.log('[LOGIN] Password match:', passwordMatch);
       if (!passwordMatch) {
         logger.warn('Authentication failed - incorrect password', { email });
         throw new Error('Invalid email or password.');
