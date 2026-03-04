@@ -8,6 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "prestart": "node scripts/ensurePrismaClient.js",
     "start": "node src/index.js",
     "predev": "node scripts/ensurePrismaClient.js",
@@ -16,6 +17,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:reset": "prisma migrate reset",
+    "db:seed": "node prisma/seed.js",
     "seed": "node prisma/seed.js",
     "test": "node --test src/**/*.test.js"
   },
