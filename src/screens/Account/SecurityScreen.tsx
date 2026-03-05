@@ -1,19 +1,57 @@
 import React, { useState } from 'react';
 import type { ComponentProps } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons as Icon } from '@expo/vector-icons';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Card, Text } from '../../components/common';
 import { useTheme } from '../../hooks';
+import { useAuth } from '../../context/AuthContext';
 
 export default function SecurityScreen() {
   const theme = useTheme();
   const navigation = useNavigation();
+  const { changePassword } = useAuth();
 
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(true);
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [loginAlerts, setLoginAlerts] = useState(true);
+
+  // Change password modal state
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (!currentPassword.trim()) {
+      Alert.alert('Error', 'Please enter your current password.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      Alert.alert('Error', 'New password must be at least 8 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'New passwords do not match.');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      Alert.alert('Success', 'Your password has been changed.');
+      setShowPasswordForm(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to change password.');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
 
   const SecurityItem = ({ icon, title, subtitle, onPress, hasSwitch, switchValue, onSwitchChange, iconColor }: {
     icon: ComponentProps<typeof Icon>['name'];
@@ -75,7 +113,7 @@ export default function SecurityScreen() {
               Account Secured
             </Text>
             <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.statusText}>
-              Your account is protected with 2FA and strong password
+              Your account is protected with a strong password
             </Text>
           </View>
 
@@ -88,8 +126,63 @@ export default function SecurityScreen() {
               icon="key-outline"
               title="Change Password"
               subtitle="Update your account password"
-              onPress={() => {}}
+              onPress={() => setShowPasswordForm(!showPasswordForm)}
             />
+
+            {showPasswordForm && (
+              <View style={[styles.passwordForm, { borderTopColor: theme.colors.border }]}>
+                <TextInput
+                  style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                  placeholder="Current password"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  secureTextEntry
+                  value={currentPassword}
+                  onChangeText={setCurrentPassword}
+                  autoCapitalize="none"
+                />
+                <TextInput
+                  style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                  placeholder="New password"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  secureTextEntry
+                  value={newPassword}
+                  onChangeText={setNewPassword}
+                  autoCapitalize="none"
+                />
+                <TextInput
+                  style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}
+                  placeholder="Confirm new password"
+                  placeholderTextColor={theme.colors.textSecondary}
+                  secureTextEntry
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  autoCapitalize="none"
+                />
+                <View style={styles.passwordButtons}>
+                  <TouchableOpacity
+                    style={[styles.cancelButton, { borderColor: theme.colors.border }]}
+                    onPress={() => {
+                      setShowPasswordForm(false);
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmPassword('');
+                    }}
+                  >
+                    <Text variant="bodySmall" color={theme.colors.textSecondary}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
+                    onPress={handleChangePassword}
+                    disabled={changingPassword}
+                  >
+                    <Text variant="bodySmall" style={{ color: '#fff', fontWeight: '700' }}>
+                      {changingPassword ? 'Saving...' : 'Update Password'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
             <SecurityItem
               icon="shield-outline"
               title="Two-Factor Authentication"
@@ -133,59 +226,6 @@ export default function SecurityScreen() {
               subtitle="Manage logged-in devices"
               onPress={() => {}}
             />
-          </Card>
-
-          <Text variant="h4" style={styles.sectionTitle}>
-            Recent Activity
-          </Text>
-
-          <Card style={[styles.activityCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-            <View style={styles.activityItem}>
-              <View style={[styles.activityIcon, { backgroundColor: `${theme.colors.primary}14` }]}>
-                <Icon name="phone-portrait-outline" size={20} color={theme.colors.primary} />
-              </View>
-              <View style={styles.activityContent}>
-                <Text variant="body" style={styles.activityTitle}>
-                  iPhone 15 Pro
-                </Text>
-                <Text variant="caption" color={theme.colors.textSecondary}>
-                  Honolulu, HI • Current session
-                </Text>
-              </View>
-              <View style={[styles.activeBadge, { backgroundColor: '#4CAF50' }]}>
-                <Text variant="caption" style={styles.activeBadgeText}>
-                  Active
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.activityItem}>
-              <View style={[styles.activityIcon, { backgroundColor: `${theme.colors.textSecondary}14` }]}>
-                <Icon name="desktop-outline" size={20} color={theme.colors.textSecondary} />
-              </View>
-              <View style={styles.activityContent}>
-                <Text variant="body" style={styles.activityTitle}>
-                  MacBook Pro
-                </Text>
-                <Text variant="caption" color={theme.colors.textSecondary}>
-                  Honolulu, HI • 2 days ago
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.activityItem}>
-              <View style={[styles.activityIcon, { backgroundColor: `${theme.colors.textSecondary}14` }]}>
-                <Icon name="tablet-portrait-outline" size={20} color={theme.colors.textSecondary} />
-              </View>
-              <View style={styles.activityContent}>
-                <Text variant="body" style={styles.activityTitle}>
-                  iPad Air
-                </Text>
-                <Text variant="caption" color={theme.colors.textSecondary}>
-                  Honolulu, HI • 5 days ago
-                </Text>
-              </View>
-            </View>
           </Card>
 
           <Text variant="h4" style={styles.sectionTitle}>
@@ -292,40 +332,34 @@ const styles = StyleSheet.create({
   itemSubtitle: {
     lineHeight: 16,
   },
-  activityCard: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 16,
+  passwordForm: {
     padding: 16,
-    marginBottom: 24,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  activityItem: {
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    fontSize: 14,
+  },
+  passwordButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
+    gap: 10,
+    marginTop: 4,
   },
-  activityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  activityContent: {
+  cancelButton: {
     flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
-  activityTitle: {
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  activeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  activeBadgeText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 11,
+  saveButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
   },
 });

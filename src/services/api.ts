@@ -137,3 +137,25 @@ export async function apiAuthGet<T>(path: string, options: { token?: string } = 
 
   return parseResponseBody<T>(response);
 }
+
+export async function apiAuthPut<T>(
+  path: string,
+  body: unknown,
+  options: { token?: string } = {},
+): Promise<T> {
+  const headers = await buildAuthHeaders(options.token);
+
+  const response = await fetch(buildUrl(path), {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(body ?? {}),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    const message = extractErrorMessage(errorText, response.status);
+    throw new Error(message);
+  }
+
+  return parseResponseBody<T>(response);
+}

@@ -14,6 +14,10 @@ import usersRoutes from "./routes/users.js";
 import emailRoutes from "./routes/email.js";
 import adminRoutes from "./routes/admin.js";
 import paypalRoutes from "./routes/paypal.js";
+import notificationRoutes from "./routes/notifications.js";
+import preferenceRoutes from "./routes/preferences.js";
+import pushRoutes from "./routes/push.js";
+import alertRoutes from "./routes/alerts.js";
 import {
   arcjetAdminProtection,
   arcjetApiProtection,
@@ -71,6 +75,10 @@ app.use("/api/users", usersRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/paypal", paypalRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/preferences", preferenceRoutes);
+app.use("/api/push", pushRoutes);
+app.use("/api/alerts", alertRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
