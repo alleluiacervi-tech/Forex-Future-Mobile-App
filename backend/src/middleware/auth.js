@@ -58,7 +58,14 @@ const authenticate = async (req, res, next) => {
     }
 
     // Check if trial is active and not expired (if not demo account).
-    if (user.email.toLowerCase() !== "demo@forex.app") {
+    // Allow certain paths through even when trial is expired so users can
+    // check subscription status, renew, or fetch their own profile.
+    const trialExemptPaths = ["/api/paypal", "/api/auth/me"];
+    const isTrialExempt = trialExemptPaths.some(
+      (prefix) => req.originalUrl.startsWith(prefix)
+    );
+
+    if (user.email.toLowerCase() !== "demo@forex.app" && !isTrialExempt) {
       if (!user.trialActive) {
         logger.warn('Trial not active for user', { userId: user.id, email: user.email });
         return res.status(403).json({ error: "Free trial must be activated before login." });

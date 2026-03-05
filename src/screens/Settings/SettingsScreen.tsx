@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { ComponentProps } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -8,15 +8,90 @@ import { ScreenWrapper, Container } from '../../components/layout';
 import { Card, Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { useTheme } from '../../hooks';
+import { useAuth } from '../../context/AuthContext';
+import { apiAuthGet, apiAuthPut } from '../../services/api';
 import { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+type Preferences = {
+  notifications: boolean;
+  pushAlerts: boolean;
+  emailAlerts: boolean;
+  theme: string;
+  language: string;
+};
+
 export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [soundEnabled, setSoundEnabled] = React.useState(true);
+  const { user, logout } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [pushAlertsEnabled, setPushAlertsEnabled] = useState(true);
+  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(true);
+
+  const fetchPreferences = useCallback(async () => {
+    try {
+      const data = await apiAuthGet<{ preferences: Preferences }>('/api/preferences');
+      if (data?.preferences) {
+        setNotificationsEnabled(data.preferences.notifications);
+        setPushAlertsEnabled(data.preferences.pushAlerts);
+        setEmailAlertsEnabled(data.preferences.emailAlerts);
+      }
+    } catch {
+      // Use defaults on failure
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPreferences();
+  }, [fetchPreferences]);
+
+  const updatePreference = async (field: string, value: boolean) => {
+    try {
+      await apiAuthPut('/api/preferences', { [field]: value });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save preference. Please try again.');
+      // Revert on failure
+      fetchPreferences();
+    }
+  };
+
+  const handleNotificationsChange = (value: boolean) => {
+    setNotificationsEnabled(value);
+    updatePreference('notifications', value);
+  };
+
+  const handlePushAlertsChange = (value: boolean) => {
+    setPushAlertsEnabled(value);
+    updatePreference('pushAlerts', value);
+  };
+
+  const handleEmailAlertsChange = (value: boolean) => {
+    setEmailAlertsEnabled(value);
+    updatePreference('emailAlerts', value);
+  };
+
+  const handleLogout = () => {
+    Alert.alert('Log out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await logout();
+          } catch {
+            Alert.alert('Error', 'Logout failed. Please try again.');
+          }
+        },
+      },
+    ]);
+  };
 
   type IconName = ComponentProps<typeof Icon>['name'];
   const settingsItems: Array<{
@@ -42,16 +117,25 @@ export default function SettingsScreen() {
       onPress: () => {},
       hasSwitch: true,
       switchValue: notificationsEnabled,
-      onSwitchChange: setNotificationsEnabled,
+      onSwitchChange: handleNotificationsChange,
     },
     {
-      id: 'sound',
-      title: 'Sound Alerts',
-      icon: 'volume-up',
+      id: 'push',
+      title: 'Push Alerts',
+      icon: 'notifications-active',
       onPress: () => {},
       hasSwitch: true,
-      switchValue: soundEnabled,
-      onSwitchChange: setSoundEnabled,
+      switchValue: pushAlertsEnabled,
+      onSwitchChange: handlePushAlertsChange,
+    },
+    {
+      id: 'email',
+      title: 'Email Alerts',
+      icon: 'email',
+      onPress: () => {},
+      hasSwitch: true,
+      switchValue: emailAlertsEnabled,
+      onSwitchChange: handleEmailAlertsChange,
     },
     {
       id: 'risk',
@@ -77,7 +161,7 @@ export default function SettingsScreen() {
       id: 'logout',
       title: 'Logout',
       icon: 'logout',
-      onPress: () => {},
+      onPress: handleLogout,
       isDestructive: true,
     },
   ];
@@ -92,42 +176,48 @@ export default function SettingsScreen() {
             <View style={styles.avatar}>
               <Icon name="account-circle" size={64} color={theme.colors.primary} />
             </View>
-            <Text variant="h3">Trader Account</Text>
+            <Text variant="h3">{user?.name || 'Trader Account'}</Text>
             <Text variant="bodySmall" color={theme.colors.textSecondary}>
-              trader@example.com
+              {user?.email || 'trader@example.com'}
             </Text>
           </View>
 
-          {/* Settings List */}
-          <View style={styles.settingsList}>
-            {settingsItems.map((item) => (
-              <Card key={item.id} style={styles.settingItem} onPress={item.onPress}>
-                <View style={styles.settingLeft}>
-                  <Icon
-                    name={item.icon}
-                    size={24}
-                    color={item.isDestructive ? theme.colors.error : theme.colors.primary}
-                  />
-                  <Text
-                    variant="body"
-                    color={item.isDestructive ? theme.colors.error : theme.colors.text}
-                  >
-                    {item.title}
-                  </Text>
-                </View>
-                {item.hasSwitch ? (
-                  <Switch
-                    value={item.switchValue}
-                    onValueChange={item.onSwitchChange}
-                    trackColor={{ false: '#767577', true: theme.colors.primary }}
-                    thumbColor="#fff"
-                  />
-                ) : (
-                  <Icon name="chevron-right" size={24} color={theme.colors.textSecondary} />
-                )}
-              </Card>
-            ))}
-          </View>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            </View>
+          ) : (
+            /* Settings List */
+            <View style={styles.settingsList}>
+              {settingsItems.map((item) => (
+                <Card key={item.id} style={styles.settingItem} onPress={item.onPress}>
+                  <View style={styles.settingLeft}>
+                    <Icon
+                      name={item.icon}
+                      size={24}
+                      color={item.isDestructive ? theme.colors.error : theme.colors.primary}
+                    />
+                    <Text
+                      variant="body"
+                      color={item.isDestructive ? theme.colors.error : theme.colors.text}
+                    >
+                      {item.title}
+                    </Text>
+                  </View>
+                  {item.hasSwitch ? (
+                    <Switch
+                      value={item.switchValue}
+                      onValueChange={item.onSwitchChange}
+                      trackColor={{ false: '#767577', true: theme.colors.primary }}
+                      thumbColor="#fff"
+                    />
+                  ) : (
+                    <Icon name="chevron-right" size={24} color={theme.colors.textSecondary} />
+                  )}
+                </Card>
+              ))}
+            </View>
+          )}
 
           {/* App Version */}
           <View style={styles.versionContainer}>
@@ -154,6 +244,10 @@ const styles = StyleSheet.create({
   },
   avatar: {
     marginBottom: 16,
+  },
+  loadingContainer: {
+    padding: 32,
+    alignItems: 'center',
   },
   settingsList: {
     paddingVertical: 8,

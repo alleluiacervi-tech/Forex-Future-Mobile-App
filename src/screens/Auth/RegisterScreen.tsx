@@ -201,9 +201,7 @@ export default function RegisterScreen() {
               <Input
                 label="Full Name"
                 value={name}
-                onChangeText={(t) => {
-                  setName(t);
-                }}
+                onChangeText={setName}
                 onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                 placeholder="Your name"
                 leftAccessory={<Icon name="person" size={20} color={theme.colors.textSecondary} />}

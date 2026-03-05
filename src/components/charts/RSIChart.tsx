@@ -30,7 +30,7 @@ export const RSIChart: React.FC<RSIChartProps> = ({ basePrice, timeframe }) => {
     const prices = generateMockSeries(basePrice, displayPoints);
     const rsi = calculateRSI(prices, 14);
     return rsi.map((v) => Math.max(0, Math.min(100, v)));
-  }, [basePrice, timeframe, zoomLevel]);
+  }, [basePrice, zoomLevel]);
 
   const latest = rsiSeries.length ? rsiSeries[rsiSeries.length - 1] : 50;
   const rsiColor =

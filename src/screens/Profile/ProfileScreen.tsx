@@ -18,7 +18,7 @@ type ProfileScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>
 export default function ProfileScreen() {
   const theme = useTheme();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
-  const { logout, isLoading } = useAuth();
+  const { user, logout, isLoading } = useAuth();
 
   type IconName = ComponentProps<typeof Icon>['name'];
 
@@ -193,10 +193,10 @@ export default function ProfileScreen() {
               <Icon name="person" size={48} color={theme.colors.primary} />
             </View>
             <Text variant="h3" style={styles.userName}>
-              Trader Account
+              {user?.name || 'Trader Account'}
             </Text>
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.userEmail}>
-              trader@forexfuture.com
+              {user?.email || 'trader@forexfuture.com'}
             </Text>
             <TouchableOpacity
               style={[styles.editProfileButton, { backgroundColor: `${theme.colors.primary}14`, borderColor: `${theme.colors.primary}44` }]}
@@ -347,7 +347,13 @@ export default function ProfileScreen() {
               <MenuItem
                 icon="card-outline"
                 title="Subscription Plan"
-                subtitle="Premium • Renews Jan 20, 2026"
+                subtitle={
+                  subLoading
+                    ? 'Loading...'
+                    : subscription
+                      ? `${(subscription.plan || 'Monthly').charAt(0).toUpperCase() + (subscription.plan || 'Monthly').slice(1)} • ${(subscription.status || 'unknown').charAt(0).toUpperCase() + (subscription.status || 'unknown').slice(1)}`
+                      : 'No active subscription'
+                }
                 onPress={() => navigation.navigate('SubscriptionPlan' as any)}
               />
               <MenuItem
