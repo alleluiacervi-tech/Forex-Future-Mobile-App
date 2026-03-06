@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -7,7 +7,8 @@ import { ScreenWrapper, Container, EmptyState } from '../../components/layout';
 import { Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { MarketAlertCard } from '../../components/market/MarketAlertCard';
-import { useMarketAlerts, useMarketData, useTheme } from '../../hooks';
+import { useMarketAlerts, useMarketData, useTheme, useSubscriptionStatus } from '../../hooks';
+import { TrialBanner, PremiumGate } from '../../components/common'; // ADDED: trial/premium banners (CHECK 3 + 10)
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { APP_CONFIG } from '../../config';
@@ -26,6 +27,19 @@ export default function HomeScreen() {
     limit: 50,
     pollMs: 15000,
   });
+  // ADDED: subscription status for trial banners (CHECK 3)
+  const { trialEndingSoon, trialDaysLeft, cancelledButActive, hasAccess } = useSubscriptionStatus();
+  // ADDED: premium gate modal state (CHECK 10)
+  const [premiumGateVisible, setPremiumGateVisible] = useState(false);
+
+  // ADDED: gate premium actions behind subscription check (CHECK 10)
+  const handleAlertPress = useCallback((pair: string) => {
+    if (!hasAccess) {
+      setPremiumGateVisible(true);
+      return;
+    }
+    navigation.navigate('CurrencyDetail', { pair });
+  }, [hasAccess, navigation]);
 
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
@@ -39,6 +53,16 @@ export default function HomeScreen() {
   return (
     <ScreenWrapper>
       <TopNavBar />
+      {/* ADDED: trial/subscription enforcement banners (CHECK 3) */}
+      {trialEndingSoon && (
+        <TrialBanner variant="ending_soon" daysLeft={trialDaysLeft} onPress={() => navigation.navigate('Pricing' as any)} />
+      )}
+      {!hasAccess && !trialEndingSoon && (
+        <TrialBanner variant="expired" onPress={() => navigation.navigate('Pricing' as any)} />
+      )}
+      {cancelledButActive && (
+        <TrialBanner variant="cancelled" onPress={() => navigation.navigate('Pricing' as any)} />
+      )}
       <ScrollView
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -77,13 +101,23 @@ export default function HomeScreen() {
                 <MarketAlertCard
                   key={a.id}
                   alert={a}
-                  onPress={() => navigation.navigate('CurrencyDetail', { pair: a.pair })}
+                  onPress={() => handleAlertPress(a.pair)}
                 />
               ))
             )}
           </View>
         </Container>
       </ScrollView>
+      {/* ADDED: premium gate modal (CHECK 10) */}
+      <PremiumGate
+        visible={premiumGateVisible}
+        onClose={() => setPremiumGateVisible(false)}
+        onSubscribe={() => {
+          setPremiumGateVisible(false);
+          navigation.navigate('Pricing' as any);
+        }}
+        featureName="Detailed currency analysis"
+      />
     </ScreenWrapper>
   );
 }

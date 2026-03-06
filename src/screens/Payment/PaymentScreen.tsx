@@ -14,7 +14,7 @@ import { Ionicons as Icon } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Card, Text } from '../../components/common';
-import { useTheme } from '../../hooks';
+import { useTheme, useGuardedCallback } from '../../hooks'; // ADDED: useGuardedCallback (CHECK 7)
 import { apiPost } from '../../services/api';
 import { RootStackParamList } from '../../types';
 
@@ -47,7 +47,8 @@ export default function PaymentScreen() {
 
   const firstChargeDate = getTrialEndDate();
 
-  const handlePayWithPayPal = useCallback(async () => {
+  // ADDED: useGuardedCallback prevents double-tap on payment button (CHECK 7)
+  const handlePayWithPayPal = useGuardedCallback(async () => {
     setFlowState('loading');
     setErrorMessage('');
 

@@ -1,4 +1,6 @@
 
+
+
 import React from 'react';
 import type { ComponentProps } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
@@ -10,6 +12,8 @@ import * as Linking from 'expo-linking';
 import { RootStackParamList, MainTabParamList } from '../types';
 import { NAVIGATION_CONFIG } from './config';
 import { navigationRef } from './rootNavigation';
+import { useAuth } from '../context/AuthContext'; // ADDED: for push notification auth check (CHECK 2)
+import { usePushNotifications } from '../hooks'; // ADDED: push notification hook (CHECK 2 + 13)
 
 // Screens
 import LandingScreen from '../screens/Landing';
@@ -59,6 +63,10 @@ const linking: LinkingOptions<RootStackParamList> = {
 };
 
 function MainTabs() {
+  // ADDED: register push notifications when user is authenticated (CHECK 2)
+  const { isAuthenticated } = useAuth();
+  usePushNotifications(isAuthenticated);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
