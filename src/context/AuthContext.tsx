@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import authService from '../services/auth';
 import type { AuthCardDetails, AuthLoginOtpChallenge, AuthLoginResult } from '../services/auth';
+import { disconnectMarketSocket } from '../services/marketSocket'; // ADDED: disconnect WS on logout
+import { queryClient } from '../services/queryClient'; // ADDED: clear cache on logout
 
 export interface User {
   id: string;
@@ -153,18 +155,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // FIX: logout always clears state, disconnects WS, clears cache — never throws
   const logout = useCallback(async () => {
     try {
       setIsLoading(true);
       await authService.logout();
+    } catch (error) {
+      console.error('[AuthProvider] Logout failed (continuing cleanup):', error);
+    } finally {
       setUser(null);
       setToken(null);
-      console.log('[AuthProvider] User logged out');
-    } catch (error) {
-      console.error('[AuthProvider] Logout failed:', error);
-      throw error;
-    } finally {
+      // ADDED: disconnect WebSocket on logout
+      disconnectMarketSocket();
+      // ADDED: clear React Query cache on logout
+      queryClient.clear();
       setIsLoading(false);
+      console.log('[AuthProvider] User logged out');
     }
   }, []);
 

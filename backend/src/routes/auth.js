@@ -12,6 +12,7 @@ import {
 import authenticate from "../middleware/auth.js";
 import authService from "../services/auth.js";
 import otpService from "../services/otp.js";
+import prisma from "../db/prisma.js"; // ADDED: for refresh token operations
 import Logger from "../utils/logger.js";
 
 const router = express.Router();
@@ -208,12 +209,26 @@ router.post("/login", async (req, res) => {
       return res.json({ success: true, otpRequired: true, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt });
     }
     const { user, token } = result;
+    // ADDED: generate refresh token on login
+    const crypto = await import('crypto');
+    const rawRefreshToken = crypto.randomBytes(48).toString('hex');
+    const refreshTokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: refreshTokenHash,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        ip: req.ip,
+        userAgent: req.get('user-agent') || null,
+      },
+    });
     // ADDED: success flag for consistent response format
     return res.json({
       success: true,
       user,
       account: user.account,
-      token
+      token,
+      refreshToken: rawRefreshToken,
     });
   } catch (error) {
     logger.error('Login endpoint error', { error: error.message });
@@ -262,8 +277,20 @@ router.post("/trial/start", async (req, res) => {
       billingPostalCode: data.cardPostalCode
     };
     const { user, token } = await authService.startTrial(data.email, data.password, card);
-    // ADDED: success flag for consistent response format
-    return res.json({ success: true, user, account: user.account, token });
+    // ADDED: generate refresh token on trial start
+    const crypto = await import('crypto');
+    const rawRefreshToken = crypto.randomBytes(48).toString('hex');
+    const refreshTokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: refreshTokenHash,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        ip: req.ip,
+        userAgent: req.get('user-agent') || null,
+      },
+    });
+    return res.json({ success: true, user, account: user.account, token, refreshToken: rawRefreshToken });
   } catch (error) {
     logger.error('Trial start endpoint error', { error: error.message });
 
@@ -446,7 +473,20 @@ router.post('/otp/verify', async (req, res) => {
 
     if (purpose === 'login') {
       const token = authService.issueToken(user.id);
-      return res.json({ ok: true, token });
+      // ADDED: generate refresh token on OTP login
+      const crypto = await import('crypto');
+      const rawRefreshToken = crypto.randomBytes(48).toString('hex');
+      const refreshTokenHash = crypto.createHash('sha256').update(rawRefreshToken).digest('hex');
+      await prisma.refreshToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: refreshTokenHash,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          ip: req.ip,
+          userAgent: req.get('user-agent') || null,
+        },
+      });
+      return res.json({ ok: true, token, refreshToken: rawRefreshToken });
     }
 
     // password_reset verification doesn't change password here
@@ -458,6 +498,70 @@ router.post('/otp/verify', async (req, res) => {
     if (message.toLowerCase().includes('expired')) code = 'AUTH_OTP_EXPIRED';
     if (message.toLowerCase().includes('maximum') || message.toLowerCase().includes('too many')) code = 'AUTH_OTP_MAX_ATTEMPTS';
     return res.status(400).json({ error: message, code });
+  }
+});
+
+// ADDED: POST /api/auth/logout — invalidate refresh token
+router.post("/logout", authenticate, async (req, res) => {
+  try {
+    // Delete all refresh tokens for this user
+    await prisma.refreshToken.deleteMany({ where: { userId: req.user.id } });
+    logger.info("User logged out", { userId: req.user.id });
+  } catch (error) {
+    logger.error("Logout cleanup error", { userId: req.user.id, error: error.message });
+  }
+  return res.json({ success: true, message: "Logged out." });
+});
+
+// ADDED: POST /api/auth/refresh — exchange refresh token for new access + refresh tokens
+router.post("/refresh", async (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken || typeof refreshToken !== "string") {
+    return res.status(401).json({ error: "Refresh token is required.", code: "AUTH_REFRESH_MISSING" });
+  }
+
+  try {
+    const crypto = await import('crypto');
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+    const stored = await prisma.refreshToken.findFirst({
+      where: { tokenHash },
+      select: { id: true, userId: true, expiresAt: true },
+    });
+
+    if (!stored) {
+      return res.status(401).json({ error: "Invalid refresh token.", code: "AUTH_REFRESH_INVALID" });
+    }
+
+    if (stored.expiresAt < new Date()) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+      return res.status(401).json({ error: "Refresh token expired.", code: "AUTH_REFRESH_EXPIRED" });
+    }
+
+    // Delete used refresh token (rotate)
+    await prisma.refreshToken.delete({ where: { id: stored.id } }).catch(() => {});
+
+    // Issue new access token
+    const newAccessToken = authService.issueToken(stored.userId);
+
+    // Issue new refresh token
+    const newRawRefreshToken = crypto.randomBytes(48).toString('hex');
+    const newRefreshTokenHash = crypto.createHash('sha256').update(newRawRefreshToken).digest('hex');
+    await prisma.refreshToken.create({
+      data: {
+        userId: stored.userId,
+        tokenHash: newRefreshTokenHash,
+        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        ip: req.ip,
+        userAgent: req.get('user-agent') || null,
+      },
+    });
+
+    logger.info("Token refreshed", { userId: stored.userId });
+    return res.json({ token: newAccessToken, refreshToken: newRawRefreshToken });
+  } catch (error) {
+    logger.error("Token refresh error", { error: error.message });
+    return res.status(500).json({ error: "Token refresh failed.", code: "SERVER_ERROR" });
   }
 });
 

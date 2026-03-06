@@ -14,7 +14,7 @@ import { Text } from './src/components/common';
 import TermsScreen from './src/screens/Terms/TermsScreen';
 import { AuthProvider } from './src/context/AuthContext';
 import { ToastProvider } from './src/context/ToastContext';
-import { createQueryClient } from './src/services/queryClient';
+import { queryClient } from './src/services/queryClient'; // FIX: use singleton for cache clearing on logout
 
 const STARTUP_SPLASH_DURATION_MS = 5000;
 const TERMS_ACCEPTED_KEY = '@forexapp_terms_accepted';
@@ -24,7 +24,8 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 export default function App() {
-  const [queryClient] = useState(createQueryClient);
+  // FIX: use imported singleton queryClient instead of creating new one
+  const [qc] = useState(() => queryClient);
   const [appIsReady, setAppIsReady] = useState(false);
   const [showStartupSplash, setShowStartupSplash] = useState(true);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -76,7 +77,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
+        <QueryClientProvider client={qc}>
           <ThemeProvider>
             <AuthProvider>
               <ToastProvider>

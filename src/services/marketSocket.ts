@@ -115,6 +115,12 @@ class MarketSocketManager {
     }, delayMs);
   }
 
+  // ADDED: public disconnect for logout — force-closes socket regardless of listeners
+  disconnect() {
+    this.listeners.clear();
+    this.teardown();
+  }
+
   private teardown() {
     this.shouldConnect = false;
     this.reconnectAttempts = 0;
@@ -148,3 +154,6 @@ class MarketSocketManager {
 const marketSocketManager = new MarketSocketManager();
 
 export const subscribeToMarketSocket = (listener: Listener) => marketSocketManager.subscribe(listener);
+
+// ADDED: explicit disconnect for logout — closes socket and clears all listeners
+export const disconnectMarketSocket = () => marketSocketManager.disconnect();
