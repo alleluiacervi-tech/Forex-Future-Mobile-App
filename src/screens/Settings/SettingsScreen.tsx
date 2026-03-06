@@ -10,6 +10,7 @@ import TopNavBar from '../../components/navigation/TopNavBar';
 import { useTheme } from '../../hooks';
 import { useAuth } from '../../context/AuthContext';
 import { apiAuthGet, apiAuthPut } from '../../services/api';
+import { resetToLanding } from '../../navigation/rootNavigation'; // ADDED: navigate after logout
 import { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -86,7 +87,10 @@ export default function SettingsScreen() {
           try {
             await logout();
           } catch {
-            Alert.alert('Error', 'Logout failed. Please try again.');
+            // FIX: logout never throws now, but fallback just in case
+          } finally {
+            // FIX: always navigate to Landing after logout
+            resetToLanding();
           }
         },
       },

@@ -327,8 +327,8 @@ class AuthService {
 
       console.log('[AuthService] Login successful:', data.user.email);
 
-      // Store token and user data
-      await this.storeAuth(data.user, data.token);
+      // FIX: store refresh token alongside access token
+      await this.storeAuth(data.user, data.token, (data as any).refreshToken);
 
       return data as AuthLoginResponse;
     } catch (error) {
@@ -365,8 +365,10 @@ class AuthService {
         throw new Error('OTP verification failed');
       }
 
+      // FIX: store refresh token from OTP verify response
+      const refreshToken = typeof data.token === 'string' ? (data as any).refreshToken : undefined;
       const me = await this.fetchMeWithToken(token);
-      await this.storeAuth(me.user, token);
+      await this.storeAuth(me.user, token, refreshToken);
 
       return {
         user: me.user,
@@ -445,8 +447,8 @@ class AuthService {
 
       console.log('[AuthService] Trial started:', data.user.email);
 
-      // Store token and user data
-      await this.storeAuth(data.user, data.token);
+      // FIX: store refresh token alongside access token
+      await this.storeAuth(data.user, data.token, (data as any).refreshToken);
 
       return data as AuthLoginResponse;
     } catch (error) {
@@ -591,10 +593,14 @@ class AuthService {
     return data as { user: User; account?: User['account'] };
   }
 
-  async storeAuth(user: User, token: string): Promise<void> {
+  // FIX: accept optional refreshToken and store it alongside access token
+  async storeAuth(user: User, token: string, refreshToken?: string): Promise<void> {
     try {
       await AsyncStorage.setItem(this.tokenKey, token);
       await AsyncStorage.setItem(this.userKey, JSON.stringify(user));
+      if (refreshToken) {
+        await AsyncStorage.setItem('@forexapp_refresh_token', refreshToken);
+      }
       console.log('[AuthService] Auth data stored');
     } catch (error) {
       console.error('[AuthService] Failed to store auth data:', getErrorMessage(error));
@@ -630,11 +636,21 @@ class AuthService {
 
   async logout(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(this.tokenKey);
-      await AsyncStorage.removeItem(this.userKey);
+      // FIX: call backend logout to invalidate refresh token (fire-and-forget)
+      const token = await this.getToken();
+      if (token) {
+        fetch(`${this.authBaseUrl}/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).catch(() => {});
+      }
+      // FIX: remove all auth keys including refresh token
+      await AsyncStorage.multiRemove([this.tokenKey, this.userKey, '@forexapp_refresh_token']);
       console.log('[AuthService] User logged out');
     } catch (error) {
       console.error('[AuthService] Logout error:', getErrorMessage(error));
+      // FIX: always clear storage even on error
+      await AsyncStorage.multiRemove([this.tokenKey, this.userKey, '@forexapp_refresh_token']).catch(() => {});
     }
   }
 

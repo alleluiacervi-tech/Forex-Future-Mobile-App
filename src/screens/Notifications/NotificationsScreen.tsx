@@ -188,7 +188,6 @@ export default function NotificationsScreen() {
                       <Text
                         variant="body"
                         style={[styles.notificationTitle, !notification.read && { fontWeight: '800' }]}
-                        numberOfLines={1}
                       >
                         {notification.title}
                       </Text>
@@ -199,7 +198,6 @@ export default function NotificationsScreen() {
                     <Text
                       variant="bodySmall"
                       color={theme.colors.textSecondary}
-                      numberOfLines={2}
                       style={styles.notificationBody}
                     >
                       {notification.body}

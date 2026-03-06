@@ -198,6 +198,18 @@ const recordPaymentEvent = async ({
   return { duplicate: false };
 };
 
+// ADDED: create in-app notification for webhook events
+const createUserNotification = async (userId, title, body, type = "system") => {
+  if (!userId) return;
+  try {
+    await prisma.notification.create({
+      data: { userId, title, body, type },
+    });
+  } catch (error) {
+    logger.warn("Failed to create webhook notification", { userId, error: error?.message });
+  }
+};
+
 const ensureTrialFingerprint = async (cardFingerprint, userId) => {
   if (!cardFingerprint) return;
   await prisma.trialFingerprint.upsert({
@@ -516,6 +528,8 @@ export async function handleWebhook(event) {
         await ensureTrialFingerprint(payerId, userId);
       }
 
+      // ADDED: notify user of activation
+      await createUserNotification(userId, "Subscription Active", "Your subscription is now active. Enjoy full access to all features.", "system");
       logger.info("PayPal subscription activated for user", { userId, subscriptionId });
       break;
     }
@@ -525,6 +539,8 @@ export async function handleWebhook(event) {
         userId,
         status: "cancelled",
       });
+      // ADDED: notify user of cancellation
+      await createUserNotification(userId, "Subscription Cancelled", "Your subscription has been cancelled. You will retain access until the end of your current billing period.", "system");
       logger.info("PayPal subscription cancelled", { userId, subscriptionId });
       break;
     }
@@ -544,6 +560,8 @@ export async function handleWebhook(event) {
           });
         }
       }
+      // ADDED: notify user of expiry
+      await createUserNotification(userId, "Subscription Expired", "Your subscription has expired. Renew to continue receiving alerts.", "system");
       logger.info("PayPal subscription expired", { userId, subscriptionId });
       break;
     }
@@ -583,6 +601,8 @@ export async function handleWebhook(event) {
         currentPeriodEnd,
       });
 
+      // ADDED: notify user of successful payment
+      await createUserNotification(userId, "Payment Received", `Payment of $${amount || "0.00"} received. Thank you.`, "system");
       logger.info("PayPal payment received", {
         userId,
         subscriptionId,
@@ -625,6 +645,8 @@ export async function handleWebhook(event) {
         }
       }
 
+      // ADDED: notify user of payment failure
+      await createUserNotification(userId, "Payment Failed", "We could not process your subscription payment. Please update your billing details to keep access.", "alert");
       logger.warn("PayPal payment failed", { userId, subscriptionId, amount });
       break;
     }

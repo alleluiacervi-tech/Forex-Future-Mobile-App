@@ -1,12 +1,31 @@
 import express from "express";
+import authenticate from "../middleware/auth.js"; // ADDED: auth middleware for admin protection
+import prisma from "../db/prisma.js"; // ADDED: for admin check
 import { getRecentMarketAlerts } from "../services/marketRecorder.js";
 import Logger from "../utils/logger.js";
 
 const router = express.Router();
 const logger = new Logger("AdminRoutes");
 
+// ADDED: admin guard middleware — checks isAdmin flag from database
+const requireAdmin = async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { isAdmin: true },
+    });
+    if (!user?.isAdmin) {
+      return res.status(403).json({ error: "Admin access required." });
+    }
+    next();
+  } catch (error) {
+    logger.error("Admin check failed", { userId: req.user?.id, error: error?.message });
+    return res.status(403).json({ error: "Admin access required." });
+  }
+};
+
 // return a single dashboard payload containing all data needed by the admin screen
-router.get("/dashboard", async (req, res) => {
+router.get("/dashboard", authenticate, requireAdmin, async (req, res) => {
   try {
     // static data that mirrors what the front end currently hardcodes
     const stats = [

@@ -50,6 +50,10 @@ app.use(
 );
 app.use(cors());
 app.use(helmet());
+
+// FIX: mount PayPal webhook BEFORE express.json() so raw body is preserved for signature verification
+app.use("/api/paypal/webhook", paypalRoutes);
+
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (_req, res) => {
@@ -62,10 +66,7 @@ app.use("/api/auth", arcjetAuthProtection);
 app.use("/api/market", arcjetMarketProtection);
 app.use("/api/admin", arcjetAdminProtection);
 
-app.get("/api/debug/live", async (_req, res) => {
-  const pairs = await getLiveRatesFromCache();
-  return res.json({ pairs });
-});
+// FIX: removed /api/debug/live endpoint — debug routes must not be exposed in production
 
 app.use("/api/auth", authRoutes);
 app.use("/api/market", marketRoutes);

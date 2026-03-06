@@ -14,3 +14,6 @@ export const createQueryClient = () =>
       },
     },
   });
+
+// ADDED: singleton instance so AuthContext can clear cache on logout
+export const queryClient = createQueryClient();
