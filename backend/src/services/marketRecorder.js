@@ -19,6 +19,12 @@ const forexAlertEngine = new ForexAlertEngine();
 // Keep callback disabled to avoid duplicate marketAlert broadcasts.
 forexEngine.onAlert = null;
 forexAlertEngine.onAlert = null;
+// Wire up building alert (early warning) to emit via alertEvents.
+forexAlertEngine.onBuildingAlert = (buildingAlert) => {
+  try {
+    alertEvents.emit("buildingAlert", buildingAlert);
+  } catch {}
+};
 
 const alertEvents = new EventEmitter();
 const recentAlerts = [];
@@ -336,12 +342,19 @@ const maybeCreateAlerts = async ({
     logger.error("ForexAlertEngine error", { error: error?.message });
   }
 
-  // persist each alert if DB available and also emit/store in-memory
+  // Emit and push alerts IMMEDIATELY before DB persistence for lowest latency.
   for (const alert of engineAlerts) {
-    let record = alert;
+    try {
+      pushRecentAlert(alert);
+    } catch {}
+
+    try {
+      alertEvents.emit("marketAlert", alert);
+    } catch {}
+
+    // Persist to DB asynchronously with retry + Redis fallback (E5/W14).
     if (prisma.marketAlert) {
-      try {
-        // Map alert object to database schema
+      void (async () => {
         const currentPrice = Number.isFinite(Number(alert.currentBid))
           ? Number(alert.currentBid)
           : Number.isFinite(Number(alert.levels?.entry))
@@ -360,9 +373,7 @@ const maybeCreateAlerts = async ({
 
         const data = {
           pair: alert.pair,
-          // IMPROVED: persist an estimated detection window instead of hard-coded 0.
           windowMinutes,
-          // IMPROVED: persist move origin/current prices for clearer downstream messaging.
           fromPrice: Number.isFinite(Number(alert.moveOriginPrice))
             ? Number(alert.moveOriginPrice)
             : Number.isFinite(Number(alert.levels?.entry))
@@ -387,48 +398,57 @@ const maybeCreateAlerts = async ({
           levels: alert.levels,
           triggeredAt: new Date(alert.timestamp)
         };
-        try {
-          record = await prisma.marketAlert.create({ data });
-        } catch (error) {
-          // Compatibility path for environments where Prisma Client is older than
-          // the deployed schema (or vice-versa). Persist the core alert fields.
-          if (!isPrismaUnknownArgumentError(error)) {
-            throw error;
-          }
 
-          const compatibleData = {
-            pair: alert.pair,
-            windowMinutes,
-            fromPrice: Number.isFinite(Number(data.fromPrice)) ? Number(data.fromPrice) : Number(price),
-            toPrice: Number.isFinite(Number(data.toPrice)) ? Number(data.toPrice) : Number(price),
-            changePercent: Number.isFinite(Number(data.changePercent)) ? Number(data.changePercent) : 0,
-            severity: data.severity,
-            triggeredAt: data.triggeredAt
-          };
+        // Retry up to 3 times with exponential backoff
+        let persisted = false;
+        for (let attempt = 0; attempt < 3 && !persisted; attempt++) {
+          try {
+            try {
+              await prisma.marketAlert.create({ data });
+              persisted = true;
+            } catch (error) {
+              if (!isPrismaUnknownArgumentError(error)) throw error;
 
-          record = await prisma.marketAlert.create({ data: compatibleData });
-          if (!warnedMarketAlertCompatFallback) {
-            warnedMarketAlertCompatFallback = true;
-            logger.warn(
-              "Persisted market alert using compatibility payload (regenerate Prisma client to store full metadata).",
-              { pair: alert.pair }
-            );
+              const compatibleData = {
+                pair: alert.pair,
+                windowMinutes,
+                fromPrice: Number.isFinite(Number(data.fromPrice)) ? Number(data.fromPrice) : Number(price),
+                toPrice: Number.isFinite(Number(data.toPrice)) ? Number(data.toPrice) : Number(price),
+                changePercent: Number.isFinite(Number(data.changePercent)) ? Number(data.changePercent) : 0,
+                severity: data.severity,
+                triggeredAt: data.triggeredAt
+              };
+
+              await prisma.marketAlert.create({ data: compatibleData });
+              persisted = true;
+              if (!warnedMarketAlertCompatFallback) {
+                warnedMarketAlertCompatFallback = true;
+                logger.warn(
+                  "Persisted market alert using compatibility payload (regenerate Prisma client to store full metadata).",
+                  { pair: alert.pair }
+                );
+              }
+            }
+          } catch (e) {
+            if (attempt < 2 && isRetryableDbError(e)) {
+              await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+              continue;
+            }
+            // All DB retries failed — fall back to Redis with 24hr TTL
+            try {
+              const redis = await getRedisClient();
+              if (redis) {
+                const redisKey = buildRedisKey("market", "alerts", "failed", `${alert.pair}-${Date.now()}`);
+                await redis.set(redisKey, JSON.stringify(data), "EX", 86400);
+                logger.warn("Alert persisted to Redis fallback after DB failure", { pair, attempt });
+              }
+            } catch (redisErr) {
+              logger.warn("Failed to persist alert to both DB and Redis", { error: redisErr?.message, pair });
+            }
           }
         }
-      } catch (e) {
-        // ignore persistence errors; keep original alert
-        logger.warn("Failed to persist alert", { error: e?.message, pair });
-        record = alert;
-      }
+      })();
     }
-
-    try {
-      pushRecentAlert(record);
-    } catch {}
-
-    try {
-      alertEvents.emit("marketAlert", record);
-    } catch {}
   }
   // always return engine alerts so caller sees them
   return engineAlerts;

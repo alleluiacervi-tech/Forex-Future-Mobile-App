@@ -38,4 +38,7 @@ export interface MarketAlert {
   velocity?: MarketAlertVelocity;
   levels?: MarketAlertLevels;
   confidence?: MarketAlertConfidence;
+  priority?: number;
+  confluenceScore?: number;
+  confluenceSignals?: string[];
 }

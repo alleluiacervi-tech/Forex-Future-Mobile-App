@@ -20,6 +20,9 @@ type ApiMarketAlert = {
   levels?: MarketAlert['levels'];
   confidence?: MarketAlert['confidence'];
   direction?: string;
+  priority?: number;
+  confluenceScore?: number;
+  confluenceSignals?: string[];
 };
 
 type ApiMarketAlertsResponse = {
@@ -119,6 +122,9 @@ const normalizeAlert = (alert: ApiMarketAlert): MarketAlert | null => {
     levels: alert.levels,
     confidence: alert.confidence,
     direction,
+    priority: typeof alert.priority === 'number' ? alert.priority : undefined,
+    confluenceScore: typeof alert.confluenceScore === 'number' ? alert.confluenceScore : undefined,
+    confluenceSignals: Array.isArray(alert.confluenceSignals) ? alert.confluenceSignals : undefined,
   };
 };
 

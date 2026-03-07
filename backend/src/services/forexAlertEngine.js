@@ -124,6 +124,7 @@ class NoiseFilter {
         ? Number(options.averageSpread)
         : this.getPipSize() * 1.5;
     this.spreadSamples = 0;
+    this.wideSpreadFlag = false;
     this.recentAlerts = [];
     this.maxRecentAlerts = 100;
   }
@@ -139,8 +140,13 @@ class NoiseFilter {
     if (lastMinute.length < 2) return true;
 
     const pipSize = this.getPipSize();
-    const highPrice = Math.max(...lastMinute.map((t) => t.bid));
-    const lowPrice = Math.min(...lastMinute.map((t) => t.bid));
+    let highPrice = -Infinity;
+    let lowPrice = Infinity;
+    for (let i = 0; i < lastMinute.length; i++) {
+      const b = lastMinute[i].bid;
+      if (b > highPrice) highPrice = b;
+      if (b < lowPrice) lowPrice = b;
+    }
     const totalPips = (highPrice - lowPrice) / pipSize;
 
     const threshold = MINIMUM_PIP_THRESHOLDS[this.pair];
@@ -159,13 +165,15 @@ class NoiseFilter {
     if (!Number.isFinite(bid) || !Number.isFinite(ask)) return false;
     if (ask < bid) return false;
     const currentSpread = ask - bid;
-    // IMPROVED: pair-aware hard cap in pips to avoid blocking JPY instruments.
     const maxAllowedSpread = Math.max(this.averageSpread * 3, this.getPipSize() * MAX_ALLOWED_SPREAD_PIPS);
 
     if (currentSpread > maxAllowedSpread) {
-      return false; // Spread too wide - illiquid market
+      // Flag wide spread instead of blocking — real moves can have wide spreads
+      this.wideSpreadFlag = true;
+      return true;
     }
 
+    this.wideSpreadFlag = false;
     return true;
   }
 
@@ -176,10 +184,21 @@ class NoiseFilter {
   getSessionThresholdMultiplier(nowTs = Date.now()) {
     const now = new Date(nowTs);
     const hourUTC = now.getUTCHours();
+    const minuteUTC = now.getUTCMinutes();
 
-    // Dead Zone: 21:00 - 06:00 UTC (+ stricter)
-    if ((hourUTC >= 21 && hourUTC < 24) || (hourUTC >= 0 && hourUTC < 6)) {
+    // Dead Zone: 21:00 - 05:00 UTC (stricter, W12 fix: was 0-6, now 0-5)
+    if ((hourUTC >= 21 && hourUTC < 24) || (hourUTC >= 0 && hourUTC < 5)) {
       return TRADING_SESSIONS.DEADZONE.thresholdMultiplier;
+    }
+
+    // London open first 30 min: 08:00-08:30 UTC → lower threshold (-10%)
+    if (hourUTC === 8 && minuteUTC < 30) {
+      return 0.9;
+    }
+
+    // NY open first 30 min: 13:00-13:30 UTC → lower threshold (-10%)
+    if (hourUTC === 13 && minuteUTC < 30) {
+      return 0.9;
     }
 
     // London/NY Overlap: 12:00 - 13:00 UTC (relaxed)
@@ -187,8 +206,8 @@ class NoiseFilter {
       return TRADING_SESSIONS.LONDON_NY_OVERLAP.thresholdMultiplier;
     }
 
-    // Asian session: 06:00 - 08:00 UTC (+ stricter)
-    if (hourUTC >= 6 && hourUTC < 8) {
+    // Asian session: 05:00 - 08:00 UTC (stricter)
+    if (hourUTC >= 5 && hourUTC < 8) {
       return TRADING_SESSIONS.ASIAN.thresholdMultiplier;
     }
 
@@ -202,7 +221,7 @@ class NoiseFilter {
       return TRADING_SESSIONS.NEWYORK.thresholdMultiplier;
     }
 
-    return 1.0; // Default
+    return 1.0;
   }
 
   /**
@@ -252,9 +271,10 @@ class NoiseFilter {
 
     if (velocities.length < 3) return true;
 
-    // Check if at least 3 velocities are consistently high
+    // Use median velocity as reference instead of max to reduce outlier sensitivity
     const sortedVelocities = [...velocities].sort((a, b) => a - b);
-    const highVelocityThreshold = sortedVelocities[sortedVelocities.length - 1] * 0.6;
+    const medianVelocity = sortedVelocities[Math.floor(sortedVelocities.length / 2)];
+    const highVelocityThreshold = medianVelocity * 0.5;
 
     const consistentCount = velocities.filter(v => v >= highVelocityThreshold).length;
     return consistentCount >= 3;
@@ -396,7 +416,14 @@ class MovementAnalyzer {
       const threshold = MINIMUM_PIP_THRESHOLDS[this.pair];
       if (!threshold) return null;
 
-      const windowMs = threshold.timeWindowMs;
+      // Dynamic window: shorten during high volatility for faster detection
+      const volAdj = this.baselineCalibrator
+        ? this.baselineCalibrator.getVolatilityAdjustment()
+        : 1.0;
+      // High volatility (volAdj < 1) → shorter window (min 60% of base)
+      // Low volatility (volAdj > 1) → keep base window (don't extend)
+      const windowScale = volAdj < 1 ? Math.max(0.6, volAdj) : 1.0;
+      const windowMs = Math.round(threshold.timeWindowMs * windowScale);
       const windowStart = nowTs - windowMs;
 
       // Get ticks in window
@@ -405,9 +432,14 @@ class MovementAnalyzer {
 
       const pipSize = this.getPipSize();
 
-      // CRITERIA 1: Minimum pip distance
-      const highPrice = Math.max(...windowTicks.map(t => t.bid));
-      const lowPrice = Math.min(...windowTicks.map(t => t.bid));
+      // CRITERIA 1: Minimum pip distance (single-pass for O(n) efficiency)
+      let highPrice = -Infinity;
+      let lowPrice = Infinity;
+      for (let i = 0; i < windowTicks.length; i++) {
+        const b = windowTicks[i].bid;
+        if (b > highPrice) highPrice = b;
+        if (b < lowPrice) lowPrice = b;
+      }
       const totalPips = (highPrice - lowPrice) / pipSize;
       if (!Number.isFinite(totalPips) || totalPips <= 0) return null;
 
@@ -492,52 +524,67 @@ class MovementAnalyzer {
   calculateDirectionalConsistency(ticks, dominantDirection) {
     if (ticks.length < 2) return 0;
 
-    let consistentCount = 0;
-    let directionalTicks = 0;
+    let weightedConsistent = 0;
+    let totalWeight = 0;
 
     for (let i = 1; i < ticks.length; i++) {
       const change = ticks[i].bid - ticks[i - 1].bid;
       if (change === 0) continue;
       const tickDirection = change > 0 ? 'BUY' : 'SELL';
-      directionalTicks++;
+      // Weight recent ticks more heavily (linear ramp: older=1, newest=2)
+      const weight = 1 + (i / ticks.length);
+      totalWeight += weight;
 
       if (tickDirection === dominantDirection) {
-        consistentCount++;
+        weightedConsistent += weight;
       }
     }
 
-    if (directionalTicks === 0) return 0;
-    return consistentCount / directionalTicks;
+    if (totalWeight === 0) return 0;
+    return weightedConsistent / totalWeight;
   }
 
   /**
-   * Check if momentum is still positive or declining
+   * Check if momentum is still positive or declining.
+   * Returns 'accelerating', 'steady', or 'declining' using second derivative (acceleration).
    */
   getMomentumConfirmation(ticks) {
-    if (ticks.length < 5) return 'accelerating'; // Assume accelerating if insufficient data
+    if (ticks.length < 5) return 'accelerating';
 
     const recent = ticks.slice(-5);
     const pipSize = this.getPipSize();
 
     const velocities = [];
     for (let i = 1; i < recent.length; i++) {
+      const timeDiff = (recent[i].ts - recent[i - 1].ts) / 1000;
+      if (timeDiff <= 0) continue;
       const priceDiff = Math.abs(recent[i].bid - recent[i - 1].bid) / pipSize;
-      velocities.push(priceDiff);
+      velocities.push(priceDiff / timeDiff);
     }
 
     if (velocities.length < 2) return 'accelerating';
 
-    // Check if momentum is declining significantly
-    // Compare velocity in last tick vs average of earlier ticks
+    // Second derivative: acceleration between consecutive velocity samples
+    const accelerations = [];
+    for (let i = 1; i < velocities.length; i++) {
+      accelerations.push(velocities[i] - velocities[i - 1]);
+    }
+
+    const avgAcceleration = accelerations.reduce((a, b) => a + b, 0) / accelerations.length;
     const lastVelocity = velocities[velocities.length - 1];
     const avgEarlierVelocity = velocities.slice(0, -1).reduce((a, b) => a + b, 0) / (velocities.length - 1);
 
-    // If velocity has declined more than 70%, momentum is declining
-    if (lastVelocity < avgEarlierVelocity * 0.3) {
+    // Declining: velocity dropped >70% AND acceleration is negative
+    if (lastVelocity < avgEarlierVelocity * 0.3 && avgAcceleration < 0) {
       return 'declining';
     }
 
-    return 'accelerating';
+    // Accelerating: positive acceleration
+    if (avgAcceleration > 0) {
+      return 'accelerating';
+    }
+
+    return 'steady';
   }
 
   /**
@@ -581,10 +628,13 @@ class MovementAnalyzer {
 class BaselineCalibrator {
   constructor(pair) {
     this.pair = normalizePair(pair);
-    this.history = []; // 4 hours of data
-    this.maxHistory = 240 * 4; // 4 hours of minute-level data
+    this.history = [];
+    this.maxHistory = 240 * 4;
     this.lastCalibrationTime = 0;
-    this.calibrationIntervalMs = 15 * 60 * 1000; // 15 minutes
+    this.lastMicroCalibrationTime = 0;
+    this.baseCalibrationIntervalMs = 15 * 60 * 1000;
+    this.microCalibrationIntervalMs = 2 * 60 * 1000; // 2 minutes
+    this.calibrationIntervalMs = this.baseCalibrationIntervalMs;
 
     this.metrics = {
       avgPipPerMinute: 1.0,
@@ -600,18 +650,21 @@ class BaselineCalibrator {
    */
   updateBaseline(tickHistory, nowTs = Date.now()) {
     const now = nowTs;
-    if (now - this.lastCalibrationTime < this.calibrationIntervalMs) {
-      return;
-    }
+    const isMicroCalibration = now - this.lastMicroCalibrationTime >= this.microCalibrationIntervalMs;
+    const isFullCalibration = now - this.lastCalibrationTime >= this.calibrationIntervalMs;
 
-    this.lastCalibrationTime = now;
+    if (!isFullCalibration && !isMicroCalibration) return;
+
+    if (isMicroCalibration) this.lastMicroCalibrationTime = now;
+    if (isFullCalibration) this.lastCalibrationTime = now;
 
     try {
       const pipSize = pipSizeForPair(this.pair);
 
-      // Calculate metrics from last 15 minutes
-      const fifteenMinutesAgo = now - 15 * 60 * 1000;
-      const recentTicks = tickHistory.filter(t => t.ts >= fifteenMinutesAgo);
+      // Use 15-min window for full calibration, 2-min for micro
+      const windowMs = isFullCalibration ? 15 * 60 * 1000 : 2 * 60 * 1000;
+      const windowStart = now - windowMs;
+      const recentTicks = tickHistory.filter(t => t.ts >= windowStart);
 
       if (recentTicks.length > 0) {
         // Avg pip move per minute
@@ -645,6 +698,12 @@ class BaselineCalibrator {
       if (this.history.length > this.maxHistory) {
         this.history.shift();
       }
+
+      // Micro-calibration: recalibrate more frequently during high volatility
+      this.calibrationIntervalMs =
+        this.metrics.volatilityRegime === 'EXTREME' || this.metrics.volatilityRegime === 'HIGH'
+          ? 5 * 60 * 1000
+          : this.baseCalibrationIntervalMs;
     } catch (_error) {
       // Silently continue with existing metrics
     }
@@ -694,38 +753,51 @@ class EntryLevelCalculator {
   }
 
   /**
-   * Calculate entry, stop loss, and take profit levels
+   * Calculate entry, stop loss, and take profit levels.
+   * Provides two entries: aggressive (current) + conservative (retracement).
+   * Dynamic SL at nearest round number. TP3 uses fibonacci extension (1.618).
    */
-  calculateLevels(currentBid, currentAsk, direction, severity) {
+  calculateLevels(currentBid, currentAsk, direction, severity, movement = null) {
     const pipSize = pipSizeForPair(this.pair);
     const decimals = decimalsForPair(this.pair);
 
     const preferredEntry = direction === 'BUY' ? currentAsk : currentBid;
     const fallbackEntry = direction === 'BUY' ? currentBid : currentAsk;
-    // IMPROVED: avoid propagating NaN levels when one side of quote is missing.
     const entry = Number.isFinite(preferredEntry)
       ? preferredEntry
       : Number.isFinite(fallbackEntry)
         ? fallbackEntry
         : 0;
 
-    // Stop Loss (behind origin of move)
-    const slPips = severity.slPips;
-    const sl = direction === 'BUY' ? entry - slPips * pipSize : entry + slPips * pipSize;
+    // Conservative entry: retracement level based on severity
+    const retracePct = severity.level >= 3 ? 0.236 : severity.level >= 2 ? 0.382 : 0.5;
+    const moveSize = movement ? Math.abs(movement.totalPips) * pipSize : severity.tpPips * 0.3 * pipSize;
+    const conservativeEntry = direction === 'BUY'
+      ? entry - moveSize * retracePct
+      : entry + moveSize * retracePct;
 
-    // Take Profit levels
+    // Dynamic SL: snap to nearest round number (e.g. .00, .50 for non-JPY; whole numbers for JPY)
+    const baseSl = direction === 'BUY'
+      ? entry - severity.slPips * pipSize
+      : entry + severity.slPips * pipSize;
+    const roundStep = this.pair.includes('JPY') ? 0.5 : 0.005;
+    const sl = direction === 'BUY'
+      ? Math.floor(baseSl / roundStep) * roundStep
+      : Math.ceil(baseSl / roundStep) * roundStep;
+
+    // TP levels: TP3 uses fibonacci 1.618 extension
     const tpPips = severity.tpPips;
-    const tp3 = direction === 'BUY' ? entry + tpPips * pipSize : entry - tpPips * pipSize;
-
-    // Partial take profits
     const tp1Distance = tpPips * 0.4;
-    const tp1 = direction === 'BUY' ? entry + tp1Distance * pipSize : entry - tp1Distance * pipSize;
-
     const tp2Distance = tpPips * 0.7;
+    const tp3Distance = tpPips * 1.618 / (severity.riskReward || 1);
+
+    const tp1 = direction === 'BUY' ? entry + tp1Distance * pipSize : entry - tp1Distance * pipSize;
     const tp2 = direction === 'BUY' ? entry + tp2Distance * pipSize : entry - tp2Distance * pipSize;
+    const tp3 = direction === 'BUY' ? entry + tp3Distance * pipSize : entry - tp3Distance * pipSize;
 
     return {
       entry: Number(entry.toFixed(decimals)),
+      conservativeEntry: Number(conservativeEntry.toFixed(decimals)),
       stopLoss: Number(sl.toFixed(decimals)),
       tp1: Number(tp1.toFixed(decimals)),
       tp2: Number(tp2.toFixed(decimals)),
@@ -803,11 +875,19 @@ class AlertValidator {
     const pipSize = pipSizeForPair(this.pair);
     const recent = tickHistory[tickHistory.length - 1];
     const moveOrigin = movement.moveOriginPrice;
-    const extremePrice = Number.isFinite(movement.extremePrice)
-      ? movement.extremePrice
-      : movement.direction === "BUY"
-        ? Math.max(...tickHistory.map((t) => t.bid))
-        : Math.min(...tickHistory.map((t) => t.bid));
+    let computedExtreme;
+    if (Number.isFinite(movement.extremePrice)) {
+      computedExtreme = movement.extremePrice;
+    } else {
+      computedExtreme = tickHistory[0]?.bid ?? 0;
+      for (let i = 1; i < tickHistory.length; i++) {
+        const b = tickHistory[i].bid;
+        if (movement.direction === "BUY" ? b > computedExtreme : b < computedExtreme) {
+          computedExtreme = b;
+        }
+      }
+    }
+    const extremePrice = computedExtreme;
     const currentPrice = recent.bid;
 
     if (!Number.isFinite(moveOrigin) || !Number.isFinite(currentPrice) || !Number.isFinite(extremePrice)) {
@@ -890,48 +970,95 @@ class AlertValidator {
 
 class AlertManager {
   constructor() {
-    this.alertHistory = new Map(); // pair -> [{ ts, level }]
+    this.alertHistory = new Map(); // pair -> [{ ts, level, direction }]
     this.lastAlertTs = new Map(); // pair -> ts
     this.cooldownsByLevel = {
-      1: 8 * 60 * 1000, // SIGNIFICANT: 8 minutes
-      2: 5 * 60 * 1000, // STRONG: 5 minutes
-      3: 2 * 60 * 1000, // EXPLOSIVE: 2 minutes
-      4: 0, // CRASH: no cooldown
+      1: 8 * 60 * 1000,
+      2: 5 * 60 * 1000,
+      3: 2 * 60 * 1000,
+      4: 0,
     };
     this.alerTsGlobal = [];
-    this.maxAlerTsGlobal = 10; // Max 10 alerts per hour globally
+    // Dynamic hourly limits by volatility regime
+    this.hourlyLimitsByRegime = { LOW: 5, MEDIUM: 10, HIGH: 15, EXTREME: 25 };
+    this.currentVolatilityRegime = 'MEDIUM';
+    // False positive tracker: pair -> { wins: n, losses: n, thresholdAdj: ratio }
+    this.falsePositiveTracker = new Map();
+  }
+
+  setVolatilityRegime(regime) {
+    if (this.hourlyLimitsByRegime[regime] !== undefined) {
+      this.currentVolatilityRegime = regime;
+    }
+  }
+
+  getHourlyLimit() {
+    return this.hourlyLimitsByRegime[this.currentVolatilityRegime] || 10;
   }
 
   /**
-   * Check if alert should fire based on frequency rules
+   * Session-aware cooldown adjustment.
+   * London/NY open first 30 min = reduce cooldown by 40%
+   * Dead zone 0-5 UTC = double cooldown
    */
+  getSessionCooldownMultiplier(nowMs) {
+    const d = new Date(nowMs);
+    const h = d.getUTCHours();
+    const m = d.getUTCMinutes();
+    // London open 08:00-08:30, NY open 13:00-13:30
+    if ((h === 8 || h === 13) && m < 30) return 0.6;
+    // Dead zone 0-5 UTC
+    if (h >= 0 && h < 5) return 2.0;
+    return 1.0;
+  }
+
+  /**
+   * Get per-pair threshold adjustment from false positive tracking.
+   * Returns multiplier (0.9 to 1.1).
+   */
+  getFalsePositiveAdjustment(pair) {
+    const tracker = this.falsePositiveTracker.get(pair);
+    if (!tracker || (tracker.wins + tracker.losses) < 5) return 1.0;
+    return tracker.thresholdAdj;
+  }
+
+  /**
+   * Record alert outcome for false positive tracking
+   */
+  recordOutcome(pair, isWin) {
+    if (!this.falsePositiveTracker.has(pair)) {
+      this.falsePositiveTracker.set(pair, { wins: 0, losses: 0, thresholdAdj: 1.0 });
+    }
+    const tracker = this.falsePositiveTracker.get(pair);
+    if (isWin) { tracker.wins++; } else { tracker.losses++; }
+    const total = tracker.wins + tracker.losses;
+    if (total >= 5) {
+      const winRate = tracker.wins / total;
+      // High win rate → loosen thresholds (-10%), low win rate → tighten (+10%)
+      tracker.thresholdAdj = winRate > 0.6 ? 0.9 : winRate < 0.4 ? 1.1 : 1.0;
+    }
+  }
+
   shouldFire(alert, pair) {
     try {
       const nowMs =
         alert?.timestamp instanceof Date && Number.isFinite(alert.timestamp.getTime())
           ? alert.timestamp.getTime()
           : Date.now();
-      // CRASH level always fires immediately
-      if (alert.severity.level === 4) {
-        return true;
-      }
+      if (alert.severity.level === 4) return true;
 
-      // Check per-pair cooldown
       const lastAlertTs = this.lastAlertTs.get(pair) || 0;
-      const cooldown = this.cooldownsByLevel[alert.severity.level] || 0;
+      const baseCooldown = this.cooldownsByLevel[alert.severity.level] || 0;
+      const cooldown = baseCooldown * this.getSessionCooldownMultiplier(nowMs);
 
-      if (nowMs - lastAlertTs < cooldown) {
-        return false;
-      }
+      if (nowMs - lastAlertTs < cooldown) return false;
 
-      // Check global hourly limit (max 10 alerts per hour)
       const oneHourAgo = nowMs - 3600000;
       const recentAlerts = this.alerTsGlobal.filter(ts => ts > oneHourAgo);
-      // IMPROVED: keep compact global history without waiting for recordAlert().
       this.alerTsGlobal = recentAlerts;
 
-      if (recentAlerts.length >= this.maxAlerTsGlobal && alert.severity.level < 3) {
-        // EXPLOSIVE/CRASH override the limit
+      const hourlyLimit = this.getHourlyLimit();
+      if (recentAlerts.length >= hourlyLimit && alert.severity.level < 3) {
         return false;
       }
 
@@ -941,9 +1068,6 @@ class AlertManager {
     }
   }
 
-  /**
-   * Record that an alert was fired
-   */
   recordAlert(alert, pair) {
     const tsMs =
       alert?.timestamp instanceof Date && Number.isFinite(alert.timestamp.getTime())
@@ -961,27 +1085,161 @@ class AlertManager {
       direction: alert.direction,
     });
 
-    // Keep only last 24 hours
     const oneDayAgo = tsMs - 86400000;
     const history = this.alertHistory.get(pair);
     const filtered = history.filter(a => a.ts > oneDayAgo);
     this.alertHistory.set(pair, filtered);
 
-    // Record global alert timestamp
     this.alerTsGlobal.push(tsMs);
     const oneHourAgo = tsMs - 3600000;
     this.alerTsGlobal = this.alerTsGlobal.filter(ts => ts > oneHourAgo);
   }
 
-  /**
-   * Get recent alerts for a pair
-   */
   getRecentAlerts(pair, maxCount = 10) {
     const history = this.alertHistory.get(pair) || [];
-    // IMPROVED: return most-recent-first entries for trend validation logic.
     return history.slice(-maxCount).reverse();
   }
 }
+
+// ============================================================================
+// PART 11 - CONFLUENCE SCORING (Institutional Signal Boost)
+// ============================================================================
+
+class ConfluenceScorer {
+  constructor(pair) {
+    this.pair = normalizePair(pair);
+    this.recentHighs = [];
+    this.recentLows = [];
+    this.maxStructurePoints = 50;
+  }
+
+  /**
+   * Score a movement for institutional confluence signals.
+   * Returns { score: 0-165, signals: string[] }
+   */
+  score(tickHistory, movement, noiseFilter) {
+    const signals = [];
+    let score = 0;
+
+    // 1. Liquidity sweep detection (+35): price pierced recent high/low then reversed
+    const sweepScore = this.detectLiquiditySweep(tickHistory, movement);
+    if (sweepScore > 0) { score += sweepScore; signals.push('LIQUIDITY_SWEEP'); }
+
+    // 2. Break of structure (+30): price broke previous swing high/low
+    const bosScore = this.detectBreakOfStructure(tickHistory, movement);
+    if (bosScore > 0) { score += bosScore; signals.push('BOS'); }
+
+    // 3. Order block detection (+25): strong move from a consolidation zone
+    const obScore = this.detectOrderBlock(tickHistory, movement);
+    if (obScore > 0) { score += obScore; signals.push('ORDER_BLOCK'); }
+
+    // 4. Fair value gap (+20): gap between candle bodies
+    const fvgScore = this.detectFVG(tickHistory);
+    if (fvgScore > 0) { score += fvgScore; signals.push('FVG'); }
+
+    // 5. Volume anomaly (+25): tick frequency spike
+    if (movement.tickFrequency > 2.0) { score += 25; signals.push('VOLUME_SPIKE'); }
+
+    // 6. Spread spike (+30): wide spread = institutional activity
+    if (noiseFilter.wideSpreadFlag) { score += 30; signals.push('SPREAD_SPIKE'); }
+
+    return { score, signals };
+  }
+
+  detectLiquiditySweep(ticks, movement) {
+    if (ticks.length < 20) return 0;
+    const pipSize = pipSizeForPair(this.pair);
+    const recent = ticks.slice(-20);
+
+    // Find the high/low of earlier ticks (first 15), check if last 5 pierced and reversed
+    let earlyHigh = -Infinity, earlyLow = Infinity;
+    for (let i = 0; i < Math.min(15, recent.length); i++) {
+      if (recent[i].bid > earlyHigh) earlyHigh = recent[i].bid;
+      if (recent[i].bid < earlyLow) earlyLow = recent[i].bid;
+    }
+
+    const lastPrice = recent[recent.length - 1].bid;
+    const peakInLate = recent.slice(-5);
+    let lateHigh = -Infinity, lateLow = Infinity;
+    for (const t of peakInLate) {
+      if (t.bid > lateHigh) lateHigh = t.bid;
+      if (t.bid < lateLow) lateLow = t.bid;
+    }
+
+    // Sweep high then reversed down
+    if (lateHigh > earlyHigh && lastPrice < earlyHigh && movement.direction === 'SELL') return 35;
+    // Sweep low then reversed up
+    if (lateLow < earlyLow && lastPrice > earlyLow && movement.direction === 'BUY') return 35;
+
+    return 0;
+  }
+
+  detectBreakOfStructure(ticks, movement) {
+    if (ticks.length < 30) return 0;
+    const pipSize = pipSizeForPair(this.pair);
+
+    // Find swing highs/lows in first 2/3 of window
+    const structural = ticks.slice(0, Math.floor(ticks.length * 0.66));
+    let swingHigh = -Infinity, swingLow = Infinity;
+    for (const t of structural) {
+      if (t.bid > swingHigh) swingHigh = t.bid;
+      if (t.bid < swingLow) swingLow = t.bid;
+    }
+
+    const lastPrice = ticks[ticks.length - 1].bid;
+    if (movement.direction === 'BUY' && lastPrice > swingHigh) return 30;
+    if (movement.direction === 'SELL' && lastPrice < swingLow) return 30;
+
+    return 0;
+  }
+
+  detectOrderBlock(ticks, movement) {
+    if (ticks.length < 10) return 0;
+    const pipSize = pipSizeForPair(this.pair);
+
+    // Look for consolidation (low range) followed by breakout in last ticks
+    const consolidation = ticks.slice(-10, -3);
+    if (consolidation.length < 3) return 0;
+
+    let cHigh = -Infinity, cLow = Infinity;
+    for (const t of consolidation) {
+      if (t.bid > cHigh) cHigh = t.bid;
+      if (t.bid < cLow) cLow = t.bid;
+    }
+    const consolidationRange = (cHigh - cLow) / pipSize;
+    const breakoutPips = movement.totalPips;
+
+    // Consolidation was tight (<10 pips) and breakout is significant
+    if (consolidationRange < 10 && breakoutPips > 20) return 25;
+
+    return 0;
+  }
+
+  detectFVG(ticks) {
+    if (ticks.length < 3) return 0;
+    const pipSize = pipSizeForPair(this.pair);
+
+    // Check last 3 ticks for a gap: tick[0].bid vs tick[2].bid with tick[1] not filling
+    const t0 = ticks[ticks.length - 3].bid;
+    const t1 = ticks[ticks.length - 2].bid;
+    const t2 = ticks[ticks.length - 1].bid;
+
+    // Bullish FVG: gap up where t2 low > t0 high
+    if (t2 > t0 && t1 < t2 && (t2 - t0) / pipSize > 5) return 20;
+    // Bearish FVG: gap down where t2 high < t0 low
+    if (t2 < t0 && t1 > t2 && (t0 - t2) / pipSize > 5) return 20;
+
+    return 0;
+  }
+}
+
+// Minimum confluence scores per severity level
+const MIN_CONFLUENCE_SCORES = {
+  1: 0,   // SIGNIFICANT: no minimum (backwards compat)
+  2: 0,   // STRONG: no minimum
+  3: 20,  // EXPLOSIVE: at least one signal
+  4: 0,   // CRASH: always fires
+};
 
 // ============================================================================
 // PART 10 - MAIN FOREX ALERT ENGINE
@@ -992,15 +1250,18 @@ class ForexAlertEngine {
     this.engines = new Map(); // pair -> { filter, analyzer, calibrator, entryCalc, validator }
     this.alertManager = new AlertManager();
     this.tickHistories = new Map(); // pair -> [ticks]
-    this.maxTicksPerPair = 1000;
+    this.maxTicksPerPair = 500; // Enforced circular buffer (W17)
     this.lastProcessedTs = new Map();
-    // IMPROVED: cache latest good quote so single-sided/missing fields don't break detection.
     this.lastQuotes = new Map();
 
-    this.onAlert = null; // Callback function
-    this.onError = null; // Error callback
+    this.onAlert = null;
+    this.onBuildingAlert = null;
+    this.onError = null;
 
     this.consecutiveAlerts = [];
+    this.lastBuildingAlertTs = new Map();
+    // Hash-based dedup: Set of hashes for 5-min buckets (W15)
+    this.alertHashes = new Map(); // hash -> tsMs
   }
 
   /**
@@ -1053,13 +1314,10 @@ class ForexAlertEngine {
       const history = this.tickHistories.get(normalizedPair) || [];
       history.push(tick);
 
-      // Auto-cleanup old ticks (keep sliding 4-hour window)
-      const fourHoursAgo = ts - 14400000;
-      while (history.length > 0 && history[0].ts < fourHoursAgo) {
-        history.shift();
-      }
+      // Enforce circular buffer: drop oldest when exceeding max (W17: avoid shift() O(n))
       if (history.length > this.maxTicksPerPair) {
-        history.splice(0, history.length - this.maxTicksPerPair);
+        const excess = history.length - this.maxTicksPerPair;
+        history.splice(0, excess);
       }
 
       this.tickHistories.set(normalizedPair, history);
@@ -1078,7 +1336,8 @@ class ForexAlertEngine {
       // Analyze movement
       const movement = engine.analyzer.analyze(history, engine.filter, ts);
       if (!movement) {
-        // No significant movement detected - silent
+        // Check for building move (early warning at 70% of threshold)
+        this.checkBuildingMove(normalizedPair, history, engine, ts);
         return null;
       }
 
@@ -1097,18 +1356,40 @@ class ForexAlertEngine {
       }
 
       // Check frequency rules
+      // Update volatility regime for dynamic hourly limits (E3)
+      this.alertManager.setVolatilityRegime(engine.calibrator.getMetrics().volatilityRegime);
       if (!this.alertManager.shouldFire(validatedMovement, normalizedPair)) {
-        // Frequency limit reached - silent
         return null;
       }
 
-      // Calculate entry/SL/TP levels
+      // Hash-based dedup check (W15): pair+direction+rounded_price+5min_bucket
+      const dedupHash = this.computeAlertHash(normalizedPair, validatedMovement.direction, resolvedBid, ts);
+      if (this.alertHashes.has(dedupHash)) {
+        return null;
+      }
+
+      // Confluence scoring (E6)
+      const confluence = engine.confluenceScorer.score(history, validatedMovement, engine.filter);
+      const minConfluence = MIN_CONFLUENCE_SCORES[validatedMovement.severity.level] || 0;
+      if (confluence.score < minConfluence) {
+        return null;
+      }
+
+      // Calculate entry/SL/TP levels with movement data (E4)
       const levels = engine.entryCalc.calculateLevels(
         resolvedBid,
         resolvedAsk,
         validatedMovement.direction,
-        validatedMovement.severity
+        validatedMovement.severity,
+        validatedMovement
       );
+
+      // Apply false positive threshold adjustment (E3)
+      const fpAdj = this.alertManager.getFalsePositiveAdjustment(normalizedPair);
+      // If fpAdj > 1 and move barely met threshold, suppress
+      if (fpAdj > 1.0 && validatedMovement.totalPips < validatedMovement.severity.pipRange[0] * fpAdj) {
+        return null;
+      }
 
       // Build alert object
       const alert = {
@@ -1118,21 +1399,31 @@ class ForexAlertEngine {
         pips: validatedMovement.totalPips,
         speed: validatedMovement.speed,
         consistency: validatedMovement.consistency,
+        momentum: validatedMovement.momentum,
         tickFrequency: validatedMovement.tickFrequency,
         timeTakenMs: validatedMovement.timeTakenMs,
         moveOriginPrice: validatedMovement.moveOriginPrice,
-        // IMPROVED: provide explicit origin field used by recorder/tests/UI.
         fromPrice: validatedMovement.moveOriginPrice,
         currentBid: resolvedBid,
         currentAsk: resolvedAsk,
         levels,
+        confluenceScore: confluence.score,
+        confluenceSignals: confluence.signals,
+        priority: validatedMovement.severity.level >= 4 ? 1 : validatedMovement.severity.level >= 3 ? 2 : validatedMovement.severity.level >= 2 ? 3 : 4,
         timestamp: new Date(ts),
         warnings: validatedMovement.warnings || [],
       };
 
-      // Record this alert
+      // Propagate wide spread flag as warning instead of blocking
+      if (engine.filter.wideSpreadFlag) {
+        alert.warnings.push('Wide spread detected - check liquidity before entry');
+      }
+
+      // Record this alert and dedup hash
       this.alertManager.recordAlert(alert, normalizedPair);
       engine.filter.recordAlert(resolvedBid, ts);
+      this.alertHashes.set(dedupHash, ts);
+      this.pruneAlertHashes(ts);
 
       // Print to console (PART 9) - only alerts, no noise
       this.printAlertToConsole(alert, normalizedPair);
@@ -1163,6 +1454,7 @@ class ForexAlertEngine {
     const analyzer = new MovementAnalyzer(normalizedPair, calibrator);
     const entryCalc = new EntryLevelCalculator(normalizedPair);
     const validator = new AlertValidator(normalizedPair);
+    const confluenceScorer = new ConfluenceScorer(normalizedPair);
 
     this.engines.set(normalizedPair, {
       filter,
@@ -1170,7 +1462,63 @@ class ForexAlertEngine {
       calibrator,
       entryCalc,
       validator,
+      confluenceScorer,
     });
+  }
+
+  /**
+   * Emit early warning when a move reaches 70% of the alert threshold.
+   * Throttled to at most once per 30 seconds per pair.
+   */
+  checkBuildingMove(pair, history, engine, ts) {
+    if (!this.onBuildingAlert || typeof this.onBuildingAlert !== 'function') return;
+
+    const lastTs = this.lastBuildingAlertTs.get(pair) || 0;
+    if (ts - lastTs < 30000) return;
+
+    const threshold = MINIMUM_PIP_THRESHOLDS[pair];
+    if (!threshold) return;
+    if (history.length < 3) return;
+
+    const windowMs = threshold.timeWindowMs;
+    const windowStart = ts - windowMs;
+    const windowTicks = history.filter((t) => t.ts >= windowStart && Number.isFinite(t.bid));
+    if (windowTicks.length < 2) return;
+
+    const pipSize = engine.filter.getPipSize();
+    let highPrice = -Infinity;
+    let lowPrice = Infinity;
+    for (let i = 0; i < windowTicks.length; i++) {
+      const b = windowTicks[i].bid;
+      if (b > highPrice) highPrice = b;
+      if (b < lowPrice) lowPrice = b;
+    }
+    const totalPips = (highPrice - lowPrice) / pipSize;
+
+    const sessionMultiplier = engine.filter.getSessionThresholdMultiplier(ts);
+    const volAdj = engine.calibrator ? engine.calibrator.getVolatilityAdjustment() : 1.0;
+    const effectiveThreshold = threshold.pips * sessionMultiplier * volAdj;
+
+    const progress = totalPips / effectiveThreshold;
+    if (progress < 0.7 || progress >= 1.0) return;
+
+    const firstPrice = windowTicks[0].bid;
+    const lastPrice = windowTicks[windowTicks.length - 1].bid;
+    const direction = lastPrice > firstPrice ? 'BUY' : 'SELL';
+
+    this.lastBuildingAlertTs.set(pair, ts);
+
+    try {
+      this.onBuildingAlert({
+        type: 'BUILDING',
+        pair,
+        direction,
+        progress: Math.round(progress * 100),
+        currentPips: Math.round(totalPips * 10) / 10,
+        thresholdPips: Math.round(effectiveThreshold * 10) / 10,
+        timestamp: new Date(ts),
+      });
+    } catch {}
   }
 
   // IMPROVED: allow recorder/test harness to reset pair-specific state safely.
@@ -1180,8 +1528,24 @@ class ForexAlertEngine {
     this.tickHistories.delete(normalizedPair);
     this.lastProcessedTs.delete(normalizedPair);
     this.lastQuotes.delete(normalizedPair);
+    this.lastBuildingAlertTs.delete(normalizedPair);
     this.alertManager.alertHistory.delete(normalizedPair);
     this.alertManager.lastAlertTs.delete(normalizedPair);
+    this.alertManager.falsePositiveTracker.delete(normalizedPair);
+  }
+
+  computeAlertHash(pair, direction, price, tsMs) {
+    const pipSize = pipSizeForPair(pair);
+    const roundedPrice = Math.round(price / (pipSize * 10)) * (pipSize * 10);
+    const bucket = Math.floor(tsMs / 300000); // 5-minute bucket
+    return `${pair}|${direction}|${roundedPrice.toFixed(5)}|${bucket}`;
+  }
+
+  pruneAlertHashes(nowMs) {
+    const cutoff = nowMs - 600000; // 10 min
+    for (const [hash, ts] of this.alertHashes) {
+      if (ts < cutoff) this.alertHashes.delete(hash);
+    }
   }
 
   /**
@@ -1203,11 +1567,15 @@ class ForexAlertEngine {
       `\nSpeed:       ${alert.speed}` +
       `\nPeak speed:  ${(alert.pips / (alert.timeTakenMs / 1000)).toFixed(2)} pips per second` +
       `\nConsistency: ${(alert.consistency * 100).toFixed(0)}% directional ticks` +
+      `\nMomentum:    ${alert.momentum || 'N/A'}` +
       `\nTick freq:   ${alert.tickFrequency.toFixed(1)} ticks per second` +
+      `\nConfluence:  ${alert.confluenceScore || 0} (${(alert.confluenceSignals || []).join(', ') || 'none'})` +
       `\nSession:     ${this.getCurrentSession()}` +
       `\nVolatility:  ${this.getVolatilityRegime(pair)}` +
+      `\nPriority:    P${alert.priority || 4}` +
       `\n────────────────────────────────────────────────` +
       `\nEntry:       ${levels.entry} (${alert.direction === 'BUY' ? 'ask' : 'bid'})` +
+      `\nEntry (cons):${levels.conservativeEntry} (retracement)` +
       `\nStop Loss:   ${levels.stopLoss} (-${severity.slPips} pips)` +
       `\nTP1:         ${levels.tp1} (+${(severity.tpPips * 0.4).toFixed(0)} pips) — partial exit` +
       `\nTP2:         ${levels.tp2} (+${(severity.tpPips * 0.7).toFixed(0)} pips) — move SL to BE` +
@@ -1226,10 +1594,10 @@ class ForexAlertEngine {
   getCurrentSession() {
     const hourUTC = new Date().getUTCHours();
 
-    if (hourUTC >= 12 && hourUTC < 13) return 'London/NY Overlap';
-    if ((hourUTC >= 21 && hourUTC < 24) || (hourUTC >= 0 && hourUTC < 6)) return 'Dead Zone';
-    if (hourUTC >= 0 && hourUTC < 8) return 'Asian';
+    if ((hourUTC >= 21 && hourUTC < 24) || (hourUTC >= 0 && hourUTC < 5)) return 'Dead Zone';
+    if (hourUTC >= 5 && hourUTC < 8) return 'Asian';
     if (hourUTC >= 8 && hourUTC < 12) return 'London';
+    if (hourUTC >= 12 && hourUTC < 13) return 'London/NY Overlap';
     if (hourUTC >= 13 && hourUTC < 21) return 'New York';
 
     return 'Unknown';
