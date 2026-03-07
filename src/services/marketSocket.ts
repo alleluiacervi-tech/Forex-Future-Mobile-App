@@ -67,6 +67,21 @@ class MarketSocketManager {
       try {
         const payload = JSON.parse(raw);
         if (payload && typeof payload === 'object' && typeof payload.type === 'string') {
+          // Send ack for high-priority alerts (priority 1-2: CRASH/EXPLOSIVE)
+          if (
+            payload.type === 'marketAlert' &&
+            payload.data?.priority != null &&
+            payload.data.priority <= 2 &&
+            payload.data.id &&
+            this.ws?.readyState === WebSocket.OPEN
+          ) {
+            try {
+              this.ws.send(JSON.stringify({ type: 'alertAck', alertId: payload.data.id }));
+            } catch {
+              // best-effort ack
+            }
+          }
+
           this.emit(payload as MarketSocketEvent);
           return;
         }
@@ -95,18 +110,12 @@ class MarketSocketManager {
     };
   }
 
-  private static readonly MAX_RECONNECT_ATTEMPTS = 10;
-
   private scheduleReconnect() {
     if (this.reconnectTimer || !this.shouldConnect || this.listeners.size === 0) {
       return;
     }
 
     this.reconnectAttempts += 1;
-    if (this.reconnectAttempts > MarketSocketManager.MAX_RECONNECT_ATTEMPTS) {
-      this.emit({ type: 'socketError', message: 'Max reconnect attempts reached. Call subscribe() again to retry.' });
-      return;
-    }
     const delayMs = Math.min(1000 * 2 ** Math.max(0, this.reconnectAttempts - 1), 30000);
 
     this.reconnectTimer = setTimeout(() => {

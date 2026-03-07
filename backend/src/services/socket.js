@@ -308,8 +308,43 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     enqueueBroadcast(payload);
   });
 
+  // Track pending high-priority alerts for ack/retry
+  const pendingHighPriorityAlerts = new Map(); // alertId -> { alert, sentAt, acked, retried }
+
+  const sendHighPriorityAlert = (alert) => {
+    const raw = safeJson({ type: "marketAlert", data: alert });
+    for (const ws of connectedClients) {
+      sendRaw(ws, raw);
+    }
+
+    const alertId = alert.id || `${alert.pair}-${Date.now()}`;
+    const entry = { alert, sentAt: Date.now(), acked: false, retried: false };
+    pendingHighPriorityAlerts.set(alertId, entry);
+
+    // Retry once after 5s if not acked
+    setTimeout(() => {
+      const pending = pendingHighPriorityAlerts.get(alertId);
+      if (pending && !pending.acked && !pending.retried) {
+        pending.retried = true;
+        const retryRaw = safeJson({ type: "marketAlert", data: alert });
+        for (const ws of connectedClients) {
+          sendRaw(ws, retryRaw);
+        }
+      }
+      // Clean up after retry window
+      setTimeout(() => {
+        pendingHighPriorityAlerts.delete(alertId);
+      }, 10000).unref?.();
+    }, 5000).unref?.();
+  };
+
   const unsubscribeAlerts = subscribeMarketAlerts((alert) => {
-    enqueueBroadcast({ type: "marketAlert", data: alert });
+    // Priority 1-2 (CRASH/EXPLOSIVE) bypass queue for immediate delivery
+    if (alert.priority && alert.priority <= 2) {
+      sendHighPriorityAlert(alert);
+    } else {
+      enqueueBroadcast({ type: "marketAlert", data: alert });
+    }
   });
 
   let syntheticTimer = null;
@@ -768,6 +803,14 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
       if (msg?.type === "ping") {
         sendJson(ws, { type: "pong", ts: nowIso() });
+        return;
+      }
+
+      if (msg?.type === "alertAck" && typeof msg.alertId === "string") {
+        const pending = pendingHighPriorityAlerts.get(msg.alertId);
+        if (pending) {
+          pending.acked = true;
+        }
         return;
       }
 
