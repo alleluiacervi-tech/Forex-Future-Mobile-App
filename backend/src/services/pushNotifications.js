@@ -9,6 +9,10 @@ const expo = new Expo();
 const lastPushByPair = new Map();
 const PUSH_THROTTLE_MS = 5 * 60 * 1000;
 
+// Store ticket IDs for receipt checking
+// Map<ticketId, { token, userId, createdAt }>
+const pendingTickets = new Map();
+
 /**
  * Send push notifications for a market alert to all users with pushAlerts enabled.
  */
@@ -72,6 +76,24 @@ export async function sendPushForAlert(alert) {
       }
     }
 
+    // Store ticket IDs for later receipt checking
+    for (let i = 0; i < tickets.length; i++) {
+      const ticket = tickets[i];
+      if (ticket.id) {
+        pendingTickets.set(ticket.id, {
+          token: messages[i]?.to,
+          userId: ticket._userId,
+          createdAt: Date.now(),
+        });
+      }
+      // Handle immediate errors (e.g. DeviceNotRegistered)
+      if (ticket.status === "error") {
+        if (ticket.details?.error === "DeviceNotRegistered" && messages[i]?.to) {
+          deactivateToken(messages[i].to).catch(() => {});
+        }
+      }
+    }
+
     // Create Notification DB records
     const notifData = tokens
       .filter(({ token }) => Expo.isExpoPushToken(token))
@@ -95,22 +117,77 @@ export async function sendPushForAlert(alert) {
 
 /**
  * Check push receipts and deactivate invalid tokens.
- * Should run on a 15-minute interval.
+ * Runs on a 15-minute interval.
  */
 export async function checkPushReceipts() {
-  // This is a simplified receipt checker. In production, store ticket IDs
-  // and check them later. For now we rely on Expo's automatic error handling.
   try {
-    // Deactivate tokens that haven't been updated in 30 days (likely stale)
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    // 1. Check receipts for stored ticket IDs
+    const ticketIds = [...pendingTickets.keys()];
+    if (ticketIds.length > 0) {
+      const receiptIdChunks = expo.chunkPushNotificationReceiptIds(ticketIds);
+      for (const chunk of receiptIdChunks) {
+        try {
+          const receipts = await expo.getPushNotificationReceiptsAsync(chunk);
+          for (const [receiptId, receipt] of Object.entries(receipts)) {
+            const ticketInfo = pendingTickets.get(receiptId);
+            pendingTickets.delete(receiptId);
+
+            if (receipt.status === "error") {
+              logger.warn("Push receipt error", {
+                receiptId,
+                error: receipt.details?.error,
+                token: ticketInfo?.token,
+              });
+              // Deactivate token on permanent errors
+              if (
+                receipt.details?.error === "DeviceNotRegistered" ||
+                receipt.details?.error === "InvalidCredentials"
+              ) {
+                if (ticketInfo?.token) {
+                  await deactivateToken(ticketInfo.token);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          logger.error("Failed to fetch receipts chunk", { error: err?.message });
+        }
+      }
+    }
+
+    // 2. Expire old pending tickets (>24h) to prevent memory leak
+    const expiryCutoff = Date.now() - 24 * 60 * 60 * 1000;
+    for (const [id, info] of pendingTickets) {
+      if (info.createdAt < expiryCutoff) pendingTickets.delete(id);
+    }
+
+    // 3. Deactivate tokens not updated in 30 days
+    const staleCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     if (prisma.pushToken) {
       await prisma.pushToken.updateMany({
-        where: { updatedAt: { lt: cutoff }, active: true },
+        where: { updatedAt: { lt: staleCutoff }, active: true },
         data: { active: false },
       });
     }
   } catch (err) {
     logger.error("checkPushReceipts failed", { error: err?.message });
+  }
+}
+
+/**
+ * Deactivate a specific push token in the database.
+ */
+async function deactivateToken(token) {
+  try {
+    if (prisma.pushToken) {
+      await prisma.pushToken.updateMany({
+        where: { token },
+        data: { active: false },
+      });
+      logger.info("Deactivated push token", { token: token.slice(0, 20) + "..." });
+    }
+  } catch (err) {
+    logger.error("Failed to deactivate token", { error: err?.message });
   }
 }
 
