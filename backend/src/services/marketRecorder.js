@@ -7,6 +7,7 @@ import { symbolToPair } from "./marketSymbols.js";
 import { validateTick, isTickOutlier, logDiagnostic, pipSizeForPair } from "./marketValidator.js";
 import { ForexFutureEngine } from "./forexFutureEngine.js";
 import { ForexAlertEngine } from "./forexAlertEngine.js";
+import { createOutcome, checkOutcomes, refreshFromDb } from "./alertOutcomeTracker.js";
 
 const logger = new Logger("MarketRecorder");
 
@@ -352,6 +353,9 @@ const maybeCreateAlerts = async ({
       alertEvents.emit("marketAlert", alert);
     } catch {}
 
+    // Track outcome for this alert
+    createOutcome(alert).catch(() => {});
+
     // Persist to DB asynchronously with retry + Redis fallback (E5/W14).
     if (prisma.marketAlert) {
       void (async () => {
@@ -461,6 +465,21 @@ const recordIntoCandle = ({ pair, interval, tsMs, price, volume }) => {
   const v = Number.isFinite(Number(volume)) ? Number(volume) : 0;
 
   if (!existing) {
+    // A new bucket means the previous candle for this pair+interval is complete.
+    // Find and push completed candle to ATRCalculator / CandleManager.
+    const prevKey = findPreviousCandleKey(pair, interval, bucketStartMs);
+    if (prevKey) {
+      const prevCandle = state.activeCandles.get(prevKey);
+      if (prevCandle) {
+        if (interval === '1h') {
+          forexAlertEngine.atrCalculator.addCandle(pair, prevCandle);
+        }
+        if (interval === '1h' || interval === '15m') {
+          forexAlertEngine.candleManager.pushCompleted(pair, interval, prevCandle);
+        }
+      }
+    }
+
     state.activeCandles.set(key, {
       pair,
       interval,
@@ -480,6 +499,17 @@ const recordIntoCandle = ({ pair, interval, tsMs, price, volume }) => {
   existing.close = price;
   existing.volume += v;
   state.dirtyKeys.add(key);
+};
+
+/**
+ * Find the previous candle key for a pair+interval by looking at the active candles map.
+ */
+const findPreviousCandleKey = (pair, interval, currentBucketStartMs) => {
+  const intervalMs = parseIntervalMs(interval);
+  const prevBucketStartMs = currentBucketStartMs - intervalMs;
+  const prevKey = candleKey(pair, interval, prevBucketStartMs);
+  if (state.activeCandles.has(prevKey)) return prevKey;
+  return null;
 };
 
 const upsertCandle = async (candle) => {
@@ -638,6 +668,9 @@ const startMarketRecorder = () => {
       // IMPROVED: outliers are retained for diagnostics/candles but excluded from alert detection.
       if (tick.outlier) return;
 
+      // Check pending alert outcomes against current price
+      checkOutcomes(pair, price);
+
       void maybeCreateAlerts({ pair, tsMs, price, ticks, priceType, bid: trade.bid, ask: trade.ask, volume });
     } catch (_e) {
       // swallow to ensure recorder cannot crash the process
@@ -648,6 +681,9 @@ const startMarketRecorder = () => {
   state.flushTimer = setInterval(() => {
     flush();
   }, state.flushMs);
+
+  // Periodically refresh pending outcomes from DB
+  setInterval(() => refreshFromDb().catch(() => {}), 60 * 1000);
 
   return {
     started: true,

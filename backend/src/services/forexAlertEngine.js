@@ -21,14 +21,23 @@ import { decimalsForPair, pipSizeForPair } from "./marketValidator.js";
 // ============================================================================
 
 const MINIMUM_PIP_THRESHOLDS = {
-  'EUR/USD': { pips: 25, timeWindowMs: 180000 },
-  'GBP/USD': { pips: 30, timeWindowMs: 180000 },
-  'USD/JPY': { pips: 25, timeWindowMs: 180000 },
-  'AUD/USD': { pips: 20, timeWindowMs: 180000 },
-  'USD/CHF': { pips: 22, timeWindowMs: 180000 },
-  'GBP/JPY': { pips: 40, timeWindowMs: 180000 },
-  'EUR/JPY': { pips: 35, timeWindowMs: 180000 },
-  'USD/CAD': { pips: 22, timeWindowMs: 180000 },
+  'EUR/USD': { pips: 15, timeWindowMs: 300000 },
+  'GBP/USD': { pips: 18, timeWindowMs: 300000 },
+  'USD/JPY': { pips: 15, timeWindowMs: 300000 },
+  'AUD/USD': { pips: 12, timeWindowMs: 300000 },
+  'USD/CHF': { pips: 14, timeWindowMs: 300000 },
+  'GBP/JPY': { pips: 25, timeWindowMs: 300000 },
+  'EUR/JPY': { pips: 20, timeWindowMs: 300000 },
+  'USD/CAD': { pips: 14, timeWindowMs: 300000 },
+  'NZD/USD': { pips: 12, timeWindowMs: 300000 },
+  'EUR/GBP': { pips: 12, timeWindowMs: 300000 },
+  'EUR/CHF': { pips: 12, timeWindowMs: 300000 },
+  'AUD/JPY': { pips: 18, timeWindowMs: 300000 },
+  'CAD/JPY': { pips: 18, timeWindowMs: 300000 },
+  'CHF/JPY': { pips: 18, timeWindowMs: 300000 },
+  'AUD/CAD': { pips: 14, timeWindowMs: 300000 },
+  'NZD/JPY': { pips: 18, timeWindowMs: 300000 },
+  'XAU/USD': { pips: 200, timeWindowMs: 300000 },
 };
 
 // IMPROVED: normalize pair keys so both `EUR/USD` and `EURUSD` are accepted.
@@ -60,46 +69,46 @@ const ALERT_LEVELS = {
   SIGNIFICANT: {
     level: 1,
     name: 'SIGNIFICANT',
-    pipRange: [25, 35],
-    timeWindowMs: 180000,
+    pipRange: [12, 20],
+    timeWindowMs: 300000,
     color: 'yellow',
     sound: 'silent',
     riskReward: 2.0,
-    slPips: 15,
-    tpPips: 30,
+    slPips: 10,
+    tpPips: 20,
   },
   STRONG: {
     level: 2,
     name: 'STRONG',
-    pipRange: [35, 50],
-    timeWindowMs: 120000,
+    pipRange: [20, 35],
+    timeWindowMs: 180000,
     color: 'orange',
     sound: 'soft chime',
     riskReward: 2.5,
-    slPips: 20,
-    tpPips: 50,
+    slPips: 15,
+    tpPips: 35,
   },
   EXPLOSIVE: {
     level: 3,
     name: 'EXPLOSIVE',
-    pipRange: [50, 80],
-    timeWindowMs: 90000,
+    pipRange: [35, 55],
+    timeWindowMs: 120000,
     color: 'red',
     sound: 'loud alert',
     riskReward: 2.8,
-    slPips: 28,
-    tpPips: 80,
+    slPips: 20,
+    tpPips: 55,
   },
   CRASH: {
     level: 4,
     name: 'CRASH',
-    pipRange: [80, Infinity],
+    pipRange: [55, Infinity],
     timeWindowMs: 60000,
     color: 'dark red flashing',
     sound: 'emergency alarm',
     riskReward: 3.4,
-    slPips: 35,
-    tpPips: 120,
+    slPips: 28,
+    tpPips: 90,
   },
 };
 
@@ -744,6 +753,67 @@ class BaselineCalibrator {
 }
 
 // ============================================================================
+// PART 12 - ATR CALCULATOR & CANDLE MANAGER
+// ============================================================================
+
+class ATRCalculator {
+  constructor() {
+    this.candles = new Map(); // pair -> completed 1H candles (max 20)
+  }
+
+  addCandle(pair, candle) {
+    const p = normalizePair(pair);
+    if (!this.candles.has(p)) this.candles.set(p, []);
+    const arr = this.candles.get(p);
+    arr.push(candle);
+    if (arr.length > 20) arr.shift();
+  }
+
+  getATR(pair) {
+    const p = normalizePair(pair);
+    const candles = this.candles.get(p);
+    if (!candles || candles.length < 2) return null;
+
+    const period = Math.min(14, candles.length - 1);
+    const trValues = [];
+    for (let i = candles.length - period; i < candles.length; i++) {
+      const c = candles[i];
+      const prev = candles[i - 1];
+      const tr = Math.max(
+        c.high - c.low,
+        Math.abs(c.high - prev.close),
+        Math.abs(c.low - prev.close)
+      );
+      trValues.push(tr);
+    }
+
+    if (!trValues.length) return null;
+    return trValues.reduce((a, b) => a + b, 0) / trValues.length;
+  }
+}
+
+class CandleManager {
+  constructor() {
+    this.candles = new Map(); // `${pair}|${interval}` -> completed candles (max 100)
+  }
+
+  pushCompleted(pair, interval, candle) {
+    const key = `${normalizePair(pair)}|${interval}`;
+    if (!this.candles.has(key)) this.candles.set(key, []);
+    const arr = this.candles.get(key);
+    arr.push(candle);
+    if (arr.length > 100) arr.shift();
+  }
+
+  getCandles(pair, interval, count = 50) {
+    const key = `${normalizePair(pair)}|${interval}`;
+    const arr = this.candles.get(key);
+    if (!arr || !arr.length) return [];
+    return arr.slice(-count);
+  }
+}
+
+// ============================================================================
 // PART 5 - ENTRY LEVEL CALCULATOR
 // ============================================================================
 
@@ -757,7 +827,7 @@ class EntryLevelCalculator {
    * Provides two entries: aggressive (current) + conservative (retracement).
    * Dynamic SL at nearest round number. TP3 uses fibonacci extension (1.618).
    */
-  calculateLevels(currentBid, currentAsk, direction, severity, movement = null) {
+  calculateLevels(currentBid, currentAsk, direction, severity, movement = null, atr = null) {
     const pipSize = pipSizeForPair(this.pair);
     const decimals = decimalsForPair(this.pair);
 
@@ -776,24 +846,34 @@ class EntryLevelCalculator {
       ? entry - moveSize * retracePct
       : entry + moveSize * retracePct;
 
-    // Dynamic SL: snap to nearest round number (e.g. .00, .50 for non-JPY; whole numbers for JPY)
-    const baseSl = direction === 'BUY'
-      ? entry - severity.slPips * pipSize
-      : entry + severity.slPips * pipSize;
+    let slDistance, tp1Distance, tp2Distance, tp3Distance;
+
+    if (atr && Number.isFinite(atr) && atr > 0) {
+      // ATR-based levels: SL=1.5×ATR, TP1=1.0×ATR, TP2=2.0×ATR, TP3=3.0×ATR
+      slDistance = atr * 1.5;
+      tp1Distance = atr * 1.0;
+      tp2Distance = atr * 2.0;
+      tp3Distance = atr * 3.0;
+    } else {
+      // Fall back to fixed pip distances
+      slDistance = severity.slPips * pipSize;
+      tp1Distance = severity.tpPips * 0.4 * pipSize;
+      tp2Distance = severity.tpPips * 0.7 * pipSize;
+      tp3Distance = severity.tpPips * 1.618 / (severity.riskReward || 1) * pipSize;
+    }
+
+    // Dynamic SL: snap to nearest round number
+    const baseSl = direction === 'BUY' ? entry - slDistance : entry + slDistance;
     const roundStep = this.pair.includes('JPY') ? 0.5 : 0.005;
     const sl = direction === 'BUY'
       ? Math.floor(baseSl / roundStep) * roundStep
       : Math.ceil(baseSl / roundStep) * roundStep;
 
-    // TP levels: TP3 uses fibonacci 1.618 extension
-    const tpPips = severity.tpPips;
-    const tp1Distance = tpPips * 0.4;
-    const tp2Distance = tpPips * 0.7;
-    const tp3Distance = tpPips * 1.618 / (severity.riskReward || 1);
+    const tp1 = direction === 'BUY' ? entry + tp1Distance : entry - tp1Distance;
+    const tp2 = direction === 'BUY' ? entry + tp2Distance : entry - tp2Distance;
+    const tp3 = direction === 'BUY' ? entry + tp3Distance : entry - tp3Distance;
 
-    const tp1 = direction === 'BUY' ? entry + tp1Distance * pipSize : entry - tp1Distance * pipSize;
-    const tp2 = direction === 'BUY' ? entry + tp2Distance * pipSize : entry - tp2Distance * pipSize;
-    const tp3 = direction === 'BUY' ? entry + tp3Distance * pipSize : entry - tp3Distance * pipSize;
+    const riskReward = slDistance > 0 ? tp2Distance / slDistance : severity.riskReward;
 
     return {
       entry: Number(entry.toFixed(decimals)),
@@ -802,7 +882,7 @@ class EntryLevelCalculator {
       tp1: Number(tp1.toFixed(decimals)),
       tp2: Number(tp2.toFixed(decimals)),
       tp3: Number(tp3.toFixed(decimals)),
-      riskReward: severity.riskReward,
+      riskReward: Number(riskReward.toFixed(1)),
     };
   }
 }
@@ -1115,26 +1195,27 @@ class ConfluenceScorer {
 
   /**
    * Score a movement for institutional confluence signals.
+   * Uses candle data when available (via candleManager), falls back to ticks.
    * Returns { score: 0-165, signals: string[] }
    */
-  score(tickHistory, movement, noiseFilter) {
+  score(tickHistory, movement, noiseFilter, candleManager = null) {
     const signals = [];
     let score = 0;
 
-    // 1. Liquidity sweep detection (+35): price pierced recent high/low then reversed
-    const sweepScore = this.detectLiquiditySweep(tickHistory, movement);
+    // 1. Liquidity sweep detection (+35) — uses 1H candles
+    const sweepScore = this.detectLiquiditySweep(tickHistory, movement, candleManager);
     if (sweepScore > 0) { score += sweepScore; signals.push('LIQUIDITY_SWEEP'); }
 
-    // 2. Break of structure (+30): price broke previous swing high/low
-    const bosScore = this.detectBreakOfStructure(tickHistory, movement);
+    // 2. Break of structure (+30) — uses 1H candles
+    const bosScore = this.detectBreakOfStructure(tickHistory, movement, candleManager);
     if (bosScore > 0) { score += bosScore; signals.push('BOS'); }
 
-    // 3. Order block detection (+25): strong move from a consolidation zone
-    const obScore = this.detectOrderBlock(tickHistory, movement);
+    // 3. Order block detection (+25) — uses 15m candles
+    const obScore = this.detectOrderBlock(tickHistory, movement, candleManager);
     if (obScore > 0) { score += obScore; signals.push('ORDER_BLOCK'); }
 
-    // 4. Fair value gap (+20): gap between candle bodies
-    const fvgScore = this.detectFVG(tickHistory);
+    // 4. Fair value gap (+20) — uses 15m candles
+    const fvgScore = this.detectFVG(tickHistory, candleManager);
     if (fvgScore > 0) { score += fvgScore; signals.push('FVG'); }
 
     // 5. Volume anomaly (+25): tick frequency spike
@@ -1146,18 +1227,29 @@ class ConfluenceScorer {
     return { score, signals };
   }
 
-  detectLiquiditySweep(ticks, movement) {
-    if (ticks.length < 20) return 0;
-    const pipSize = pipSizeForPair(this.pair);
-    const recent = ticks.slice(-20);
+  detectLiquiditySweep(ticks, movement, candleManager) {
+    // Use 1H candles when available
+    const candles = candleManager ? candleManager.getCandles(this.pair, '1h', 20) : [];
+    if (candles.length >= 10) {
+      // Find swing highs/lows using 5-candle lookback
+      const swings = this._findSwings(candles, 5);
+      if (!swings.swingHigh || !swings.swingLow) return 0;
 
-    // Find the high/low of earlier ticks (first 15), check if last 5 pierced and reversed
+      const last = candles[candles.length - 1];
+      // Wick extends beyond swing high/low but close comes back inside
+      if (last.high > swings.swingHigh && last.close < swings.swingHigh && movement.direction === 'SELL') return 35;
+      if (last.low < swings.swingLow && last.close > swings.swingLow && movement.direction === 'BUY') return 35;
+      return 0;
+    }
+
+    // Tick fallback
+    if (ticks.length < 20) return 0;
+    const recent = ticks.slice(-20);
     let earlyHigh = -Infinity, earlyLow = Infinity;
     for (let i = 0; i < Math.min(15, recent.length); i++) {
       if (recent[i].bid > earlyHigh) earlyHigh = recent[i].bid;
       if (recent[i].bid < earlyLow) earlyLow = recent[i].bid;
     }
-
     const lastPrice = recent[recent.length - 1].bid;
     const peakInLate = recent.slice(-5);
     let lateHigh = -Infinity, lateLow = Infinity;
@@ -1165,71 +1257,121 @@ class ConfluenceScorer {
       if (t.bid > lateHigh) lateHigh = t.bid;
       if (t.bid < lateLow) lateLow = t.bid;
     }
-
-    // Sweep high then reversed down
     if (lateHigh > earlyHigh && lastPrice < earlyHigh && movement.direction === 'SELL') return 35;
-    // Sweep low then reversed up
     if (lateLow < earlyLow && lastPrice > earlyLow && movement.direction === 'BUY') return 35;
-
     return 0;
   }
 
-  detectBreakOfStructure(ticks, movement) {
-    if (ticks.length < 30) return 0;
-    const pipSize = pipSizeForPair(this.pair);
+  detectBreakOfStructure(ticks, movement, candleManager) {
+    // Use 1H candles when available
+    const candles = candleManager ? candleManager.getCandles(this.pair, '1h', 20) : [];
+    if (candles.length >= 10) {
+      const swings = this._findSwings(candles, 5);
+      if (!swings.swingHigh || !swings.swingLow) return 0;
 
-    // Find swing highs/lows in first 2/3 of window
+      const currentPrice = ticks.length ? ticks[ticks.length - 1].bid : candles[candles.length - 1].close;
+      if (movement.direction === 'BUY' && currentPrice > swings.swingHigh) return 30;
+      if (movement.direction === 'SELL' && currentPrice < swings.swingLow) return 30;
+      return 0;
+    }
+
+    // Tick fallback
+    if (ticks.length < 30) return 0;
     const structural = ticks.slice(0, Math.floor(ticks.length * 0.66));
     let swingHigh = -Infinity, swingLow = Infinity;
     for (const t of structural) {
       if (t.bid > swingHigh) swingHigh = t.bid;
       if (t.bid < swingLow) swingLow = t.bid;
     }
-
     const lastPrice = ticks[ticks.length - 1].bid;
     if (movement.direction === 'BUY' && lastPrice > swingHigh) return 30;
     if (movement.direction === 'SELL' && lastPrice < swingLow) return 30;
-
     return 0;
   }
 
-  detectOrderBlock(ticks, movement) {
+  detectOrderBlock(ticks, movement, candleManager) {
+    // Use 15m candles when available
+    const candles = candleManager ? candleManager.getCandles(this.pair, '15m', 20) : [];
+    if (candles.length >= 5) {
+      const avgBody = candles.slice(0, -1).reduce((sum, c) => sum + Math.abs(c.close - c.open), 0) / (candles.length - 1);
+      // Find last opposing candle before a strong impulse move
+      for (let i = candles.length - 2; i >= 1; i--) {
+        const c = candles[i];
+        const impulseBody = Math.abs(c.close - c.open);
+        if (impulseBody < avgBody * 2) continue;
+        // Check if preceding candle is opposing
+        const prev = candles[i - 1];
+        const prevBullish = prev.close > prev.open;
+        const impulseBullish = c.close > c.open;
+        if (prevBullish !== impulseBullish) {
+          // Opposing candle before strong impulse = order block
+          if ((movement.direction === 'BUY' && impulseBullish) ||
+              (movement.direction === 'SELL' && !impulseBullish)) {
+            return 25;
+          }
+        }
+      }
+      return 0;
+    }
+
+    // Tick fallback
     if (ticks.length < 10) return 0;
     const pipSize = pipSizeForPair(this.pair);
-
-    // Look for consolidation (low range) followed by breakout in last ticks
     const consolidation = ticks.slice(-10, -3);
     if (consolidation.length < 3) return 0;
-
     let cHigh = -Infinity, cLow = Infinity;
     for (const t of consolidation) {
       if (t.bid > cHigh) cHigh = t.bid;
       if (t.bid < cLow) cLow = t.bid;
     }
     const consolidationRange = (cHigh - cLow) / pipSize;
-    const breakoutPips = movement.totalPips;
-
-    // Consolidation was tight (<10 pips) and breakout is significant
-    if (consolidationRange < 10 && breakoutPips > 20) return 25;
-
+    if (consolidationRange < 10 && movement.totalPips > 20) return 25;
     return 0;
   }
 
-  detectFVG(ticks) {
+  detectFVG(ticks, candleManager) {
+    // Use 15m candles when available
+    const candles = candleManager ? candleManager.getCandles(this.pair, '15m', 10) : [];
+    if (candles.length >= 3) {
+      // Check recent candle triplets for FVG
+      for (let i = candles.length - 3; i >= Math.max(0, candles.length - 6); i--) {
+        const c0 = candles[i];
+        const c2 = candles[i + 2];
+        // Bullish FVG: candle[i].high < candle[i+2].low
+        if (c0.high < c2.low) return 20;
+        // Bearish FVG: candle[i].low > candle[i+2].high
+        if (c0.low > c2.high) return 20;
+      }
+      return 0;
+    }
+
+    // Tick fallback
     if (ticks.length < 3) return 0;
     const pipSize = pipSizeForPair(this.pair);
-
-    // Check last 3 ticks for a gap: tick[0].bid vs tick[2].bid with tick[1] not filling
     const t0 = ticks[ticks.length - 3].bid;
     const t1 = ticks[ticks.length - 2].bid;
     const t2 = ticks[ticks.length - 1].bid;
-
-    // Bullish FVG: gap up where t2 low > t0 high
     if (t2 > t0 && t1 < t2 && (t2 - t0) / pipSize > 5) return 20;
-    // Bearish FVG: gap down where t2 high < t0 low
     if (t2 < t0 && t1 > t2 && (t0 - t2) / pipSize > 5) return 20;
-
     return 0;
+  }
+
+  /**
+   * Find swing highs and lows from candle data using N-candle lookback.
+   */
+  _findSwings(candles, lookback) {
+    let swingHigh = null, swingLow = null;
+    for (let i = lookback; i < candles.length - 1; i++) {
+      let isSwingHigh = true, isSwingLow = true;
+      for (let j = 1; j <= lookback; j++) {
+        if (i - j < 0) { isSwingHigh = false; isSwingLow = false; break; }
+        if (candles[i].high <= candles[i - j].high) isSwingHigh = false;
+        if (candles[i].low >= candles[i - j].low) isSwingLow = false;
+      }
+      if (isSwingHigh) swingHigh = candles[i].high;
+      if (isSwingLow) swingLow = candles[i].low;
+    }
+    return { swingHigh, swingLow };
   }
 }
 
@@ -1253,6 +1395,9 @@ class ForexAlertEngine {
     this.maxTicksPerPair = 500; // Enforced circular buffer (W17)
     this.lastProcessedTs = new Map();
     this.lastQuotes = new Map();
+
+    this.atrCalculator = new ATRCalculator();
+    this.candleManager = new CandleManager();
 
     this.onAlert = null;
     this.onBuildingAlert = null;
@@ -1368,20 +1513,22 @@ class ForexAlertEngine {
         return null;
       }
 
-      // Confluence scoring (E6)
-      const confluence = engine.confluenceScorer.score(history, validatedMovement, engine.filter);
+      // Confluence scoring (E6) — use candle data when available
+      const confluence = engine.confluenceScorer.score(history, validatedMovement, engine.filter, this.candleManager);
       const minConfluence = MIN_CONFLUENCE_SCORES[validatedMovement.severity.level] || 0;
       if (confluence.score < minConfluence) {
         return null;
       }
 
-      // Calculate entry/SL/TP levels with movement data (E4)
+      // Calculate entry/SL/TP levels with movement data + ATR (E4)
+      const atr = this.atrCalculator.getATR(normalizedPair);
       const levels = engine.entryCalc.calculateLevels(
         resolvedBid,
         resolvedAsk,
         validatedMovement.direction,
         validatedMovement.severity,
-        validatedMovement
+        validatedMovement,
+        atr
       );
 
       // Apply false positive threshold adjustment (E3)

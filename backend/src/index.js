@@ -34,6 +34,7 @@ import { alertEvents, startMarketRecorder } from "./services/marketRecorder.js";
 import { publishMarketAlert } from "./services/marketPubSub.js";
 import { shutdownRedis } from "./services/redis.js";
 import { appLogger } from "./utils/logger.js";
+import { sendPushForAlert } from "./services/pushNotifications.js";
 
 const app = express();
 
@@ -103,6 +104,7 @@ setInterval(() => otpService.cleanupExpiredOtps().catch(() => {}), 15 * 60 * 100
 
 alertEvents.on("marketAlert", (alert) => {
   publishMarketAlert(alert);
+  sendPushForAlert(alert).catch(() => {});
 });
 
 const gracefulShutdown = async (signal) => {

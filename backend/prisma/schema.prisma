@@ -361,3 +361,24 @@ model UserAlert {
   @@index([userId])
   @@index([alertId])
 }
+
+model AlertOutcome {
+  id         String    @id @default(uuid())
+  alertId    String?
+  pair       String
+  direction  String
+  entryPrice Float
+  slPrice    Float
+  tp1Price   Float
+  tp2Price   Float
+  tp3Price   Float
+  outcome    String?   // "SL_HIT", "TP1_HIT", "TP2_HIT", "TP3_HIT", "EXPIRED"
+  exitPrice  Float?
+  exitedAt   DateTime?
+  pnlPips    Float?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([pair, outcome])
+  @@index([createdAt])
+}
