@@ -6,8 +6,9 @@ const logger = new Logger("MarketValidator");
 
 // determine decimal precision based on JPY vs non-JPY pairs (same logic as marketCache)
 const isJpyPair = (pair) => String(pair).includes("JPY");
-const decimalsForPair = (pair) => (isJpyPair(pair) ? 3 : 5);
-const pipSizeForPair = (pair) => (isJpyPair(pair) ? 0.01 : 0.0001);
+const isGoldPair = (pair) => String(pair).includes("XAU");
+const decimalsForPair = (pair) => (isGoldPair(pair) ? 2 : isJpyPair(pair) ? 3 : 5);
+const pipSizeForPair = (pair) => (isGoldPair(pair) ? 0.01 : isJpyPair(pair) ? 0.01 : 0.0001);
 
 // export helpers for external modules (e.g. velocity engine)
 export { decimalsForPair, pipSizeForPair };

@@ -5,6 +5,7 @@ import { getRecentMarketAlerts, marketAlertRetentionMs } from "../services/marke
 import { getHistoricalRates, getLiveRates, getPriceForPair } from "../services/rates.js";
 import { getForexMarketStatus } from "../services/marketSession.js";
 import { symbolToPair } from "../services/marketSymbols.js";
+import { getTrackRecord } from "../services/alertOutcomeTracker.js";
 
 const router = express.Router();
 
@@ -134,6 +135,15 @@ router.post("/quote", async (req, res) => {
           : "Failed to fetch quote",
       market: marketStatus
     });
+  }
+});
+
+router.get("/track-record", async (_req, res) => {
+  try {
+    const stats = await getTrackRecord();
+    return res.json(stats);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 });
 
