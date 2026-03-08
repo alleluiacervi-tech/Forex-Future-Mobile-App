@@ -520,9 +520,9 @@ class MovementAnalyzer {
   classifySpeed(pips, ms) {
     const seconds = ms / 1000;
 
-    if (seconds <= 30 && pips >= 25) return 'EXPLOSIVE';
-    if (seconds <= 90 && pips >= 25) return 'STRONG';
-    if (seconds <= 180 && pips >= 25) return 'MODERATE';
+    if (seconds <= 30 && pips >= 12) return 'EXPLOSIVE';
+    if (seconds <= 90 && pips >= 12) return 'STRONG';
+    if (seconds <= 300 && pips >= 12) return 'MODERATE';
 
     return null;
   }
@@ -602,23 +602,23 @@ class MovementAnalyzer {
   calculateSeverity(pips, ms) {
     const seconds = ms / 1000;
 
-    // CRASH level
-    if (pips >= 80 && seconds <= 60) {
+    // CRASH level: 55+ pips
+    if (pips >= ALERT_LEVELS.CRASH.pipRange[0] && seconds <= 60) {
       return ALERT_LEVELS.CRASH;
     }
 
-    // EXPLOSIVE level
-    if (pips >= 50 && seconds <= 90) {
+    // EXPLOSIVE level: 35-55 pips
+    if (pips >= ALERT_LEVELS.EXPLOSIVE.pipRange[0] && seconds <= 120) {
       return ALERT_LEVELS.EXPLOSIVE;
     }
 
-    // STRONG level
-    if (pips >= 35 && seconds <= 120) {
+    // STRONG level: 20-35 pips
+    if (pips >= ALERT_LEVELS.STRONG.pipRange[0] && seconds <= 180) {
       return ALERT_LEVELS.STRONG;
     }
 
-    // SIGNIFICANT level
-    if (pips >= 25 && seconds <= 180) {
+    // SIGNIFICANT level: 12-20 pips
+    if (pips >= ALERT_LEVELS.SIGNIFICANT.pipRange[0] && seconds <= 300) {
       return ALERT_LEVELS.SIGNIFICANT;
     }
 
