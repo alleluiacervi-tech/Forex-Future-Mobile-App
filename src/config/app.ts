@@ -87,6 +87,7 @@ if (__DEV__) {
 export const APP_CONFIG = {
   name: 'Forex Trading App',
   version: '1.0.0',
+  sentryDsn: process.env.EXPO_PUBLIC_SENTRY_DSN || '',
   apiUrl: resolvedApiUrl,
   refreshInterval: 5000, // 5 seconds
   defaultLotSize: 0.01,

@@ -7,7 +7,7 @@ import { ScreenWrapper, Container, EmptyState } from '../../components/layout';
 import { Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { MarketAlertCard } from '../../components/market/MarketAlertCard';
-import { useMarketAlerts, useMarketData, useTheme, useSubscriptionStatus } from '../../hooks';
+import { useMarketAlerts, useMarketData, useTheme, useSubscriptionStatus, useTrackRecord } from '../../hooks';
 import { TrialBanner, PremiumGate } from '../../components/common'; // ADDED: trial/premium banners (CHECK 3 + 10)
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -27,6 +27,7 @@ export default function HomeScreen() {
     limit: 50,
     pollMs: 15000,
   });
+  const { stats: trackRecord } = useTrackRecord();
   // ADDED: subscription status for trial banners (CHECK 3)
   const { trialEndingSoon, trialDaysLeft, cancelledButActive, hasAccess } = useSubscriptionStatus();
   // ADDED: premium gate modal state (CHECK 10)
@@ -83,6 +84,27 @@ export default function HomeScreen() {
               : 'Market is closed right now. Alerts and prices remain frozen until reopen.'}
           </Text>
 
+          {trackRecord.total > 0 && (
+            <View style={[styles.trackRecordBanner, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <View style={styles.trackRecordRow}>
+                <View style={styles.trackRecordStat}>
+                  <Text variant="h4" color={theme.colors.primary}>{trackRecord.winRate.toFixed(0)}%</Text>
+                  <Text variant="caption" color={theme.colors.textSecondary}>Win Rate</Text>
+                </View>
+                <View style={styles.trackRecordStat}>
+                  <Text variant="h4" color={trackRecord.avgPnlPips >= 0 ? '#4CAF50' : '#f44336'}>
+                    {trackRecord.avgPnlPips >= 0 ? '+' : ''}{trackRecord.avgPnlPips.toFixed(1)}
+                  </Text>
+                  <Text variant="caption" color={theme.colors.textSecondary}>Avg Pips</Text>
+                </View>
+                <View style={styles.trackRecordStat}>
+                  <Text variant="h4">{trackRecord.total}</Text>
+                  <Text variant="caption" color={theme.colors.textSecondary}>Tracked</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
           <View style={styles.feedList}>
             {alerts.length === 0 ? (
               <EmptyState
@@ -136,6 +158,19 @@ const styles = StyleSheet.create({
     marginTop: -6,
     marginBottom: 12,
     lineHeight: 18,
+  },
+  trackRecordBanner: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+  },
+  trackRecordRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  trackRecordStat: {
+    alignItems: 'center',
   },
   feedList: {
     paddingBottom: 10,
