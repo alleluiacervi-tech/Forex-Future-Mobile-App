@@ -9,7 +9,7 @@ import { Card, Text } from '../../components/common';
 import TopNavBar from '../../components/navigation/TopNavBar';
 import { useTheme } from '../../hooks';
 import { useAuth } from '../../context/AuthContext';
-import { apiAuthGet, apiPost } from '../../services/api';
+import { apiAuthGet, apiAuthPut, apiPost } from '../../services/api';
 import { RootStackParamList } from '../../types';
 import { resetToLanding } from '../../navigation/rootNavigation';
 
@@ -85,10 +85,50 @@ export default function ProfileScreen() {
     }
   };
 
-  // Settings state
+  // Settings state — persisted via preferences API
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [priceAlertsEnabled, setPriceAlertsEnabled] = useState(true);
+
+  const fetchPreferences = useCallback(async () => {
+    try {
+      const data = await apiAuthGet<{ preferences: { notifications: boolean; emailAlerts: boolean; pushAlerts: boolean } }>('/api/preferences');
+      if (data?.preferences) {
+        setNotificationsEnabled(data.preferences.notifications);
+        setSoundEnabled(data.preferences.emailAlerts);
+        setPriceAlertsEnabled(data.preferences.pushAlerts);
+      }
+    } catch {
+      // use defaults on error
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPreferences();
+  }, [fetchPreferences]);
+
+  const updatePreference = useCallback(async (field: string, value: boolean) => {
+    try {
+      await apiAuthPut('/api/preferences', { [field]: value });
+    } catch {
+      // revert on failure handled by caller
+    }
+  }, []);
+
+  const handleToggleNotifications = useCallback((value: boolean) => {
+    setNotificationsEnabled(value);
+    updatePreference('notifications', value);
+  }, [updatePreference]);
+
+  const handleToggleSound = useCallback((value: boolean) => {
+    setSoundEnabled(value);
+    updatePreference('emailAlerts', value);
+  }, [updatePreference]);
+
+  const handleTogglePriceAlerts = useCallback((value: boolean) => {
+    setPriceAlertsEnabled(value);
+    updatePreference('pushAlerts', value);
+  }, [updatePreference]);
 
   const MenuItem = ({ icon, title, subtitle, onPress, showChevron = true, hasSwitch, switchValue, onSwitchChange, iconColor }: {
     icon: IconName;
@@ -318,7 +358,7 @@ export default function ProfileScreen() {
                 subtitle="Receive alerts for market events"
                 hasSwitch
                 switchValue={notificationsEnabled}
-                onSwitchChange={setNotificationsEnabled}
+                onSwitchChange={handleToggleNotifications}
               />
               <MenuItem
                 icon="volume-high-outline"
@@ -326,7 +366,7 @@ export default function ProfileScreen() {
                 subtitle="Audio notifications for price movements"
                 hasSwitch
                 switchValue={soundEnabled}
-                onSwitchChange={setSoundEnabled}
+                onSwitchChange={handleToggleSound}
               />
               <MenuItem
                 icon="pricetag-outline"
@@ -334,7 +374,7 @@ export default function ProfileScreen() {
                 subtitle="Custom price level notifications"
                 hasSwitch
                 switchValue={priceAlertsEnabled}
-                onSwitchChange={setPriceAlertsEnabled}
+                onSwitchChange={handleTogglePriceAlerts}
               />
             </Card>
           </View>

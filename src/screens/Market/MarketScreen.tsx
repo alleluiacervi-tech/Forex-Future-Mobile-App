@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -24,16 +24,29 @@ export default function MarketScreen() {
   const theme = useTheme();
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [selectedPair, setSelectedPair] = useState<CurrencyPair | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const { pairs, loading, error, isMarketOpen } = useMarketData(APP_CONFIG.refreshInterval);
 
   const filters = ['All', 'Major', 'Minor', 'Exotic'];
 
-  const filteredPairs =
-    selectedFilter === 'All'
-      ? pairs
-      : selectedFilter === 'Major'
-      ? pairs.filter((pair) => MAJOR_PAIRS.includes(pair.symbol))
-      : pairs;
+  const filteredPairs = (() => {
+    let result =
+      selectedFilter === 'All'
+        ? pairs
+        : selectedFilter === 'Major'
+        ? pairs.filter((pair) => MAJOR_PAIRS.includes(pair.symbol))
+        : pairs;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter(
+        (pair) =>
+          pair.symbol.toLowerCase().includes(q) ||
+          pair.base.toLowerCase().includes(q) ||
+          pair.quote.toLowerCase().includes(q),
+      );
+    }
+    return result;
+  })();
 
   return (
     <ScreenWrapper>
@@ -77,6 +90,23 @@ export default function MarketScreen() {
           </Card>
         )}
 
+        <View style={styles.searchContainer}>
+          <Icon name="search" size={20} color={theme.colors.textSecondary} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, { color: theme.colors.text, borderColor: theme.colors.border }]}
+            placeholder="Search pairs..."
+            placeholderTextColor={theme.colors.textSecondary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+            autoCapitalize="characters"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
+              <Icon name="close" size={18} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
         <Tabs tabs={filters} activeTab={selectedFilter} onTabChange={setSelectedFilter} />
         {!isMarketOpen ? (
           <View style={styles.stateContainer}>
@@ -163,5 +193,29 @@ const styles = StyleSheet.create({
   },
   stateText: {
     textAlign: 'center',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    zIndex: 1,
+  },
+  searchInput: {
+    flex: 1,
+    height: 42,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingLeft: 38,
+    paddingRight: 36,
+    fontSize: 15,
+  },
+  clearBtn: {
+    position: 'absolute',
+    right: 10,
+    padding: 4,
   },
 });

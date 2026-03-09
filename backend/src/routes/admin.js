@@ -27,100 +27,190 @@ const requireAdmin = async (req, res, next) => {
 // return a single dashboard payload containing all data needed by the admin screen
 router.get("/dashboard", authenticate, requireAdmin, async (req, res) => {
   try {
-    // static data that mirrors what the front end currently hardcodes
+    // --- Real DB queries ---
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+    const [
+      totalUsers,
+      usersThisWeek,
+      activeSubs,
+      revenueThisMonth,
+      revenueLastMonth,
+      alertsToday,
+      alertPairsToday,
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { createdAt: { gte: startOfWeek } } }),
+      prisma.subscription.count({ where: { status: "active" } }),
+      prisma.paymentEvent.aggregate({
+        where: { eventType: "PAYMENT.SALE.COMPLETED", createdAt: { gte: startOfMonth } },
+        _sum: { amount: true },
+      }),
+      prisma.paymentEvent.aggregate({
+        where: { eventType: "PAYMENT.SALE.COMPLETED", createdAt: { gte: startOfLastMonth, lte: endOfLastMonth } },
+        _sum: { amount: true },
+      }),
+      prisma.marketAlert.count({ where: { createdAt: { gte: startOfDay } } }),
+      prisma.marketAlert.groupBy({ by: ["pair"], where: { createdAt: { gte: startOfDay } } }),
+    ]);
+
+    const monthRevenue = Number(revenueThisMonth._sum.amount || 0);
+    const lastMonthRevenue = Number(revenueLastMonth._sum.amount || 0);
+    const revenuePctChange = lastMonthRevenue > 0
+      ? Math.round(((monthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : 0;
+    const conversionPct = totalUsers > 0 ? Math.round((activeSubs / totalUsers) * 100) : 0;
+
     const stats = [
       {
         title: "Total Users",
-        value: "1,240",
-        subtitle: "+28 this week",
-        trend: "up",
+        value: totalUsers.toLocaleString(),
+        subtitle: `+${usersThisWeek} this week`,
+        trend: usersThisWeek > 0 ? "up" : "neutral",
       },
       {
         title: "Active Subscribers",
-        value: "847",
-        subtitle: "68% conversion",
-        trend: "up",
+        value: activeSubs.toLocaleString(),
+        subtitle: `${conversionPct}% conversion`,
+        trend: activeSubs > 0 ? "up" : "neutral",
       },
       {
         title: "Revenue This Month",
-        value: "$16,940",
-        subtitle: "+12% last month",
-        trend: "up",
+        value: `$${monthRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        subtitle: revenuePctChange >= 0 ? `+${revenuePctChange}% last month` : `${revenuePctChange}% last month`,
+        trend: revenuePctChange >= 0 ? "up" : "down",
       },
       {
         title: "Alerts Today",
-        value: "342",
-        subtitle: "6 currency pairs",
+        value: alertsToday.toLocaleString(),
+        subtitle: `${alertPairsToday.length} currency pairs`,
         trend: "neutral",
       },
     ];
 
+    // Revenue chart — last 7 days of payment events
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now);
+      d.setDate(now.getDate() - (6 - i));
+      d.setHours(0, 0, 0, 0);
+      return d;
+    });
+    const dayLabels = last7Days.map((d) => d.toLocaleDateString("en-US", { weekday: "short" }));
+
+    const revenueByDay = await prisma.paymentEvent.groupBy({
+      by: ["createdAt"],
+      where: { eventType: "PAYMENT.SALE.COMPLETED", createdAt: { gte: last7Days[0] } },
+      _sum: { amount: true },
+    });
+
+    // Bucket into days
+    const dailyRevenue = last7Days.map((day) => {
+      const nextDay = new Date(day);
+      nextDay.setDate(day.getDate() + 1);
+      const total = revenueByDay
+        .filter((r) => r.createdAt >= day && r.createdAt < nextDay)
+        .reduce((sum, r) => sum + Number(r._sum.amount || 0), 0);
+      return total;
+    });
+
     const revenueData = {
-      labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      labels: dayLabels,
       datasets: [
         {
-          data: [12000, 13200, 15000, 14000, 15500, 16000, 16940],
+          data: dailyRevenue,
           color: () => "#4CAF50",
           strokeWidth: 2,
-          name: "Monthly",
-        },
-        {
-          data: [40000, 42000, 44000, 43000, 45000, 46000, 47000],
-          color: () => "#FFC107",
-          strokeWidth: 2,
-          name: "3 Month",
-        },
-        {
-          data: [200000, 202000, 205000, 203000, 206000, 208000, 203280],
-          color: () => "#2196F3",
-          strokeWidth: 2,
-          name: "Annual",
+          name: "Daily Revenue",
         },
       ],
     };
 
-    const subscriptionPieData = [
-      { name: "Monthly", population: 42, color: "#4CAF50" },
-      { name: "3 Months", population: 31, color: "#FFC107" },
-      { name: "Annual", population: 27, color: "#2196F3" },
-    ];
+    // Subscription breakdown pie chart
+    const subsByPlan = await prisma.subscription.groupBy({
+      by: ["plan"],
+      where: { status: "active" },
+      _count: true,
+    });
+    const planColors = { monthly: "#4CAF50", "3months": "#FFC107", annual: "#2196F3" };
+    const subscriptionPieData = subsByPlan.map((s) => ({
+      name: s.plan.charAt(0).toUpperCase() + s.plan.slice(1),
+      population: s._count,
+      color: planColors[s.plan] || "#9BB3BD",
+    }));
 
     const alerts = await getRecentMarketAlerts({ limit: 6 });
 
     const ws = {
       provider: "FCS API",
-      ticks: 342,
+      ticks: alertsToday,
       lastTick: new Date().toISOString(),
       uptime: "99.8%",
       reconnections: 0,
     };
 
-    const users = [
-      { name: "Alice Baker", email: "alice@example.com", plan: "Monthly", status: "Active" },
-      { name: "Bob Carter", email: "bob@example.com", plan: "3 Months", status: "Trial" },
-      { name: "Cara Diaz", email: "cara@example.com", plan: "Annual", status: "Active" },
-      { name: "Dan Evans", email: "dan@example.com", plan: "Monthly", status: "Cancelled" },
-      { name: "Eva Ford", email: "eva@example.com", plan: "3 Months", status: "Active" },
-      { name: "Frank Green", email: "frank@example.com", plan: "Annual", status: "Active" },
-      { name: "Gina Hall", email: "gina@example.com", plan: "Monthly", status: "Trial" },
-      { name: "Hank Ivy", email: "hank@example.com", plan: "Annual", status: "Active" },
-    ];
+    // Real users list
+    const dbUsers = await prisma.user.findMany({
+      take: 50,
+      orderBy: { createdAt: "desc" },
+      select: {
+        name: true,
+        email: true,
+        subscriptions: {
+          take: 1,
+          orderBy: { createdAt: "desc" },
+          select: { plan: true, status: true },
+        },
+      },
+    });
+    const users = dbUsers.map((u) => ({
+      name: u.name,
+      email: u.email,
+      plan: u.subscriptions[0]?.plan || "None",
+      status: u.subscriptions[0]?.status
+        ? u.subscriptions[0].status.charAt(0).toUpperCase() + u.subscriptions[0].status.slice(1)
+        : "No subscription",
+    }));
 
-    const notifications = [
-      { type: "danger", message: "Card declined for user@email.com", time: "2m ago" },
-      { type: "info", message: "New user joined — Trial started", time: "5m ago" },
-      { type: "warning", message: "FCS API reconnected after 3s", time: "10m ago" },
-      { type: "warning", message: "342 alerts sent in last hour", time: "30m ago" },
-      { type: "accent", message: "New annual subscription — $192", time: "1h ago" },
-    ];
+    // Recent payment events as notifications
+    const recentEvents = await prisma.paymentEvent.findMany({
+      take: 5,
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { email: true } } },
+    });
+    const notifications = recentEvents.map((e) => {
+      const mins = Math.round((now.getTime() - new Date(e.createdAt).getTime()) / 60000);
+      const time = mins < 60 ? `${mins}m ago` : `${Math.round(mins / 60)}h ago`;
+      if (e.eventType === "PAYMENT.SALE.COMPLETED") {
+        return { type: "accent", message: `Payment $${Number(e.amount || 0).toFixed(2)} — ${e.user?.email || "unknown"}`, time };
+      }
+      return { type: "info", message: `${e.eventType} — ${e.user?.email || "unknown"}`, time };
+    });
+
+    // Real revenue metrics
+    const [newSubsToday, cancelledToday, trialCount] = await Promise.all([
+      prisma.subscription.count({ where: { createdAt: { gte: startOfDay } } }),
+      prisma.subscription.count({ where: { status: "cancelled", updatedAt: { gte: startOfDay } } }),
+      prisma.subscription.count({ where: { status: "trial" } }),
+    ]);
+    const totalSubsEver = await prisma.subscription.count();
+    const churnRate = totalSubsEver > 0 ? ((cancelledToday / totalSubsEver) * 100).toFixed(1) : "0.0";
+    const arr = monthRevenue * 12;
 
     const revenueMetrics = {
-      newSubscribersToday: 14,
-      cancelledToday: 3,
-      trialConversionsThisWeek: "67%",
-      churnRate: "2.3%",
-      mrr: "$16,940",
-      arr: "$203,280",
+      newSubscribersToday: newSubsToday,
+      cancelledToday,
+      trialConversionsThisWeek: totalSubsEver > 0 ? `${Math.round((activeSubs / totalSubsEver) * 100)}%` : "0%",
+      churnRate: `${churnRate}%`,
+      mrr: `$${monthRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      arr: `$${arr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     };
 
     res.json({

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import * as Sentry from '@sentry/react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, Platform, StyleSheet, View, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,6 +16,13 @@ import TermsScreen from './src/screens/Terms/TermsScreen';
 import { AuthProvider } from './src/context/AuthContext';
 import { ToastProvider } from './src/context/ToastContext';
 import { queryClient } from './src/services/queryClient'; // FIX: use singleton for cache clearing on logout
+import { APP_CONFIG } from './src/config';
+
+Sentry.init({
+  dsn: APP_CONFIG.sentryDsn,
+  enabled: !__DEV__ && !!APP_CONFIG.sentryDsn,
+  tracesSampleRate: 0.2,
+});
 
 const STARTUP_SPLASH_DURATION_MS = 5000;
 const TERMS_ACCEPTED_KEY = '@forexapp_terms_accepted';
@@ -23,7 +31,7 @@ void SplashScreen.preventAutoHideAsync().catch(() => {
   // Ignore if the splash screen is already prevented or unavailable.
 });
 
-export default function App() {
+function App() {
   // FIX: use imported singleton queryClient instead of creating new one
   const [qc] = useState(() => queryClient);
   const [appIsReady, setAppIsReady] = useState(false);
@@ -193,3 +201,5 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
 });
+
+export default Sentry.wrap(App);
