@@ -110,18 +110,8 @@ export default function ResetPasswordScreen() {
     }
 
     try {
-      const result = await resetPassword(email.trim().toLowerCase(), code.replace(/\s+/g, ''), newPassword);
-      const message =
-        typeof result?.message === 'string' && result.message
-          ? result.message
-          : 'Password reset successfully. Please log in with your new password.';
-
-      Alert.alert('Success', message, [
-        {
-          text: 'OK',
-          onPress: () => navigation.replace('Welcome'),
-        },
-      ]);
+      await resetPassword(email.trim().toLowerCase(), code.replace(/\s+/g, ''), newPassword);
+      navigation.replace('Welcome');
     } catch (error) {
       // ADDED: Extract error code for specific OTP error messages
       const errorCode = typeof error === 'object' && error !== null && 'code' in error

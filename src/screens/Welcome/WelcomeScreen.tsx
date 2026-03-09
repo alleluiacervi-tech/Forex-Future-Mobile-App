@@ -11,11 +11,12 @@ import { useAuth } from '../../context/AuthContext';
 import { RootStackParamList } from '../../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
-  const { login, isLoading, isAuthenticated } = useAuth();
+  const { login, verifyEmail, resendEmailVerification, isLoading, isAuthenticated } = useAuth();
   const { height } = Dimensions.get('window');
   const isSmallScreen = height < 700;
   const [email, setEmail] = useState('');
@@ -24,11 +25,16 @@ export default function WelcomeScreen() {
   const [showPaymentSetupAction, setShowPaymentSetupAction] = useState(false);
   // FIXED: added emailTouched state so validation error doesn't show while user is still typing
   const [emailTouched, setEmailTouched] = useState(false);
+  const [showVerificationAction, setShowVerificationAction] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationCodeSent, setVerificationCodeSent] = useState(false);
+  const [isSendingVerificationCode, setIsSendingVerificationCode] = useState(false);
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
 
   const emailError = useMemo(() => {
     if (!emailTouched || !email) return undefined;
     const normalized = email.trim().toLowerCase();
-    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+    const ok = EMAIL_REGEX.test(normalized);
     return ok ? undefined : 'Enter a valid email address';
   }, [email, emailTouched]);
 
@@ -37,6 +43,88 @@ export default function WelcomeScreen() {
       navigation.replace('Main');
     }
   }, [isAuthenticated, isLoading, navigation]);
+
+  const getNormalizedEmail = () => email.trim().toLowerCase();
+
+  const handleSendVerificationCode = async () => {
+    setEmailTouched(true);
+    const normalizedEmail = getNormalizedEmail();
+    if (!normalizedEmail) {
+      Alert.alert('Missing email', 'Please enter your email address first.');
+      return;
+    }
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+
+    try {
+      setIsSendingVerificationCode(true);
+      const result = await resendEmailVerification(normalizedEmail);
+      setVerificationCodeSent(true);
+      if (result?.debugCode) {
+        setVerificationCode(result.debugCode);
+      }
+      Alert.alert('Code sent', `A verification code has been sent to ${normalizedEmail}.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to send verification code';
+      if (message.toLowerCase().includes('network') || message.toLowerCase().includes('fetch') || message.toLowerCase().includes('connect')) {
+        Alert.alert('No connection', 'No internet connection. Check your network and try again.');
+        return;
+      }
+      Alert.alert('Request failed', message);
+    } finally {
+      setIsSendingVerificationCode(false);
+    }
+  };
+
+  const handleVerifyEmailInline = async () => {
+    setEmailTouched(true);
+    const normalizedEmail = getNormalizedEmail();
+    if (!normalizedEmail) {
+      Alert.alert('Missing email', 'Please enter your email address first.');
+      return;
+    }
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      Alert.alert('Invalid email', 'Please enter a valid email address.');
+      return;
+    }
+    const cleanedCode = verificationCode.replace(/\s+/g, '');
+    if (!cleanedCode) {
+      Alert.alert('Missing code', 'Enter the verification code from your email.');
+      return;
+    }
+
+    try {
+      setIsVerifyingEmail(true);
+      await verifyEmail(normalizedEmail, cleanedCode);
+      setShowVerificationAction(false);
+      setVerificationCodeSent(false);
+      setVerificationCode('');
+      Alert.alert('Email verified', 'Your email is verified. Sign in again to continue.');
+    } catch (error) {
+      const errorCode = typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: string }).code
+        : undefined;
+      if (errorCode === 'AUTH_OTP_INVALID') {
+        Alert.alert('Incorrect code', 'Incorrect code. Please try again.');
+        return;
+      }
+      if (errorCode === 'AUTH_OTP_EXPIRED') {
+        Alert.alert('Code expired', 'This code has expired. Send a new code and try again.');
+        return;
+      }
+      if (errorCode === 'AUTH_OTP_MAX_ATTEMPTS') {
+        Alert.alert('Too many attempts', 'Too many incorrect attempts. Send a new code and try again.');
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : 'Unable to verify email';
+      Alert.alert('Verification failed', message);
+    } finally {
+      setIsVerifyingEmail(false);
+    }
+  };
 
   const handleSignIn = async () => {
     setEmailTouched(true); // FIXED: mark touched on submit so validation shows
@@ -54,13 +142,15 @@ export default function WelcomeScreen() {
 
     // FIXED: validate inline since emailError memo may not reflect touched state yet
     const normalizedCheck = email.trim().toLowerCase();
-    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedCheck);
+    const isValidEmail = EMAIL_REGEX.test(normalizedCheck);
     // ADDED: User feedback message for invalid email format
     if (!isValidEmail) {
       Alert.alert('Invalid email', 'Please enter a valid email address.');
       return;
     }
 
+    setShowVerificationAction(false);
+    setVerificationCodeSent(false);
     setShowPaymentSetupAction(false);
 
     try {
@@ -86,14 +176,13 @@ export default function WelcomeScreen() {
         error !== null &&
         ((error as { verificationRequired?: boolean }).verificationRequired || errorCode === 'AUTH_EMAIL_NOT_VERIFIED');
       if (verificationRequired) {
+        setShowVerificationAction(true);
+        setShowPaymentSetupAction(false);
+        setVerificationCodeSent(false);
         // ADDED: User feedback message for unverified email
         Alert.alert(
           'Email not verified',
-          'Your email is not verified yet. Check your inbox for the verification code.',
-          [
-            { text: 'Go to Verification', onPress: () => navigation.navigate('VerifyEmail', { email: email.trim().toLowerCase() }) },
-            { text: 'Cancel', style: 'cancel' },
-          ],
+          'Your email is not verified yet. Use the Verify Email section below to request a code and verify.',
         );
         return;
       }
@@ -105,6 +194,8 @@ export default function WelcomeScreen() {
           (error.message.toLowerCase().includes('trial must be activated') ||
             error.message.toLowerCase().includes('free trial must be activated')));
       if (trialRequired) {
+        setShowVerificationAction(false);
+        setVerificationCodeSent(false);
         setShowPaymentSetupAction(true);
         // ADDED: User feedback message for trial expired / payment required
         const isExpired = error instanceof Error && error.message.toLowerCase().includes('expired');
@@ -294,6 +385,45 @@ export default function WelcomeScreen() {
                 disabled={isLoading}
               />
 
+              {showVerificationAction && (
+                <View style={[styles.verificationCard, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]}>
+                  <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.verificationHint}>
+                    Email verification is required before sign in.
+                  </Text>
+                  <Button
+                    title={isSendingVerificationCode ? 'Sending code...' : 'Send verification code'}
+                    onPress={handleSendVerificationCode}
+                    variant="outline"
+                    size="large"
+                    style={styles.verificationActionButton}
+                    disabled={isLoading || isVerifyingEmail || isSendingVerificationCode}
+                  />
+                  {verificationCodeSent && (
+                    <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.verificationHint}>
+                      Check your email inbox for the OTP, then enter it below.
+                    </Text>
+                  )}
+                  <View style={styles.verificationInputWrap}>
+                    <Input
+                      label="Verification code"
+                      value={verificationCode}
+                      onChangeText={setVerificationCode}
+                      placeholder="123456"
+                      keyboardType="numeric"
+                      leftAccessory={<Icon name="verified-user" size={20} color={theme.colors.textSecondary} />}
+                    />
+                  </View>
+                  <Button
+                    title={isVerifyingEmail ? 'Verifying...' : 'Verify email'}
+                    onPress={handleVerifyEmailInline}
+                    variant="primary"
+                    size="large"
+                    style={styles.verificationActionButton}
+                    disabled={isLoading || isVerifyingEmail || isSendingVerificationCode}
+                  />
+                </View>
+              )}
+
               {showPaymentSetupAction && (
                 <>
                   <Button
@@ -416,6 +546,24 @@ const styles = StyleSheet.create({
   signInButton: {
     width: '100%',
     marginTop: 6,
+  },
+  verificationCard: {
+    marginTop: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    padding: 12,
+  },
+  verificationHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  verificationActionButton: {
+    width: '100%',
+    marginTop: 6,
+  },
+  verificationInputWrap: {
+    marginTop: 8,
   },
   paymentSetupButton: {
     width: '100%',
