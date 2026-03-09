@@ -62,7 +62,7 @@ const parseRedisPayload = (rawValue) => {
   }
 };
 
-const recordTrade = ({ symbol, price, timestampMs, volume, priceType = "last", bid = null, ask = null }) => {
+const recordTrade = ({ symbol, price, timestampMs, volume, priceType = "last", bid = null, ask = null, synthetic = false }) => {
   if (!symbolToPair[symbol]) return;
   if (!Number.isFinite(price) || price <= 0) return;
   const ts = Number.isFinite(timestampMs) ? timestampMs : Date.now();
@@ -94,7 +94,8 @@ const recordTrade = ({ symbol, price, timestampMs, volume, priceType = "last", b
     const pair = symbolToPair[symbol];
     marketEvents.emit("trade", {
       ...livePayload,
-      pair
+      pair,
+      synthetic
     });
   } catch {}
 

@@ -280,6 +280,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
       const volume = Number(entry?.v);
       const bid = Number(entry?.b);
       const ask = Number(entry?.a);
+      const synthetic = entry?.synthetic === true;
 
       if (!pair || !Number.isFinite(price)) return;
 
@@ -289,7 +290,8 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
         timestampMs: Number.isFinite(timestampMs) ? timestampMs : Date.now(),
         volume: Number.isFinite(volume) ? volume : 0,
         bid: Number.isFinite(bid) ? bid : null,
-        ask: Number.isFinite(ask) ? ask : null
+        ask: Number.isFinite(ask) ? ask : null,
+        synthetic
       });
 
       if (Number.isFinite(bid) && Number.isFinite(ask)) {
@@ -397,7 +399,7 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
 
         publishMarketStream({
           type: "trade",
-          data: [{ s: symbol, p: price, t: ts, v: 0 }]
+          data: [{ s: symbol, p: price, t: ts, v: 0, synthetic: true }]
         });
       });
     }, tickMs);

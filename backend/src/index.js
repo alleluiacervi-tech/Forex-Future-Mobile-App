@@ -5,7 +5,7 @@ import cors from "cors";
 import helmet from "helmet";
 import pinoHttp from "pino-http";
 import config from "./config.js";
-import { connectPrisma } from "./db/prisma.js";
+import prisma, { connectPrisma } from "./db/prisma.js";
 import authRoutes from "./routes/auth.js";
 import marketRoutes from "./routes/market.js";
 import tradesRoutes from "./routes/trades.js";
@@ -101,6 +101,25 @@ logEmailConfigStatus();
 
 otpService.cleanupExpiredOtps().catch(() => {});
 setInterval(() => otpService.cleanupExpiredOtps().catch(() => {}), 15 * 60 * 1000);
+
+// Cleanup expired refresh tokens every hour
+const cleanupExpiredRefreshTokens = async () => {
+  try {
+    const result = await prisma.refreshToken.deleteMany({
+      where: {
+        OR: [
+          { expiresAt: { lt: new Date() } },
+          { revoked: true, createdAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+        ],
+      },
+    });
+    if (result.count > 0) {
+      appLogger.info({ count: result.count }, 'Cleaned up expired refresh tokens');
+    }
+  } catch {}
+};
+cleanupExpiredRefreshTokens().catch(() => {});
+setInterval(() => cleanupExpiredRefreshTokens().catch(() => {}), 60 * 60 * 1000);
 
 alertEvents.on("marketAlert", (alert) => {
   publishMarketAlert(alert);

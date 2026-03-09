@@ -630,6 +630,7 @@ const startMarketRecorder = () => {
       const tsMs = Number.isFinite(Number(trade?.timestampMs)) ? Number(trade.timestampMs) : Date.now();
       const volume = trade?.volume;
       const priceType = trade?.priceType || "last";
+      const isSynthetic = trade?.synthetic === true;
 
       const ticks = ensureTicks(pair);
       // reject ticks that arrive with a timestamp earlier than the most recent
@@ -667,6 +668,9 @@ const startMarketRecorder = () => {
 
       // IMPROVED: outliers are retained for diagnostics/candles but excluded from alert detection.
       if (tick.outlier) return;
+
+      // Synthetic ticks update candles/charts but must never trigger alerts.
+      if (isSynthetic) return;
 
       // Check pending alert outcomes against current price
       checkOutcomes(pair, price);

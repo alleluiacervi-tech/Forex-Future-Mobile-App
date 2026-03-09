@@ -23,6 +23,10 @@ const ATTEMPT_BASE_DELAY_MS = 300; // base multiplier for progressive delay
 // FIXED: use crypto.randomInt instead of Math.random for cryptographic security
 const randomSixDigitCode = () =>
   String(crypto.randomInt(0, 10 ** OTP_LENGTH)).padStart(OTP_LENGTH, '0');
+const generateSalt = () => crypto.randomBytes(16).toString('hex');
+const hashWithSalt = (val, salt) =>
+  crypto.createHash('sha256').update(`${salt}:${String(val || '')}`).digest('hex');
+// Legacy unsalted hash for verifying old OTPs during migration period
 const hashValue = (val) =>
   crypto.createHash('sha256').update(String(val || '')).digest('hex');
 const normalizeOtpCode = (value) => String(value || '').replace(/\D/g, '').slice(0, OTP_LENGTH);
@@ -63,11 +67,12 @@ class OtpService {
         data: { used: true }
       });
 
+      const salt = generateSalt();
       await tx.otp.create({
         data: {
           userId,
           purpose,
-          otpHash: hashValue(code),
+          otpHash: `${salt}:${hashWithSalt(code, salt)}`,
           expiresAt,
           ip,
           deviceInfo
@@ -91,7 +96,6 @@ class OtpService {
     }
 
     const now = new Date();
-    const providedHash = hashValue(submitted);
 
     const outcome = await prisma.$transaction(async (tx) => {
       const otpRecord = await tx.otp.findFirst({
@@ -124,7 +128,19 @@ class OtpService {
         return { status: 'max' };
       }
 
-      if (providedHash !== otpRecord.otpHash) {
+      // Support salted hashes (salt:hash format) and legacy unsalted hashes
+      const storedHash = otpRecord.otpHash;
+      let hashMatches;
+      if (storedHash.includes(':') && storedHash.split(':').length === 2) {
+        // New salted format: "salt:hash"
+        const [salt, hash] = storedHash.split(':');
+        hashMatches = hashWithSalt(submitted, salt) === hash;
+      } else {
+        // Legacy unsalted format
+        hashMatches = hashValue(submitted) === storedHash;
+      }
+
+      if (!hashMatches) {
         // incorrect
         const attempts = otpRecord.attempts + 1;
         const update = attempts >= OTP_MAX_ATTEMPTS ? { attempts, used: true } : { attempts };

@@ -77,7 +77,7 @@ model Account {
 
 model Position {
   id           String   @id @default(uuid())
-  user         User     @relation(fields: [userId], references: [id])
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId       String
   pair         String
   side         OrderSide
@@ -85,11 +85,14 @@ model Position {
   entryPrice   Float
   openTime     DateTime @default(now())
   unrealizedPnl Float   @default(0)
+
+  @@index([userId])
+  @@index([userId, pair])
 }
 
 model Order {
   id        String      @id @default(uuid())
-  user      User        @relation(fields: [userId], references: [id])
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   pair      String
   side      OrderSide
@@ -97,11 +100,14 @@ model Order {
   price     Float
   status    OrderStatus @default(filled)
   createdAt DateTime    @default(now())
+
+  @@index([userId])
+  @@index([userId, status, createdAt])
 }
 
 model Transaction {
   id        String          @id @default(uuid())
-  user      User            @relation(fields: [userId], references: [id])
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   type      TransactionType
   pair      String?
@@ -109,6 +115,9 @@ model Transaction {
   units     Float?
   price     Float?
   timestamp DateTime        @default(now())
+
+  @@index([userId])
+  @@index([userId, type, timestamp])
 }
 
 model Watchlist {
@@ -141,7 +150,7 @@ model Otp {
 
 model Recommendation {
   id               String   @id @default(uuid())
-  user             User     @relation(fields: [userId], references: [id])
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId           String
   pair             String
   action           String
@@ -158,7 +167,7 @@ model Recommendation {
 
 model PaymentMethod {
   id                String   @id @default(uuid())
-  user              User     @relation(fields: [userId], references: [id])
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId            String
   provider          String   @default("card")
   fingerprint       String?
