@@ -15,6 +15,22 @@ import Logger from "../utils/logger.js";
 const router = express.Router();
 const logger = new Logger("PayPalRoutes");
 
+const getAdminAnnualSubscription = () => {
+  const annualPlan = PAYPAL_PLAN_CATALOG.annual;
+  return {
+    id: "admin-annual",
+    plan: annualPlan?.key || "annual",
+    status: "active",
+    amount: Number(annualPlan?.amount || 0),
+    trialEnd: null,
+    currentPeriodEnd: null,
+    gracePeriodEnd: null,
+    paypalSubscriptionId: null,
+    createdAt: null,
+    isAdminManaged: true,
+  };
+};
+
 // GET /paypal/plans — public
 router.get("/plans", (_req, res) => {
   const plans = Object.values(PAYPAL_PLAN_CATALOG).map((p) => ({
@@ -36,6 +52,12 @@ router.get("/plans", (_req, res) => {
 
 // POST /paypal/create-subscription — authenticated
 router.post("/create-subscription", authenticate, async (req, res) => {
+  if (req.user?.isAdmin) {
+    return res.status(409).json({
+      error: "Admin accounts already include an active annual subscription.",
+    });
+  }
+
   const { planKey } = req.body;
   if (!planKey) {
     return res.status(400).json({ error: "Plan selection is required." });
@@ -115,24 +137,33 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
 
 // GET /paypal/subscription — authenticated
 router.get("/subscription", authenticate, async (req, res) => {
+  if (req.user?.isAdmin) {
+    return res.json({
+      subscription: getAdminAnnualSubscription(),
+      paypalDetails: null,
+    });
+  }
+
   try {
     const subscription = await prisma.subscription.findFirst({
       where: { userId: req.user.id },
       orderBy: { updatedAt: "desc" },
     });
 
-    if (!subscription || !subscription.paypalSubscriptionId) {
+    if (!subscription) {
       return res.json({ subscription: null });
     }
 
     let paypalDetails = null;
-    try {
-      paypalDetails = await getSubscription(subscription.paypalSubscriptionId);
-    } catch (error) {
-      logger.warn("Failed to fetch PayPal subscription details", {
-        subscriptionId: subscription.paypalSubscriptionId,
-        error: error?.message,
-      });
+    if (subscription.paypalSubscriptionId) {
+      try {
+        paypalDetails = await getSubscription(subscription.paypalSubscriptionId);
+      } catch (error) {
+        logger.warn("Failed to fetch PayPal subscription details", {
+          subscriptionId: subscription.paypalSubscriptionId,
+          error: error?.message,
+        });
+      }
     }
 
     return res.json({
@@ -160,6 +191,13 @@ router.get("/subscription", authenticate, async (req, res) => {
 
 // POST /paypal/cancel — authenticated
 router.post("/cancel", authenticate, async (req, res) => {
+  if (req.user?.isAdmin) {
+    return res.json({
+      message: "Admin annual access is always enabled and cannot be cancelled.",
+      accessUntil: null,
+    });
+  }
+
   const { reason } = req.body;
 
   try {
