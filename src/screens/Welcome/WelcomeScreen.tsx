@@ -16,7 +16,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function WelcomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const theme = useTheme();
-  const { login, verifyEmail, resendEmailVerification, isLoading, isAuthenticated } = useAuth();
+  const { login, verifyEmail, resendEmailVerification, isLoading, isAuthenticated, user } = useAuth();
   const { height } = Dimensions.get('window');
   const isSmallScreen = height < 700;
   const [email, setEmail] = useState('');
@@ -40,9 +40,9 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      navigation.replace('Main');
+      navigation.replace(user?.isAdmin ? 'AdminDashboard' : 'Main');
     }
-  }, [isAuthenticated, isLoading, navigation]);
+  }, [isAuthenticated, isLoading, navigation, user?.isAdmin]);
 
   const getNormalizedEmail = () => email.trim().toLowerCase();
 

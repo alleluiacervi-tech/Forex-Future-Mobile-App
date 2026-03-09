@@ -195,10 +195,9 @@ router.get("/dashboard", authenticate, requireAdmin, async (req, res) => {
     });
 
     // Real revenue metrics
-    const [newSubsToday, cancelledToday, trialCount] = await Promise.all([
+    const [newSubsToday, cancelledToday] = await Promise.all([
       prisma.subscription.count({ where: { createdAt: { gte: startOfDay } } }),
       prisma.subscription.count({ where: { status: "cancelled", updatedAt: { gte: startOfDay } } }),
-      prisma.subscription.count({ where: { status: "trial" } }),
     ]);
     const totalSubsEver = await prisma.subscription.count();
     const churnRate = totalSubsEver > 0 ? ((cancelledToday / totalSubsEver) * 100).toFixed(1) : "0.0";

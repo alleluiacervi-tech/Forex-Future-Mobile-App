@@ -408,6 +408,14 @@ export default function ProfileScreen() {
                 subtitle="Payment methods and history"
                 onPress={() => navigation.navigate('BillingPayments' as any)}
               />
+              {user?.isAdmin ? (
+                <MenuItem
+                  icon="speedometer-outline"
+                  title="Admin Dashboard"
+                  subtitle="Platform metrics and operations"
+                  onPress={() => navigation.navigate('AdminDashboard')}
+                />
+              ) : null}
             </Card>
           </View>
 

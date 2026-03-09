@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,7 +18,7 @@ export default function LoginOtpScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ScreenRouteProp>();
   const theme = useTheme();
-  const { verifyLoginOtp, resendLoginOtp, isLoading } = useAuth();
+  const { verifyLoginOtp, resendLoginOtp, isLoading, isAuthenticated, user } = useAuth();
 
   const [email, setEmail] = useState(route.params?.email ?? '');
   const [code, setCode] = useState(route.params?.code ?? route.params?.debugCode ?? '');
@@ -42,6 +42,12 @@ export default function LoginOtpScreen() {
 
   const canSubmit = !emailError && !codeError && email.trim() && code.trim();
 
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      navigation.replace(user?.isAdmin ? 'AdminDashboard' : 'Main');
+    }
+  }, [isAuthenticated, isLoading, navigation, user?.isAdmin]);
+
   const handleVerify = async () => {
     setTouched({ email: true, code: true });
     if (!canSubmit) {
@@ -54,7 +60,6 @@ export default function LoginOtpScreen() {
 
     try {
       await verifyLoginOtp(normalized, cleaned);
-      navigation.replace('Main');
     } catch (error) {
       Alert.alert('Verification failed', error instanceof Error ? error.message : 'Unable to verify code');
     }
