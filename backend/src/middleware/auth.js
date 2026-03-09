@@ -42,6 +42,7 @@ const authenticate = async (req, res, next) => {
         id: true,
         name: true,
         email: true,
+        isAdmin: true,
         createdAt: true,
         updatedAt: true,
         baseCurrency: true,
@@ -65,7 +66,9 @@ const authenticate = async (req, res, next) => {
       (prefix) => req.originalUrl.startsWith(prefix)
     );
 
-    if (user.email.toLowerCase() !== "demo@forex.app" && !isTrialExempt) {
+    const bypassTrialGuards = user.isAdmin || user.email.toLowerCase() === "demo@forex.app";
+
+    if (!bypassTrialGuards && !isTrialExempt) {
       if (!user.trialActive) {
         logger.warn('Trial not active for user', { userId: user.id, email: user.email });
         return res.status(403).json({ error: "Free trial must be activated before login." });

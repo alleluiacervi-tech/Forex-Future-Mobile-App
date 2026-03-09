@@ -215,6 +215,8 @@ export async function apiAuthGet<T>(path: string, options: { token?: string } = 
   );
 }
 
+export { apiPost as apiAuthPost };
+
 export async function apiAuthPut<T>(
   path: string,
   body: unknown,

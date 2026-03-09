@@ -23,13 +23,14 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "node prisma/seed.js",
     "seed": "node prisma/seed.js",
+    "admin:set": "node scripts/setAdminUser.js",
     "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
     "@arcjet/inspect": "^1.1.0",
     "@arcjet/node": "^1.1.0",
     "@prisma/adapter-pg": "^7.4.1",
-    "@prisma/client": "^7.4.1",
+    "@prisma/client": "^7.4.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -53,7 +54,7 @@
     "@types/node": "^25.3.0",
     "eslint": "^9.9.0",
     "eslint-config-prettier": "^9.1.0",
-    "prisma": "^7.4.1",
+    "prisma": "^7.4.2",
     "supertest": "^7.2.2",
     "typescript": "^5.9.3"
   }

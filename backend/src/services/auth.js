@@ -780,6 +780,7 @@ class AuthService {
           id: true,
           name: true,
           email: true,
+          isAdmin: true,
           emailVerified: true,
           emailVerifiedAt: true,
           passwordHash: true,
@@ -813,14 +814,16 @@ class AuthService {
         throw err;
       }
 
-      if (normalizedEmail !== "demo@forex.app" && !user.emailVerified) {
+      const bypassAuthGuards = user.isAdmin || normalizedEmail === "demo@forex.app";
+
+      if (!bypassAuthGuards && !user.emailVerified) {
         logger.warn("Authentication blocked - email not verified", { userId: user.id, email: normalizedEmail });
         throw new Error("Email verification required.");
       }
 
       // optional OTP on login
       const loginOtpRequired = process.env.LOGIN_OTP_REQUIRED === 'true';
-      if (loginOtpRequired) {
+      if (loginOtpRequired && !user.isAdmin) {
         // issue a one‑time code and ask the client to verify it before issuing JWT
         const { code, expiresAt } = await otpService.generateOtp(user.id, 'login');
         await this.sendVerificationEmail({ to: user.email, name: user.name, code, expiresAt });
@@ -834,7 +837,7 @@ class AuthService {
       }
 
       // Check trial status
-      if (normalizedEmail !== 'demo@forex.app') {
+      if (!bypassAuthGuards) {
         if (!user.trialActive) {
           logger.warn('Authentication failed - trial not activated', { userId: user.id, email: normalizedEmail });
           throw new Error('Free trial must be activated before login.');
