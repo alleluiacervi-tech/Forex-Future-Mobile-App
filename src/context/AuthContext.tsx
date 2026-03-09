@@ -8,6 +8,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  isAdmin?: boolean;
   emailVerified?: boolean;
   emailVerifiedAt?: string | null;
   trialActive: boolean;
