@@ -201,7 +201,7 @@ export default function ProfileScreen() {
             <TouchableOpacity
               style={[styles.editProfileButton, { backgroundColor: `${theme.colors.primary}14`, borderColor: `${theme.colors.primary}44` }]}
               activeOpacity={0.7}
-              onPress={() => {}}
+              onPress={() => navigation.navigate('Security' as any)}
             >
               <Icon name="create-outline" size={16} color={theme.colors.primary} />
               <Text variant="caption" style={[styles.editProfileText, { color: theme.colors.primary }]}>
@@ -440,7 +440,19 @@ export default function ProfileScreen() {
                 icon="close-circle-outline"
                 title="Delete Account"
                 subtitle="Permanently remove your data"
-                onPress={() => {}}
+                onPress={() => {
+                  Alert.alert(
+                    'Delete Account',
+                    'This will permanently delete your account and all data. This action cannot be undone. To proceed, please contact support at support@forexfuture.com.',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Contact Support',
+                        onPress: () => navigation.navigate('ContactUs' as any),
+                      },
+                    ]
+                  );
+                }}
                 iconColor="#f44336"
               />
             </Card>

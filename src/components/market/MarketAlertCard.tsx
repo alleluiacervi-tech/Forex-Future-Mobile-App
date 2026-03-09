@@ -12,6 +12,22 @@ interface MarketAlertCardProps {
   expanded?: boolean;
 }
 
+const formatTimeAgo = (isoDate?: string): string | null => {
+  if (!isoDate) return null;
+  const ts = Date.parse(isoDate);
+  if (!Number.isFinite(ts)) return null;
+  const diffMs = Date.now() - ts;
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
 const decimalsForPair = (pair: string) => (pair.includes('JPY') ? 3 : 5);
 
 const formatPrice = (pair: string, price: number | undefined) => {
@@ -77,6 +93,8 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
         ? theme.colors.success
         : theme.colors.error
       : theme.colors.textSecondary;
+
+  const timeAgo = formatTimeAgo(alert.triggeredAt);
 
   const containerStyle = alert.velocity
     ? [styles.card, { backgroundColor: theme.colors.surface, borderLeftColor: severityColor, borderLeftWidth: 4 }]
@@ -224,7 +242,11 @@ export const MarketAlertCard: React.FC<MarketAlertCardProps> = ({ alert, onPress
                 {alert.timeframe}
               </Text>
             ) : null}
-            {typeof alert.minutesAgo === 'number' ? (
+            {timeAgo ? (
+              <Text variant="caption" color={theme.colors.textSecondary}>
+                {timeAgo}
+              </Text>
+            ) : typeof alert.minutesAgo === 'number' ? (
               <Text variant="caption" color={theme.colors.textSecondary}>
                 {alert.minutesAgo}m ago
               </Text>
