@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
   View,
@@ -6,22 +6,21 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons as Icon } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Card, Text } from '../../components/common';
-import { useTheme, useGuardedCallback } from '../../hooks'; // ADDED: useGuardedCallback (CHECK 7)
+import { useTheme, useGuardedCallback } from '../../hooks';
 import { apiPost } from '../../services/api';
 import { RootStackParamList } from '../../types';
+import PayPalCheckoutWebView from './PayPalCheckoutWebView';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type IconName = ComponentProps<typeof Icon>['name'];
 
-type FlowState = 'idle' | 'loading' | 'success' | 'cancelled' | 'error';
+type FlowState = 'idle' | 'creating' | 'checkout' | 'capturing' | 'success' | 'cancelled' | 'error';
 
 const PLAN_DETAILS: Record<string, { name: string; price: string; interval: string; amount: string }> = {
   monthly: { name: 'Monthly Plan', price: '$20', interval: 'every month', amount: '$20.00' },
@@ -44,42 +43,64 @@ export default function PaymentScreen() {
 
   const [flowState, setFlowState] = useState<FlowState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [orderData, setOrderData] = useState<{ orderId: string; clientId: string } | null>(null);
 
   const firstChargeDate = getTrialEndDate();
 
-  // ADDED: useGuardedCallback prevents double-tap on payment button (CHECK 7)
-  const handlePayWithPayPal = useGuardedCallback(async () => {
-    setFlowState('loading');
+  const handleStartCheckout = useGuardedCallback(async () => {
+    setFlowState('creating');
     setErrorMessage('');
 
     try {
-      const data = await apiPost<{ subscriptionId: string; approvalUrl: string }>(
-        '/api/paypal/create-subscription',
+      const data = await apiPost<{ orderId: string; clientId: string }>(
+        '/api/paypal/create-order',
         { planKey }
       );
 
-      if (!data?.approvalUrl) {
+      if (!data?.orderId || !data?.clientId) {
         throw new Error('Unable to start payment. Please try again.');
       }
 
-      const result = await WebBrowser.openAuthSessionAsync(
-        data.approvalUrl,
-        'forexapp://billing/success'
-      );
-
-      if (result.type === 'success' || result.type === 'dismiss') {
-        setFlowState('success');
-      } else if (result.type === 'cancel') {
-        setFlowState('cancelled');
-      } else {
-        setFlowState('cancelled');
-      }
+      setOrderData({ orderId: data.orderId, clientId: data.clientId });
+      setFlowState('checkout');
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
       setErrorMessage(msg);
       setFlowState('error');
     }
   }, [planKey]);
+
+  const handleApproved = useGuardedCallback(async (data: { orderId: string }) => {
+    setFlowState('capturing');
+
+    try {
+      const result = await apiPost<{ success: boolean }>(
+        '/api/paypal/capture-order',
+        { orderId: data.orderId, planKey }
+      );
+
+      if (!result?.success) {
+        throw new Error('Payment capture failed. Please contact support.');
+      }
+
+      setFlowState('success');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Payment capture failed.';
+      setErrorMessage(msg);
+      setFlowState('error');
+    }
+  }, [planKey]);
+
+  const handleCancel = () => {
+    setFlowState('cancelled');
+    setOrderData(null);
+  };
+
+  const handleError = (message: string) => {
+    setErrorMessage(message);
+    setFlowState('error');
+    setOrderData(null);
+  };
 
   // SUCCESS STATE
   if (flowState === 'success') {
@@ -92,13 +113,13 @@ export default function PaymentScreen() {
                 <Icon name="checkmark-circle" size={80} color={theme.colors.success} />
               </View>
               <Text variant="h2" style={styles.stateTitle}>
-                Trial Started!
+                Payment Complete!
               </Text>
               <Text variant="body" color={theme.colors.textSecondary} style={styles.stateText}>
-                Your 7 day free trial has started
+                Your subscription is now active
               </Text>
               <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.stateText}>
-                First charge on {firstChargeDate}
+                7-day free trial started — first charge on {firstChargeDate}
               </Text>
               <Text variant="bodySmall" color={theme.colors.textSecondary} style={styles.stateText}>
                 You can cancel anytime before then
@@ -143,10 +164,13 @@ export default function PaymentScreen() {
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
                 activeOpacity={0.8}
-                onPress={() => navigation.goBack()}
+                onPress={() => {
+                  setFlowState('idle');
+                  setOrderData(null);
+                }}
               >
                 <Text variant="body" style={styles.actionButtonText}>
-                  Choose a Plan
+                  Try Again
                 </Text>
               </TouchableOpacity>
             </View>
@@ -178,6 +202,7 @@ export default function PaymentScreen() {
                 onPress={() => {
                   setFlowState('idle');
                   setErrorMessage('');
+                  setOrderData(null);
                 }}
               >
                 <Text variant="body" style={styles.actionButtonText}>
@@ -191,7 +216,7 @@ export default function PaymentScreen() {
     );
   }
 
-  // IDLE / LOADING — ORDER SUMMARY
+  // IDLE / CREATING / CHECKOUT / CAPTURING — ORDER SUMMARY + SMART BUTTONS
   return (
     <ScreenWrapper>
       <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
@@ -241,27 +266,37 @@ export default function PaymentScreen() {
             </View>
           </Card>
 
-          <TouchableOpacity
-            style={[styles.paypalButton, flowState === 'loading' && styles.paypalButtonDisabled]}
-            activeOpacity={0.8}
-            onPress={handlePayWithPayPal}
-            disabled={flowState === 'loading'}
-          >
-            {flowState === 'loading' ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator color="#003087" size="small" />
-                <Text variant="body" style={styles.paypalButtonText}>
-                  Setting up your account...
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.paypalRow}>
-                <Text variant="body" style={styles.paypalButtonText}>
-                  Pay with PayPal
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {flowState === 'checkout' && orderData ? (
+            <PayPalCheckoutWebView
+              orderId={orderData.orderId}
+              clientId={orderData.clientId}
+              onApproved={handleApproved}
+              onError={handleError}
+              onCancel={handleCancel}
+            />
+          ) : (
+            <TouchableOpacity
+              style={[styles.paypalButton, (flowState === 'creating' || flowState === 'capturing') && styles.paypalButtonDisabled]}
+              activeOpacity={0.8}
+              onPress={handleStartCheckout}
+              disabled={flowState === 'creating' || flowState === 'capturing'}
+            >
+              {flowState === 'creating' || flowState === 'capturing' ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator color="#003087" size="small" />
+                  <Text variant="body" style={styles.paypalButtonText}>
+                    {flowState === 'capturing' ? 'Completing payment...' : 'Setting up your order...'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.paypalRow}>
+                  <Text variant="body" style={styles.paypalButtonText}>
+                    Pay with PayPal or Card
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
 
           <View style={styles.securitySection}>
             <View style={styles.securityRow}>
@@ -277,7 +312,7 @@ export default function PaymentScreen() {
               </Text>
             </View>
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.securityText}>
-              Your payment is secured by PayPal
+              Pay with PayPal account or debit/credit card
             </Text>
             <Text variant="caption" color={theme.colors.textSecondary} style={styles.securityText}>
               Full refund within 48 hours if unsatisfied

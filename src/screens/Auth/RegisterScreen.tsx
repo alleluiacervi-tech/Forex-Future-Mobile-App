@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useMemo, useState, useCallback } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -48,6 +48,24 @@ export default function RegisterScreen() {
     if (password.length < 8) return 'Use at least 8 characters';
     return undefined;
   }, [password, touched.password]);
+
+  const passwordStrength = useMemo(() => {
+    if (!password) return { score: 0, label: '', color: 'transparent', width: '0%' as const };
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+
+    const levels: Array<{ label: string; color: string; width: `${number}%` }> = [
+      { label: 'Weak', color: '#EF4444', width: '25%' },
+      { label: 'Fair', color: '#F59E0B', width: '50%' },
+      { label: 'Good', color: '#3B82F6', width: '75%' },
+      { label: 'Strong', color: '#22C55E', width: '100%' },
+    ];
+    const idx = Math.max(0, Math.min(score - 1, 3));
+    return { score, ...levels[idx] };
+  }, [password]);
 
   const confirmPasswordError = useMemo(() => {
     if (!touched.confirmPassword) return undefined;
@@ -243,6 +261,22 @@ export default function RegisterScreen() {
                 error={passwordError}
               />
 
+              {password.length > 0 && (
+                <View style={styles.strengthContainer}>
+                  <View style={styles.strengthTrack}>
+                    <View
+                      style={[
+                        styles.strengthBar,
+                        { width: passwordStrength.width, backgroundColor: passwordStrength.color },
+                      ]}
+                    />
+                  </View>
+                  <Text variant="caption" style={{ color: passwordStrength.color, marginTop: 4 }}>
+                    {passwordStrength.label}
+                  </Text>
+                </View>
+              )}
+
               <Input
                 label="Confirm Password"
                 value={confirmPassword}
@@ -311,6 +345,9 @@ const styles = StyleSheet.create({
   logoRow: { alignItems: 'center', marginBottom: 24 },
   formCard: { padding: 16, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
   eyeInline: { padding: 6 },
+  strengthContainer: { marginTop: -4, marginBottom: 8 },
+  strengthTrack: { height: 4, borderRadius: 2, backgroundColor: '#1E293B', overflow: 'hidden' },
+  strengthBar: { height: '100%', borderRadius: 2 },
   submitButton: { marginTop: 12 },
   signInPrompt: { flexDirection: 'row', justifyContent: 'center', marginTop: 16 },
 });
