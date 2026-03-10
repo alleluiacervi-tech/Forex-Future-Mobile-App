@@ -314,6 +314,66 @@ export async function getAccessToken() {
   return tokenCache.token;
 }
 
+export async function createOrder(planKey, userId) {
+  const plan = resolvePlan(planKey);
+  const token = await getAccessToken();
+
+  const payload = {
+    intent: "CAPTURE",
+    purchase_units: [
+      {
+        reference_id: `${plan.key}_${userId}`,
+        description: `Forex Future – ${plan.name}`,
+        amount: {
+          currency_code: "USD",
+          value: plan.amount,
+        },
+      },
+    ],
+    application_context: {
+      brand_name: "Forex Future",
+      shipping_preference: "NO_SHIPPING",
+      user_action: "PAY_NOW",
+    },
+  };
+
+  const { data } = await paypalRequest("/v2/checkout/orders", {
+    method: "POST",
+    headers: jsonHeaders(token),
+    body: JSON.stringify(payload),
+  });
+
+  if (!data?.id) {
+    throw new Error("PayPal did not return an order ID.");
+  }
+
+  logger.info("PayPal order created", { userId, plan: plan.key, orderId: data.id });
+  return { orderId: data.id, plan };
+}
+
+export async function captureOrder(orderId) {
+  if (!orderId) {
+    const error = new Error("Missing order ID.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const token = await getAccessToken();
+  const { data } = await paypalRequest(`/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
+    method: "POST",
+    headers: jsonHeaders(token),
+  });
+
+  if (data?.status !== "COMPLETED") {
+    const error = new Error(`Order capture not completed (status: ${data?.status || "unknown"}).`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  logger.info("PayPal order captured", { orderId, status: data.status });
+  return data;
+}
+
 export async function createSubscription(planKey, userEmail, userName) {
   const plan = resolvePlan(planKey);
   const token = await getAccessToken();
@@ -648,6 +708,12 @@ export async function handleWebhook(event) {
       // ADDED: notify user of payment failure
       await createUserNotification(userId, "Payment Failed", "We could not process your subscription payment. Please update your billing details to keep access.", "alert");
       logger.warn("PayPal payment failed", { userId, subscriptionId, amount });
+      break;
+    }
+
+    case "CHECKOUT.ORDER.APPROVED": {
+      const orderId = resource?.id || "";
+      logger.info("PayPal order approved via webhook", { orderId, userId });
       break;
     }
 

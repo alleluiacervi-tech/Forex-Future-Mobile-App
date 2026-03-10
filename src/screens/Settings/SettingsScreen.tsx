@@ -112,7 +112,7 @@ export default function SettingsScreen() {
       id: 'account',
       title: 'Account Settings',
       icon: 'account-circle',
-      onPress: () => {},
+      onPress: () => navigation.navigate('Security'),
     },
     {
       id: 'notifications',
@@ -145,7 +145,7 @@ export default function SettingsScreen() {
       id: 'risk',
       title: 'Risk Management',
       icon: 'security',
-      onPress: () => {},
+      onPress: () => navigation.navigate('RiskDisclosure'),
     },
     {
       id: 'about',
@@ -159,7 +159,7 @@ export default function SettingsScreen() {
       id: 'help',
       title: 'Help & Support',
       icon: 'help',
-      onPress: () => {},
+      onPress: () => navigation.navigate('HelpCenter'),
     },
     {
       id: 'logout',

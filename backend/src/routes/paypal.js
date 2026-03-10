@@ -1,6 +1,8 @@
 import express from "express";
 import authenticate from "../middleware/auth.js";
 import {
+  createOrder,
+  captureOrder,
   createSubscription,
   cancelSubscription,
   getSubscription,
@@ -48,6 +50,116 @@ router.get("/plans", (_req, res) => {
     features: p.features,
   }));
   return res.json({ plans });
+});
+
+// POST /paypal/create-order — authenticated (Orders API v2)
+router.post("/create-order", authenticate, async (req, res) => {
+  if (req.user?.isAdmin) {
+    return res.status(409).json({
+      error: "Admin accounts already include an active annual subscription.",
+    });
+  }
+
+  const { planKey } = req.body;
+  if (!planKey) {
+    return res.status(400).json({ error: "Plan selection is required." });
+  }
+
+  try {
+    const { orderId } = await createOrder(planKey, req.user.id);
+    const clientId = String(process.env.PAYPAL_CLIENT_ID || "").trim();
+    return res.json({ orderId, clientId });
+  } catch (error) {
+    logger.error("Create order failed", {
+      userId: req.user.id,
+      error: error?.message,
+    });
+    const status = error?.statusCode || 500;
+    return res
+      .status(status)
+      .json({ error: error?.message || "Unable to create order. Please try again." });
+  }
+});
+
+// POST /paypal/capture-order — authenticated (Orders API v2)
+router.post("/capture-order", authenticate, async (req, res) => {
+  const { orderId, planKey } = req.body;
+  if (!orderId) {
+    return res.status(400).json({ error: "Order ID is required." });
+  }
+
+  try {
+    const captureData = await captureOrder(orderId);
+
+    // Resolve plan details for subscription record
+    const plan = PAYPAL_PLAN_CATALOG[String(planKey || "monthly").trim().toLowerCase()];
+    const payerId =
+      captureData?.payer?.payer_id ||
+      captureData?.payment_source?.paypal?.account_id ||
+      null;
+
+    const now = new Date();
+    const trialEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    // Determine period end based on plan interval
+    let currentPeriodEnd = new Date(now);
+    const interval = plan?.interval || "month";
+    if (interval === "month") {
+      currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+    } else if (interval === "3 months") {
+      currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 3);
+    } else if (interval === "year") {
+      currentPeriodEnd.setFullYear(currentPeriodEnd.getFullYear() + 1);
+    }
+
+    await prisma.subscription.create({
+      data: {
+        userId: req.user.id,
+        plan: plan?.key || "monthly",
+        status: "active",
+        amount: Number(plan?.amount || 0),
+        paypalSubscriptionId: orderId,
+        payerId,
+        cardFingerprint: payerId,
+        trialEnd,
+        currentPeriodEnd,
+      },
+    });
+
+    // Activate user trial
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { trialActive: true, trialStartedAt: now },
+      select: { id: true },
+    });
+
+    // Record fingerprint for trial abuse prevention
+    if (payerId) {
+      await prisma.trialFingerprint.upsert({
+        where: { cardFingerprint: payerId },
+        update: { userId: req.user.id },
+        create: { cardFingerprint: payerId, userId: req.user.id },
+      });
+    }
+
+    logger.info("Order captured and subscription created", {
+      userId: req.user.id,
+      orderId,
+      plan: plan?.key,
+    });
+
+    return res.json({ success: true, orderId, status: "COMPLETED" });
+  } catch (error) {
+    logger.error("Capture order failed", {
+      userId: req.user.id,
+      orderId,
+      error: error?.message,
+    });
+    const status = error?.statusCode || 500;
+    return res
+      .status(status)
+      .json({ error: error?.message || "Unable to capture order. Please try again." });
+  }
 });
 
 // POST /paypal/create-subscription — authenticated
