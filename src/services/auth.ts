@@ -27,15 +27,6 @@ export type AuthLoginOtpChallenge = {
 
 export type AuthLoginResult = AuthLoginResponse | AuthLoginOtpChallenge;
 
-export type AuthCardDetails = {
-  cardNumber: string;
-  cardExpMonth: number;
-  cardExpYear: number;
-  cardCvc: string;
-  cardName: string;
-  cardPostalCode: string;
-};
-
 type AuthForgotPasswordResponse = {
   message?: string;
   debugCode?: string;
@@ -406,23 +397,14 @@ class AuthService {
     }
   }
 
-  async startTrial(email: string, password: string, card: AuthCardDetails): Promise<AuthLoginResponse> {
+  async startTrial(email: string, password: string): Promise<AuthLoginResponse> {
     try {
       const response = await fetch(`${this.authBaseUrl}/trial/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email,
-          password,
-          cardNumber: card.cardNumber,
-          cardExpMonth: card.cardExpMonth,
-          cardExpYear: card.cardExpYear,
-          cardCvc: card.cardCvc,
-          cardName: card.cardName,
-          cardPostalCode: card.cardPostalCode,
-        }),
+        body: JSON.stringify({ email, password }),
       });
 
       const rawData = (await response.json().catch(() => ({})));
