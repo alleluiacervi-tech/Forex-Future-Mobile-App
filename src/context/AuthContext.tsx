@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import authService from '../services/auth';
-import type { AuthCardDetails, AuthLoginOtpChallenge, AuthLoginResult } from '../services/auth';
+import type { AuthLoginOtpChallenge, AuthLoginResult } from '../services/auth';
 import { disconnectMarketSocket } from '../services/marketSocket'; // ADDED: disconnect WS on logout
 import { queryClient } from '../services/queryClient'; // ADDED: clear cache on logout
 
@@ -34,7 +34,7 @@ interface AuthContextType {
     email: string,
     password: string,
   ) => Promise<{ verificationRequired?: boolean; verificationUnavailable?: boolean; debugCode?: string; debugExpiresAt?: string }>;
-  startTrial: (email: string, password: string, card: AuthCardDetails) => Promise<void>;
+  startTrial: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   verifyLoginOtp: (email: string, code: string) => Promise<void>;
@@ -141,10 +141,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const startTrial = useCallback(async (email: string, password: string, card: AuthCardDetails) => {
+  const startTrial = useCallback(async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      const { user: userData, token: authToken } = await authService.startTrial(email, password, card);
+      const { user: userData, token: authToken } = await authService.startTrial(email, password);
       setUser(userData);
       setToken(authToken);
       console.log('[AuthProvider] Trial started:', userData.email);
