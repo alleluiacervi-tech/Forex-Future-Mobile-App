@@ -49,13 +49,23 @@ const authenticate = async (req, res, next) => {
         riskLevel: true,
         notifications: true,
         trialActive: true,
-        trialStartedAt: true
+        trialStartedAt: true,
+        suspendedAt: true,
+        deletedAt: true,
       }
     });
 
     if (!user) {
       logger.warn('User not found for valid token', { userId: payload.sub });
       return res.status(401).json({ error: "User not found." });
+    }
+
+    // Guard: suspended or deleted accounts cannot access the API
+    if (user.suspendedAt) {
+      return res.status(403).json({ error: "Account is suspended." });
+    }
+    if (user.deletedAt) {
+      return res.status(403).json({ error: "Account has been deleted." });
     }
 
     // Check if trial is active and not expired (if not demo account).
