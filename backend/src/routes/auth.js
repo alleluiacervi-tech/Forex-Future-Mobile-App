@@ -18,6 +18,18 @@ import Logger from "../utils/logger.js";
 const router = express.Router();
 const logger = new Logger('AuthRoutes');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Strip debug codes from responses in production to prevent OTP/token leakage
+const stripDebugFields = (obj) => {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (isProduction) {
+    const { debugCode, debugExpiresAt, ...safe } = obj;
+    return safe;
+  }
+  return obj;
+};
+
 const resetThrottle = new Map();
 const resetThrottleMs = Number(process.env.PASSWORD_RESET_THROTTLE_MS || 60_000);
 
@@ -89,25 +101,14 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    const card =
-      data.cardNumber && data.cardExpMonth && data.cardExpYear && data.cardCvc
-        ? {
-            cardNumber: data.cardNumber,
-            cardExpMonth: data.cardExpMonth,
-            cardExpYear: data.cardExpYear,
-            cardCvc: data.cardCvc
-          }
-        : undefined;
-
     const result = await authService.registerUser(
       data.name,
       data.email,
-      data.password,
-      card
+      data.password
     );
     const user = result?.user || result;
     // ADDED: success response with consistent format
-    return res.status(201).json({
+    return res.status(201).json(stripDebugFields({
       success: true,
       user,
       account: user.account,
@@ -116,7 +117,7 @@ router.post("/register", async (req, res) => {
       verificationUnavailable: Boolean(result?.verificationUnavailable),
       debugCode: result?.debugCode,
       debugExpiresAt: result?.debugExpiresAt
-    });
+    }));
   } catch (error) {
     logger.error('Registration endpoint error', { error: error.message });
 
@@ -185,11 +186,11 @@ router.post("/email/resend", async (req, res) => {
     if (result?.unavailable) {
       return res.status(503).json({ error: "Email verification is temporarily unavailable." });
     }
-    return res.json({
+    return res.json(stripDebugFields({
       message: "If the account exists, a new verification code will be sent shortly.",
       debugCode: result?.debugCode,
       debugExpiresAt: result?.debugExpiresAt
-    });
+    }));
   } catch (err) {
     logger.error("Resend verification endpoint error", { email: normalizedEmail, error: err?.message });
     return res.json({ message: "If the account exists, a new verification code will be sent shortly." });
@@ -206,7 +207,7 @@ router.post("/login", async (req, res) => {
     const result = await authService.authenticateUser(data.email, data.password);
     if (result.otpRequired) {
       // OTP was sent instead of issuing token
-      return res.json({ success: true, otpRequired: true, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt });
+      return res.json(stripDebugFields({ success: true, otpRequired: true, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt }));
     }
     const { user, token } = result;
     // ADDED: generate refresh token on login
@@ -356,7 +357,7 @@ router.post("/password/forgot", async (req, res) => {
     };
 
     if (result?.debugCode || result?.debugExpiresAt) {
-      return res.json({ ...response, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt });
+      return res.json(stripDebugFields({ ...response, debugCode: result.debugCode, debugExpiresAt: result.debugExpiresAt }));
     }
 
     return res.json(response);
@@ -435,7 +436,7 @@ router.post('/otp/request', async (req, res) => {
     } else {
       await authService.sendVerificationEmail({ to: user.email, name: user.name, code, expiresAt });
     }
-    return res.json({ ok: true, debugCode: process.env.NODE_ENV !== 'production' ? code : undefined });
+    return res.json(stripDebugFields({ ok: true, debugCode: isProduction ? undefined : code }));
   } catch (err) {
     logger.error('OTP request failed', { email, purpose, error: err?.message });
     return res.json({ ok: true });

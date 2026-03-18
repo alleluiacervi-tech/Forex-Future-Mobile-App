@@ -78,23 +78,23 @@ model Account {
   id         String   @id @default(uuid())
   user       User     @relation(fields: [userId], references: [id])
   userId     String   @unique
-  balance    Float    @default(100000)
-  equity     Float    @default(100000)
-  marginUsed Float    @default(0)
+  balance    Decimal  @default(100000) @db.Decimal(20, 8)
+  equity     Decimal  @default(100000) @db.Decimal(20, 8)
+  marginUsed Decimal  @default(0)      @db.Decimal(20, 8)
   currency   String   @default("USD")
   updatedAt  DateTime @updatedAt
 }
 
 model Position {
-  id           String   @id @default(uuid())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String
-  pair         String
-  side         OrderSide
-  units        Float
-  entryPrice   Float
-  openTime     DateTime @default(now())
-  unrealizedPnl Float   @default(0)
+  id            String   @id @default(uuid())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String
+  pair          String
+  side          OrderSide
+  units         Decimal  @db.Decimal(20, 8)
+  entryPrice    Decimal  @db.Decimal(20, 8)
+  openTime      DateTime @default(now())
+  unrealizedPnl Decimal  @default(0) @db.Decimal(20, 8)
 
   @@index([userId])
   @@index([userId, pair])
@@ -106,8 +106,8 @@ model Order {
   userId    String
   pair      String
   side      OrderSide
-  units     Float
-  price     Float
+  units     Decimal     @db.Decimal(20, 8)
+  price     Decimal     @db.Decimal(20, 8)
   status    OrderStatus @default(filled)
   createdAt DateTime    @default(now())
 
@@ -122,8 +122,8 @@ model Transaction {
   type      TransactionType
   pair      String?
   side      OrderSide?
-  units     Float?
-  price     Float?
+  units     Decimal?        @db.Decimal(20, 8)
+  price     Decimal?        @db.Decimal(20, 8)
   timestamp DateTime        @default(now())
 
   @@index([userId])

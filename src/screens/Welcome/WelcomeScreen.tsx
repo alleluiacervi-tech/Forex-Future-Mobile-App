@@ -4,11 +4,13 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ScreenWrapper, Container } from '../../components/layout';
 import { Text, Button, Input, BrandLogo } from '../../components/common';
 import { useTheme } from '../../hooks';
 import { useAuth } from '../../context/AuthContext';
 import { RootStackParamList } from '../../types';
+import { ONBOARDING_STORAGE_KEY } from '../Onboarding';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,7 +42,13 @@ export default function WelcomeScreen() {
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      navigation.replace(user?.isAdmin ? 'AdminDashboard' : 'Main');
+      if (user?.isAdmin) {
+        navigation.replace('AdminDashboard');
+        return;
+      }
+      AsyncStorage.getItem(ONBOARDING_STORAGE_KEY).then((seen) => {
+        navigation.replace(seen === 'true' ? 'Main' : 'Onboarding');
+      });
     }
   }, [isAuthenticated, isLoading, navigation, user?.isAdmin]);
 

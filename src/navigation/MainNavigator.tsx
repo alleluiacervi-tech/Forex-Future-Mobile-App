@@ -51,6 +51,7 @@ import ContactUsScreen from '../screens/Support/ContactUsScreen';
 import TermsOfServiceScreen from '../screens/Terms/TermsOfServiceScreen';
 import PricingScreen from '../screens/Pricing';
 import PaymentScreen from '../screens/Payment';
+import OnboardingScreen from '../screens/Onboarding';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -60,6 +61,7 @@ const linking: LinkingOptions<RootStackParamList> = {
   config: {
     screens: {
       Landing: '',
+      Onboarding: 'onboarding',
       Welcome: 'welcome',
       AdminDashboard: 'admin-dashboard',
       AdminUsers: 'admin-users',
@@ -129,6 +131,11 @@ export default function MainNavigator() {
         <Stack.Screen
           name="Landing"
           component={LandingScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Onboarding"
+          component={OnboardingScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen

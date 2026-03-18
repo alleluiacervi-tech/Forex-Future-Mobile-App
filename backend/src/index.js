@@ -49,7 +49,11 @@ app.use(
     }
   })
 );
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+  credentials: true,
+}));
 app.use(helmet());
 
 // FIX: mount PayPal webhook BEFORE express.json() so raw body is preserved for signature verification

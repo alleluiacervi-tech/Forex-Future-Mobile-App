@@ -1,4 +1,6 @@
 import { WebSocket, WebSocketServer } from "ws";
+import jwt from "jsonwebtoken";
+import appConfig from "../config.js";
 import Logger from "../utils/logger.js";
 import { clearLiveRatesCache, recordQuote, recordTrade } from "./marketCache.js";
 import { publishMarketStream, subscribeMarketAlerts, subscribeMarketStream } from "./marketPubSub.js";
@@ -779,14 +781,32 @@ const initializeSocket = ({ server, heartbeatMs, ...opts } = {}) => {
     });
   }, 30_000);
 
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws, req) => {
+    // ── JWT Authentication ──
+    const url = new URL(req.url, "http://localhost");
+    const token = url.searchParams.get("token");
+
+    if (!token) {
+      ws.close(4401, "Unauthorized");
+      return;
+    }
+
+    let jwtPayload;
+    try {
+      jwtPayload = jwt.verify(token, appConfig.jwtSecret);
+    } catch {
+      ws.close(4401, "Unauthorized");
+      return;
+    }
+
     connectedClients.add(ws);
 
     const initialSubscriptions = new Set(defaultSymbols);
     clientState.set(ws, {
       connectedAt: Date.now(),
       lastPongAt: Date.now(),
-      subscriptions: initialSubscriptions
+      subscriptions: initialSubscriptions,
+      userId: jwtPayload.userId || jwtPayload.sub || jwtPayload.id
     });
 
     ws.on("pong", () => {

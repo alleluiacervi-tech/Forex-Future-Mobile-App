@@ -7,11 +7,12 @@ export type MarketSocketEvent = {
 
 type Listener = (event: MarketSocketEvent) => void;
 
-const resolveWsUrl = () => {
+const resolveWsUrl = (token?: string) => {
   const override = process.env.EXPO_PUBLIC_MARKET_WS_URL;
   const base = (override || APP_CONFIG.apiUrl).replace(/\/$/, '');
   const wsBase = base.startsWith('ws') ? base : base.replace(/^http/i, 'ws');
-  return `${wsBase}/ws/market`;
+  const url = `${wsBase}/ws/market`;
+  return token ? `${url}?token=${encodeURIComponent(token)}` : url;
 };
 
 class MarketSocketManager {
@@ -20,6 +21,11 @@ class MarketSocketManager {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private shouldConnect = false;
+  private authToken: string | null = null;
+
+  setAuthToken(token: string | null) {
+    this.authToken = token;
+  }
 
   subscribe(listener: Listener) {
     this.listeners.add(listener);
@@ -43,8 +49,13 @@ class MarketSocketManager {
       return;
     }
 
-    const wsUrl = resolveWsUrl();
-    console.log(`[MarketSocket] Connecting to ${wsUrl} (attempt ${this.reconnectAttempts + 1})`);
+    if (!this.authToken) {
+      this.emit({ type: 'unauthorized', message: 'No auth token available for WebSocket.' });
+      return;
+    }
+
+    const wsUrl = resolveWsUrl(this.authToken);
+    console.log(`[MarketSocket] Connecting (attempt ${this.reconnectAttempts + 1})`);
 
     try {
       this.ws = new WebSocket(wsUrl);
@@ -101,6 +112,12 @@ class MarketSocketManager {
       console.log(`[MarketSocket] Connection closed (code=${event.code}, reason=${event.reason || 'none'})`);
       this.ws = null;
       this.emit({ type: 'socketClose', code: event.code, reason: event.reason });
+
+      // Server rejected with 4401 — token is invalid/expired
+      if (event.code === 4401) {
+        this.emit({ type: 'unauthorized', message: 'WebSocket authentication failed.' });
+        return;
+      }
 
       if (!this.shouldConnect || this.listeners.size === 0) {
         return;
@@ -163,6 +180,9 @@ class MarketSocketManager {
 const marketSocketManager = new MarketSocketManager();
 
 export const subscribeToMarketSocket = (listener: Listener) => marketSocketManager.subscribe(listener);
+
+// Set JWT token for WebSocket authentication
+export const setMarketSocketToken = (token: string | null) => marketSocketManager.setAuthToken(token);
 
 // ADDED: explicit disconnect for logout — closes socket and clears all listeners
 export const disconnectMarketSocket = () => marketSocketManager.disconnect();

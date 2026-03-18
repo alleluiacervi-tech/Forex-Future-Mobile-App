@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import authService from '../services/auth';
 import type { AuthLoginOtpChallenge, AuthLoginResult } from '../services/auth';
-import { disconnectMarketSocket } from '../services/marketSocket'; // ADDED: disconnect WS on logout
+import { disconnectMarketSocket, setMarketSocketToken } from '../services/marketSocket';
 import { queryClient } from '../services/queryClient'; // ADDED: clear cache on logout
 
 export interface User {
@@ -55,6 +55,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Sync JWT token to WebSocket manager whenever it changes
+  useEffect(() => {
+    setMarketSocketToken(token);
+  }, [token]);
 
   // Initialize auth state on mount
   useEffect(() => {
@@ -166,7 +171,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setUser(null);
       setToken(null);
-      // ADDED: disconnect WebSocket on logout
+      setMarketSocketToken(null);
       disconnectMarketSocket();
       // ADDED: clear React Query cache on logout
       queryClient.clear();
