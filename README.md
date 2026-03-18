@@ -7,7 +7,7 @@ A modern, feature-rich Forex trading application built with React Native, Expo, 
 - 📊 **Real-time Currency Pairs** - View live prices for major Forex pairs
 - 📈 **Interactive Charts** - Visualize price movements with beautiful charts
 - 💹 **Trading Interface** - Execute buy/sell orders with risk management
-- 💼 **Portfolio Management** - Track your positions and trading history
+- 💼 **Portfolio Management** - Track  your positions and trading history
 - 🎨 **Modern UI** - Beautiful, dark-themed interface optimized for trading
 - 📱 **Cross-platform** - Works on both iOS and Android
 
