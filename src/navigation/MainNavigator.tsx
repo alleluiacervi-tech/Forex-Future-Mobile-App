@@ -2,6 +2,7 @@
 
 
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import type { ComponentProps } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import type { LinkingOptions } from '@react-navigation/native';
@@ -24,7 +25,14 @@ import ProfileScreen from '../screens/Profile';
 import CurrencyDetailScreen from '../screens/CurrencyDetail';
 import AboutScreen from '../screens/About';
 import WelcomeScreen from '../screens/Welcome';
-import AdminDashboardScreen from '../screens/AdminDashboard';
+import {
+  AdminDashboardScreen,
+  AdminUsersScreen,
+  AdminUserDetailScreen,
+  AdminBroadcastScreen,
+  AdminSystemScreen,
+} from '../screens/admin';
+import AdminModeToggle from '../components/admin/AdminModeToggle';
 import LoginOtpScreen from '../screens/LoginOtp';
 import VerifyEmailScreen from '../screens/VerifyEmail';
 import ForgotPasswordScreen from '../screens/ForgotPassword';
@@ -54,6 +62,10 @@ const linking: LinkingOptions<RootStackParamList> = {
       Landing: '',
       Welcome: 'welcome',
       AdminDashboard: 'admin-dashboard',
+      AdminUsers: 'admin-users',
+      AdminUserDetail: 'admin-user-detail',
+      AdminBroadcast: 'admin-broadcast',
+      AdminSystem: 'admin-system',
       Register: 'register',
       LoginOtp: 'login-otp',
       VerifyEmail: 'verify-email',
@@ -104,6 +116,7 @@ function MainTabs() {
 export default function MainNavigator() {
   return (
     <NavigationContainer ref={navigationRef} linking={linking}>
+      <View style={navStyles.container}>
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
@@ -141,6 +154,26 @@ export default function MainNavigator() {
         <Stack.Screen
           name="AdminDashboard"
           component={AdminDashboardScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="AdminUsers"
+          component={AdminUsersScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="AdminUserDetail"
+          component={AdminUserDetailScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="AdminBroadcast"
+          component={AdminBroadcastScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="AdminSystem"
+          component={AdminSystemScreen}
           options={{ headerShown: false }}
         />
         <Stack.Screen
@@ -234,6 +267,12 @@ export default function MainNavigator() {
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
+      <AdminModeToggle />
+      </View>
     </NavigationContainer>
   );
 }
+
+const navStyles = StyleSheet.create({
+  container: { flex: 1 },
+});

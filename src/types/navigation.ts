@@ -7,6 +7,10 @@ export type RootStackParamList = {
   About: undefined;
   Welcome: undefined;
   AdminDashboard: undefined;
+  AdminUsers: undefined;
+  AdminUserDetail: { userId: string };
+  AdminBroadcast: undefined;
+  AdminSystem: undefined;
   Register: undefined;
   LoginOtp:
     | undefined

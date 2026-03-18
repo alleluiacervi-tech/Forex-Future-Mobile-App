@@ -1,6 +1,7 @@
 // ADDED: subscription status hook for trial/premium checks (CHECK 3 + CHECK 10)
 import { useState, useEffect, useCallback } from 'react';
 import { apiAuthGet } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export type SubscriptionInfo = {
   plan: string | null;
@@ -27,6 +28,7 @@ export type SubscriptionState = {
 export function useSubscriptionStatus(): SubscriptionState {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   const refetch = useCallback(async () => {
     try {
@@ -46,7 +48,9 @@ export function useSubscriptionStatus(): SubscriptionState {
   const now = new Date();
   const status = subscription?.status || null;
 
+  // Admin users always have full access — single-point bypass
   const hasAccess =
+    Boolean(user?.isAdmin) ||
     status === 'active' ||
     (status === 'trial' && !!subscription?.trialEnd && new Date(subscription.trialEnd) > now) ||
     (status === 'cancelled' && !!subscription?.currentPeriodEnd && new Date(subscription.currentPeriodEnd) > now) ||

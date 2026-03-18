@@ -239,3 +239,22 @@ export async function apiAuthPut<T>(
     !!options.token,
   );
 }
+
+export async function apiAuthDelete<T>(
+  path: string,
+  options: { token?: string } = {},
+): Promise<T> {
+  const headers = await buildAuthHeaders(options.token);
+  const url = buildUrl(path);
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers,
+  });
+
+  return handleAuthResponse<T>(
+    response,
+    async (newToken) => fetch(url, { method: 'DELETE', headers: await buildAuthHeaders(newToken) }),
+    !!options.token,
+  );
+}

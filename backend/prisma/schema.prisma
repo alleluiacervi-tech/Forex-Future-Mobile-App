@@ -62,6 +62,16 @@ model User {
   preferences   UserPreference?
   refreshTokens RefreshToken[]
   notificationRecords Notification[]
+
+  // Admin system fields
+  suspendedAt       DateTime?
+  suspendedReason   String?
+  suspendedBy       String?
+  deletedAt         DateTime?
+  deletedBy         String?
+  notes             String?
+  adminCreated      Boolean    @default(false)
+  adminActions      AdminAction[] @relation("AdminActions")
 }
 
 model Account {
@@ -241,6 +251,18 @@ model Subscription {
   paypalSubscriptionId String?        @unique @map("paypal_subscription_id")
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
+  // Admin subscription control fields
+  discountPercent    Int?
+  discountReason     String?
+  discountAppliedBy  String?    @map("discount_applied_by")
+  discountAppliedAt  DateTime?  @map("discount_applied_at")
+  trialExtendedBy    String?    @map("trial_extended_by")
+  trialExtendedAt    DateTime?  @map("trial_extended_at")
+  trialExtendCount   Int        @default(0) @map("trial_extend_count")
+  overriddenBy       String?    @map("overridden_by")
+  overrideReason     String?    @map("override_reason")
+  isFree             Boolean    @default(false) @map("is_free")
+
   paymentEvents        PaymentEvent[] @relation("SubscriptionPaymentEvents")
 
   @@index([userId], map: "subscriptions_user_id_idx")
@@ -389,5 +411,23 @@ model AlertOutcome {
   updatedAt  DateTime  @updatedAt
 
   @@index([pair, outcome])
+  @@index([createdAt])
+}
+
+// Immutable audit log of every admin action
+model AdminAction {
+  id           Int      @id @default(autoincrement())
+  adminId      String
+  admin        User     @relation("AdminActions", fields: [adminId], references: [id])
+  targetUserId String?
+  actionType   String
+  description  String
+  metadata     Json?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+
+  @@index([adminId])
+  @@index([targetUserId])
+  @@index([actionType])
   @@index([createdAt])
 }
