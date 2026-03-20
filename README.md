@@ -3,7 +3,7 @@
 A modern, feature-rich Forex trading application built with React Native, Expo, and TypeScript.
 
 ## Features
-
+ 
 - 📊 **Real-time Currency Pairs** - View live prices for major Forex pairs
 - 📈 **Interactive Charts** - Visualize price movements with beautiful charts
 - 💹 **Trading Interface** - Execute buy/sell orders with risk management
