@@ -47,7 +47,7 @@ npm start
 ### Mobile API setup (required for auth on real devices)
 
 Create a root `.env` and set:
-
+ 
 ```bash
 EXPO_PUBLIC_API_URL=http://<your-lan-ip>:4000
 ```
